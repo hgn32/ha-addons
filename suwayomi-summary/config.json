@@ -1,7 +1,7 @@
 {
   "name": "Suwayomi Summary",
   "description": "Suwayomi/Mihon の .tachibk バックアップを Web で表示",
-  "version": "dev",
+  "version": "0.8",
   "slug": "suwayomi_summary",
   "init": false,
   "arch": [

@@ -1,7 +1,7 @@
 {
   "name": "InvenTree",
   "description": "InvenTree for Home Assistant",
-  "version": "dev",
+  "version": "0.8",
   "slug": "inventree",
   "init": false,
   "arch": [
