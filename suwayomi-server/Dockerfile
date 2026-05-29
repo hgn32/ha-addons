@@ -4,9 +4,7 @@ FROM ghcr.io/suwayomi/suwayomi-server:stable
 USER root
 
 COPY startup_script_org.sh /home/suwayomi/startup_script_org.sh
-COPY remove_all.sh         /home/suwayomi/remove_all.sh
 RUN chmod +x /home/suwayomi/startup_script_org.sh
-RUN chmod +x /home/suwayomi/remove_all.sh
 
 EXPOSE 4567
 
