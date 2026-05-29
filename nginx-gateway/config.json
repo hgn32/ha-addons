@@ -15,7 +15,10 @@
   "boot": "auto",
   "host_network": false,
   "build": {
-    "dockerfile": "Dockerfile"
+    "build_from": {
+      "amd64": "ghcr.io/home-assistant/amd64-base:latest",
+      "aarch64": "ghcr.io/home-assistant/aarch64-base:latest"
+    }
   },
   "ports": {
     "443/tcp": 443,
@@ -27,5 +30,8 @@
     "8883/tcp": "Public MQTTs",
     "51820/udp": "Public WireGuard"
   },
-    "map": ["share:rw","ssl:ro"]
+  "map": [
+    "share:rw",
+    "ssl:ro"
+  ]
 }
