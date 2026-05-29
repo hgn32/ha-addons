@@ -21,5 +21,6 @@
   "map": [
     "config:rw",
     "media:rw"
-  ]
+  ],
+  "image": "ghcr.io/hgn32/suwayomi-server"
 }

@@ -14,5 +14,6 @@
   },
   "ports_description": {
     "50021/tcp": "http interface"
-  }
+  },
+  "image": "ghcr.io/hgn32/inventree"
 }

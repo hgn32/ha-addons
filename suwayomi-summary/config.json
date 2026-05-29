@@ -17,5 +17,6 @@
   "ingress": true,
   "ingress_port": 8099,
   "panel_icon": "mdi:book-open-variant",
-  "panel_title": "Suwayomi Summary"
+  "panel_title": "Suwayomi Summary",
+  "image": "ghcr.io/hgn32/suwayomi-summary"
 }

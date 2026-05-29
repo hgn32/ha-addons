@@ -26,5 +26,6 @@
   "map": [
     "share:rw",
     "ssl:ro"
-  ]
+  ],
+  "image": "ghcr.io/hgn32/nginx-gateway"
 }

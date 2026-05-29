@@ -1,0 +1,92 @@
+name: Build App
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        required: true
+        type: string
+      publish:
+        required: true
+        type: boolean
+
+jobs:
+  init:
+    name: Initialize ${{ inputs.app }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      version: ${{ steps.version.outputs.version }}
+      architectures: ${{ steps.arch.outputs.architectures }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Get version and arch
+        id: version
+        run: |
+          version=$(jq -r '.version' "${{ inputs.app }}/config.json")
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Get architectures from config.json
+        id: arch
+        run: |
+          arch=$(jq -c '.arch' "${{ inputs.app }}/config.json")
+          echo "architectures=${arch}" >> "$GITHUB_OUTPUT"
+
+      - name: Get build matrix
+        id: matrix
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.03.0
+        with:
+          architectures: ${{ steps.arch.outputs.architectures }}
+          image-name: ${{ inputs.app }}
+
+  build:
+    name: Build ${{ inputs.app }} (${{ matrix.arch }})
+    needs: init
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.init.outputs.matrix) }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        uses: home-assistant/builder/actions/build-image@2026.03.0
+        with:
+          arch: ${{ matrix.arch }}
+          image-name: ${{ inputs.app }}
+          context: ${{ inputs.app }}
+          container-registry: ghcr.io
+          container-registry-user: ${{ github.repository_owner }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          push: ${{ inputs.publish }}
+          version: ${{ needs.init.outputs.version }}
+
+  publish:
+    name: Publish ${{ inputs.app }} manifest
+    needs: [init, build]
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Publish multi-arch manifest
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@2026.03.0
+        with:
+          image-name: ${{ inputs.app }}
+          container-registry: ghcr.io
+          container-registry-user: ${{ github.repository_owner }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ needs.init.outputs.version }}
+          architectures: ${{ needs.init.outputs.architectures }}
