@@ -5,11 +5,7 @@
   "slug": "voiceboxengine",
   "init": false,
   "arch": [
-    "aarch64",
-    "amd64",
-    "armhf",
-    "armv7",
-    "i386"
+    "amd64"
   ],
   "startup": "services",
   "ports": {

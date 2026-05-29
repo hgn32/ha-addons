@@ -1,5 +1,4 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
+FROM ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20
 
 RUN apk add --no-cache python3 py3-pip
 
