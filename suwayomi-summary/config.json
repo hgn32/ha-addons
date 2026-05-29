@@ -5,7 +5,8 @@
   "slug": "suwayomi_summary",
   "init": false,
   "arch": [
-    "amd64"
+    "amd64",
+    "aarch64"
   ],
   "startup": "services",
   "boot": "auto",

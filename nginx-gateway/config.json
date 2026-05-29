@@ -8,17 +8,12 @@
   "homeassistant_api": false,
   "hassio_api": false,
   "arch": [
-    "amd64"
+    "amd64",
+    "aarch64"
   ],
   "startup": "services",
   "boot": "auto",
   "host_network": false,
-  "build": {
-    "build_from": {
-      "amd64": "ghcr.io/home-assistant/amd64-base:latest",
-      "aarch64": "ghcr.io/home-assistant/aarch64-base:latest"
-    }
-  },
   "ports": {
     "443/tcp": 443,
     "8883/tcp": 8883,

@@ -1,4 +1,4 @@
-FROM ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20
+FROM ghcr.io/home-assistant/base-python:3.12-alpine3.20
 
 RUN apk add --no-cache python3 py3-pip
 

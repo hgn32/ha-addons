@@ -1,4 +1,4 @@
-FROM ghcr.io/home-assistant/amd64-base:latest
+FROM ghcr.io/home-assistant/base:latest
 
 RUN apk add --no-cache nginx
 
