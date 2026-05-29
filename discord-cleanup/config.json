@@ -1,0 +1,32 @@
+{
+  "name": "Discord Chat Cleanup Bot",
+  "description": "指定したDiscordチャンネルの古いメッセージを毎日自動削除します",
+  "version": "1.0.0",
+  "slug": "discord_cleanup",
+  "url": "https://yhc.jp",
+  "init": false,
+  "homeassistant_api": false,
+  "hassio_api": false,
+  "arch": ["amd64", "aarch64"],
+  "startup": "services",
+  "boot": "auto",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "options": {
+    "bot_token": "",
+    "channel_ids": [],
+    "keep_days": 30,
+    "run_hour": 3,
+    "run_minute": 0,
+    "dry_run": false
+  },
+  "schema": {
+    "bot_token": "str",
+    "channel_ids": ["str"],
+    "keep_days": "int",
+    "run_hour": "int(0,23)",
+    "run_minute": "int(0,59)",
+    "dry_run": "bool"
+  }
+}

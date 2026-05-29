@@ -1,0 +1,25 @@
+{
+  "name": "Suwayomi Server",
+  "description": "Self-hosted manga server compatible with Mihon",
+  "version": "dev",
+  "slug": "suwayomi_server",
+  "init": false,
+  "arch": [
+    "aarch64",
+    "amd64"
+  ],
+  "startup": "services",
+  "map_root": true,
+  "ports": {
+    "4567/tcp": 4567
+  },
+  "ports_description": {
+    "4567/tcp": "http interface"
+  },
+  "boot": "auto",
+  "tmpfs": false,
+  "map": [
+    "config:rw",
+    "media:rw"
+  ]
+}
