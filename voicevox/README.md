@@ -66,3 +66,8 @@ tts:
 ```
 
 追記後は HA を再起動することで TTS が有効になります。`speaker` の番号を変更したい場合は `configuration.yaml` を直接編集してください。
+
+スピーカー番号の一覧は以下で確認できます。
+
+- [VOICEVOX 公式キャラクター一覧](https://voicevox.hiroshiba.jp/) — キャラクターと対応番号
+- `http://<HA のアドレス>:50021/speakers` — 起動中のエンジンが返す全スピーカー JSON（番号・スタイル含む）
