@@ -34,10 +34,15 @@
 
 ## データの保存先
 
-| 種類 | パス |
+HA の `config` および `media` フォルダにマウントされます。
+
+| 種類 | HA 上のパス |
 |---|---|
-| 設定・データベース | `/config/` |
-| マンガファイル | `/media/` |
+| Suwayomi 設定・データベース | `/config/suwayomi/` |
+| ダウンロードしたマンガ | `/media/suwayomi/` |
+| バックアップ（Mihon 互換） | `/config/suwayomi/backup/` |
+
+ファイルには File editor / Samba / VS Code アドオン等からアクセスできます。
 
 ## Mihon との連携
 

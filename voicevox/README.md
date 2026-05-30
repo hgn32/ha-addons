@@ -20,3 +20,32 @@ FROM voicevox/voicevox_engine:nvidia-amd64-latest
 ```
 
 GPU版はamd64のみ対応です。
+
+## インストール
+
+1. Home Assistant の **設定 → アドオン → アドオンストア** を開く
+2. 右上のメニューから **リポジトリを追加** を選択し、以下の URL を入力する
+   ```
+   https://github.com/hgn32/ha-addons
+   ```
+3. **VOICEVOX Engine** を選択して **インストール**
+4. アドオンを起動後、`http://<HA のアドレス>:50021` で API にアクセス可能
+
+## ポート
+
+| ポート | 用途 |
+|---|---|
+| `50021` | VOICEVOX Engine API |
+
+## パスとデータ
+
+VOICEVOX Engine はステートレスで動作します。ユーザー辞書等のデータは以下に保存されます。
+
+| 種類 | コンテナ内パス | 備考 |
+|---|---|---|
+| ユーザー辞書 | `/root/.local/share/voicevox-engine/` | アドオン再起動後も保持 |
+| API ドキュメント | `http://<HA のアドレス>:50021/docs` | Swagger UI |
+
+## HA との連携例
+
+[VoiceVox TTS](https://www.home-assistant.io/integrations/voicevox_engine/) インテグレーション等を使って、HA の TTS（音声読み上げ）エンジンとして利用できます。`tts.speak` サービスの URL に `http://localhost:50021` を指定してください。

@@ -1,5 +1,7 @@
 # InvenTree
 
+> **⚠️ 開発中**: このアドオンは現在開発中です。動作が不安定な場合があります。
+
 オープンソースの在庫管理システム [InvenTree](https://inventree.org/) を Home Assistant アドオンとして動作させます。
 
 ## 機能

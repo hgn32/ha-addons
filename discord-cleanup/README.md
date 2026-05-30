@@ -35,6 +35,15 @@
 | `run_minute` | 実行時刻（分）| `0` |
 | `dry_run` | `true` にすると削除せず対象を表示するだけ | `false` |
 
+## データ・ログのパス
+
+このアドオンはステートレスで動作します。設定はすべて HA のアドオン設定画面で管理されます。
+
+| 種類 | パス |
+|---|---|
+| アドオン設定 | HA の **設定 → アドオン → Discord Chat Cleanup Bot → 設定** タブ |
+| 実行ログ | HA の **設定 → アドオン → Discord Chat Cleanup Bot → ログ** タブ |
+
 ## Discord Bot の準備
 
 1. [Discord Developer Portal](https://discord.com/developers/applications) で Bot を作成
