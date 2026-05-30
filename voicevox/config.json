@@ -10,7 +10,7 @@
   ],
   "startup": "services",
   "map": [
-    "config:rw"
+    "config:ro"
   ],
   "ports": {
     "50021/tcp": 50021

@@ -3,26 +3,28 @@
 CONFIG_FILE=/config/configuration.yaml
 TTS_MARKER="platform: voicevox_tts"
 
-if [ -f "$CONFIG_FILE" ] && grep -q "$TTS_MARKER" "$CONFIG_FILE"; then
-    echo "[VOICEVOX] TTS config already present in configuration.yaml, skipping."
-else
-    echo "[VOICEVOX] Adding TTS config to configuration.yaml..."
-    cat >> "$CONFIG_FILE" << 'EOF'
-
-tts:
-  - platform: voicevox_tts
-    host: 127.0.0.1
-    port: 50021
-    speaker: 10
-#  3:ずんだもん
-# 10:雨晴はう
-# 24:WhiteCUL
-# 89:Voidoll
-# 58:猫使ビィ
-# 48:ナースロボ＿タイプＴ
-# 46:小夜/SAYO
-EOF
-    echo "[VOICEVOX] Done."
+if [ ! -f "$CONFIG_FILE" ] || ! grep -q "$TTS_MARKER" "$CONFIG_FILE"; then
+    echo ""
+    echo "=========================================="
+    echo "[VOICEVOX] TTS が configuration.yaml に未設定です。"
+    echo "以下を /config/configuration.yaml に追記してください："
+    echo ""
+    echo "tts:"
+    echo "  - platform: voicevox_tts"
+    echo "    host: 127.0.0.1"
+    echo "    port: 50021"
+    echo "    speaker: 10"
+    echo "#  3:ずんだもん"
+    echo "# 10:雨晴はう"
+    echo "# 24:WhiteCUL"
+    echo "# 89:Voidoll"
+    echo "# 58:猫使ビィ"
+    echo "# 48:ナースロボ＿タイプＴ"
+    echo "# 46:小夜/SAYO"
+    echo ""
+    echo "追記後、Home Assistant を再起動してください。"
+    echo "=========================================="
+    echo ""
 fi
 
 exec gosu user /opt/voicevox_engine/run \
