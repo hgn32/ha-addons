@@ -1,7 +1,7 @@
 {
   "name": "VOICEVOX Engine",
   "description": "VOICEVOX Engine for Home Assistant",
-  "version": "0.8",
+  "version": "0.9",
   "slug": "voiceboxengine",
   "init": false,
   "arch": [
@@ -9,11 +9,6 @@
     "aarch64"
   ],
   "startup": "services",
-  "ports": {
-    "50021/tcp": 50021
-  },
-  "ports_description": {
-    "50021/tcp": "http interface"
-  },
+  "host_network": true,
   "image": "ghcr.io/hgn32/voicevox"
 }
