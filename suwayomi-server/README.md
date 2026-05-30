@@ -1,6 +1,6 @@
 # Suwayomi Server
 
-[Mihon](https://mihon.app/)（旧 Tachiyomi）互換のセルフホスト型マンガサーバー [Suwayomi-Server](https://github.com/Suwayomi/Suwayomi-Server) を Home Assistant アドオンとして動作させます。
+[Mihon](https://mihon.app/)（旧 Tachiyomi）互换のセルフホスト型マンガサーバー [Suwayomi-Server](https://github.com/Suwayomi/Suwayomi-Server) を Home Assistant アドオンとして動作させます。
 
 ## 機能
 
@@ -34,15 +34,14 @@
 
 ## データの保存先
 
-HA の `config` および `media` フォルダにマウントされます。
+`startup_script_org.sh` により、設定・データベース・拡張機能は `/config/suwayomi/` 配下にシンボリックリンクで永続化されます。
 
 | 種類 | HA 上のパス |
 |---|---|
-| Suwayomi 設定・データベース | `/config/suwayomi/` |
-| 手動配置したマンガ（ローカル本棚） | `/media/suwayomi/` |
-| バックアップ（Mihon 互換） | `/config/suwayomi/backup/` |
-
-ファイルには File editor / Samba / VS Code アドオン等からアクセスできます。
+| サーバー設定 | `/config/suwayomi/server.conf` |
+| オプション | `/config/suwayomi/options.json` |
+| データベース | `/config/suwayomi/database.mv.db` |
+| 拡張機能 | `/config/suwayomi/extensions/` |
 
 ## Mihon との連携
 

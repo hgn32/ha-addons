@@ -8,17 +8,12 @@ Suwayomi / Mihon / Tachiyomi の `.tachibk` バックアップを Home Assistant
 
 ## インストール
 
-1. このフォルダをまるごと、HAの `addons/` 配下に置く（ローカル add-on として）。例:
+1. Home Assistant の **設定 → アドオン → アドオンストア** を開く
+2. 右上のメニューから **リポジトリを追加** を選択し、以下の URL を入力する
    ```
-   /addons/suwayomi_summary/
-     ├── config.json
-     ├── Dockerfile
-     ├── run.sh
-     ├── requirements.txt
-     └── app/
+   https://github.com/hgn32/ha-addons
    ```
-2. HA の **Settings → Add-ons → Add-on Store → ⋮ → Check for updates** で再読み込み
-3. 「Local add-ons」に **Suwayomi Summary** が現れるので **Install** → **Start**
+3. 「Suwayomi Summary」を選択して **Install** → **Start**
 4. **OPEN WEB UI** または左サイドバーの **Suwayomi Summary** からアクセス
 
 ## データの置き場所
@@ -27,15 +22,15 @@ Suwayomi / Mihon / Tachiyomi の `.tachibk` バックアップを Home Assistant
 
 | 種類 | パス（HA上） |
 |---|---|
-| バックアップフォルダ | `/config/suwayomi_summary/backups/` |
-| 変換テーブル | `/config/suwayomi_summary/aliases.json` |
+| バックアップフォルダ | `/config/suwayomi/` |
+| 変換テーブル | `/config/suwayomi/aliases.json` |
 
 初回起動時に自動作成されます。HAの File editor / Samba / VSCode add-on などで編集してください。
 
 ## 使い方
 
 1. **アップロード**: 画面上で `.tachibk` を直接アップロード
-2. **フォルダから選択**: `/config/suwayomi_summary/backups/` に置いた `.tachibk` / `.proto.gz` を一覧から選択
+2. **フォルダから選択**: `/config/suwayomi/` に置いた `.tachibk` / `.proto.gz` を一覧から選択
 
 ### 変換テーブル `aliases.json`
 ```json
@@ -75,19 +70,13 @@ Mihon / Suwayomi のバックアップには、ソース由来のノイズがタ
 
 ### 自動除去されるパターン（`aliases.json` 不要）
 
-以下のサフィックスはエイリアス未登録でも表示時に自動除去されます（`decoder.py` の `_SUFFIXES_TO_STRIP` で定義）。
-
 | サフィックス | 例 |
 |---|---|
 | ` - RAW` | `BOKEN-KA NI NAROU! - RAW` → `BOKEN-KA NI NAROU!` |
 | ` (Raw – Free)` | `TITLE (Raw – Free)` → `TITLE` |
 | `(Raw – Free)` （前スペースなし） | `TITLE(Raw – Free)` → `TITLE` |
 
-> NFKC 正規化後にマッチするため、全角ダッシュ・全角スペース等も対象になります。
-
 ### 重複検出で無視されるパターン
-
-同じ作品の別版（コミカライズ等）を重複扱いしないための追加除去（`_DUP_EXTRA_SUFFIXES`）。
 
 | サフィックス | 備考 |
 |---|---|
@@ -96,14 +85,7 @@ Mihon / Suwayomi のバックアップには、ソース由来のノイズがタ
 
 ### `aliases.json` で対応が必要なパターン
 
-上記以外のノイズ（例: ` RAW` 末尾のみ・タイトル全体が英字表記など）は `aliases.json` に登録して正式名へ変換してください。初回起動時に 108 件のデフォルトエントリが自動生成されます。
-
-```json
-{
-  "BOKEN-KA NI NAROU!~ SUKIRU BOUDO DE DANJON KORYAKU ~ RAW": "冒険家になろう！～スキルボードでダンジョン攻略～",
-  "FLYING WITCH - RAW": "フライング・ウィッチ"
-}
-```
+上記以外のノイズは `aliases.json` に登録して正式名へ変換してください。初回起動時に 108 件のデフォルトエントリが自動生成されます。
 
 ## スタンドアロン起動 (HAなしで動かす場合)
 

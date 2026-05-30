@@ -11,10 +11,10 @@
   ],
   "startup": "services",
   "ports": {
-    "50021/tcp": 50021
+    "8000/tcp": 8000
   },
   "ports_description": {
-    "50021/tcp": "http interface"
+    "8000/tcp": "http interface"
   },
   "image": "ghcr.io/hgn32/inventree"
 }
