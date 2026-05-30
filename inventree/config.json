@@ -3,6 +3,7 @@
   "description": "InvenTree for Home Assistant",
   "version": "0.8",
   "slug": "inventree",
+  "stage": "experimental",
   "init": false,
   "arch": [
     "amd64",
