@@ -69,6 +69,23 @@ Suwayomi / Mihon / Tachiyomi の `.tachibk` バックアップを Home Assistant
 
 → 漫画数の少ないソース・更新の止まったソースが見えるので、**ソースのマージ判断** に使える
 
+## タイトルのゴミ除去について
+
+Mihon / Suwayomi のバックアップには、ソース由来のノイズがタイトルに付くことがあります。`aliases.json` で正式名に変換することを推奨します。自動除去される代表的なパターンは以下の通りです。
+
+| ゴミパターン | 例 |
+|---|---|
+| `- RAW` | `SOLO LEVELING - RAW` → `ソロレベリング` |
+| ` RAW` （末尾スペース+RAW） | `BERSERK RAW` |
+| `- RAW MANGA` | `ONE PIECE - RAW MANGA` |
+| `(RAW)` | `CHAINSAW MAN (RAW)` |
+| `[RAW]` | `VINLAND SAGA [RAW]` |
+| ` - Manga Raw` | `BLUE LOCK - Manga Raw` |
+| ` - Raw` （大文字小文字混在） | `JUJUTSU KAISEN - Raw` |
+| 全角スペースや記号の混入 | `NARUTO　-ナルト-` など |
+
+`aliases.json` に登録しておけば、バックアップ更新後も変換が自動で適用されます。
+
 ## スタンドアロン起動 (HAなしで動かす場合)
 
 ```bash

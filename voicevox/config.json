@@ -9,6 +9,9 @@
     "aarch64"
   ],
   "startup": "services",
+  "map": [
+    "config:rw"
+  ],
   "ports": {
     "50021/tcp": 50021
   },

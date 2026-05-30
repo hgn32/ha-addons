@@ -39,7 +39,7 @@ HA の `config` および `media` フォルダにマウントされます。
 | 種類 | HA 上のパス |
 |---|---|
 | Suwayomi 設定・データベース | `/config/suwayomi/` |
-| ダウンロードしたマンガ | `/media/suwayomi/` |
+| 手動配置したマンガ（ローカル本棚） | `/media/suwayomi/` |
 | バックアップ（Mihon 互換） | `/config/suwayomi/backup/` |
 
 ファイルには File editor / Samba / VS Code アドオン等からアクセスできます。
