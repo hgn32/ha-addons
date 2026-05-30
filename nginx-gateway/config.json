@@ -27,5 +27,13 @@
     "share:rw",
     "ssl:ro"
   ],
+  "options": {
+    "geoip_account_id": "",
+    "geoip_license_key": ""
+  },
+  "schema": {
+    "geoip_account_id": "str?",
+    "geoip_license_key": "password?"
+  },
   "image": "ghcr.io/hgn32/nginx-gateway"
 }
