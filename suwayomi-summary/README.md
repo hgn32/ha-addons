@@ -69,6 +69,42 @@ Suwayomi / Mihon / Tachiyomi の `.tachibk` バックアップを Home Assistant
 
 → 漫画数の少ないソース・更新の止まったソースが見えるので、**ソースのマージ判断** に使える
 
+## タイトルのゴミ除去について
+
+Mihon / Suwayomi のバックアップには、ソース由来のノイズがタイトルに付くことがあります。
+
+### 自動除去されるパターン（`aliases.json` 不要）
+
+以下のサフィックスはエイリアス未登録でも表示時に自動除去されます（`decoder.py` の `_SUFFIXES_TO_STRIP` で定義）。
+
+| サフィックス | 例 |
+|---|---|
+| ` - RAW` | `BOKEN-KA NI NAROU! - RAW` → `BOKEN-KA NI NAROU!` |
+| ` (Raw – Free)` | `TITLE (Raw – Free)` → `TITLE` |
+| `(Raw – Free)` （前スペースなし） | `TITLE(Raw – Free)` → `TITLE` |
+
+> NFKC 正規化後にマッチするため、全角ダッシュ・全角スペース等も対象になります。
+
+### 重複検出で無視されるパターン
+
+同じ作品の別版（コミカライズ等）を重複扱いしないための追加除去（`_DUP_EXTRA_SUFFIXES`）。
+
+| サフィックス | 備考 |
+|---|---|
+| `@comic` | `＠comic`・`＠ＣＯＭＩＣ` も NFKC で同一視 |
+| `THE COMIC` | コミカライズ版マーカー |
+
+### `aliases.json` で対応が必要なパターン
+
+上記以外のノイズ（例: ` RAW` 末尾のみ・タイトル全体が英字表記など）は `aliases.json` に登録して正式名へ変換してください。初回起動時に 108 件のデフォルトエントリが自動生成されます。
+
+```json
+{
+  "BOKEN-KA NI NAROU!~ SUKIRU BOUDO DE DANJON KORYAKU ~ RAW": "冒険家になろう！～スキルボードでダンジョン攻略～",
+  "FLYING WITCH - RAW": "フライング・ウィッチ"
+}
+```
+
 ## スタンドアロン起動 (HAなしで動かす場合)
 
 ```bash
