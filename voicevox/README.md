@@ -37,14 +37,9 @@ GPU版はamd64のみ対応です。
 |---|---|
 | `50021` | VOICEVOX Engine API |
 
-## パスとデータ
+## API ドキュメント
 
-VOICEVOX Engine はステートレスで動作します。ユーザー辞書等のデータは以下に保存されます。
-
-| 種類 | コンテナ内パス | 備考 |
-|---|---|---|
-| ユーザー辞書 | `/root/.local/share/voicevox-engine/` | アドオン再起動後も保持 |
-| API ドキュメント | `http://<HA のアドレス>:50021/docs` | Swagger UI |
+`http://<HA のアドレス>:50021/docs` で Swagger UI が確認できます。
 
 ## HA との連携（自動検知）
 
