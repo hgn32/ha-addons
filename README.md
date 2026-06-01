@@ -10,9 +10,9 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 指定した Discord チャンネルの古いメッセージを毎日自動削除します。
 
-### [InvenTree](./inventree)
+### [Stock Manager](./stock-manager)
 
-オープンソースの在庫管理システム [InvenTree](https://inventree.org/) を Home Assistant アドオンとして動作させます。
+シンプルな在庫管理 Web アプリです。商品マスタ・カテゴリ・置き場・購入先の管理、在庫追加・使用・強制メンテ、Amazon 購入履歴 CSV からの自動取込に対応しています。
 
 ### [Nginx Gateway](./nginx-gateway)
 
