@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="ja" x-data="app()" x-init="init()">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  [x-cloak] { display: none !important; }
+  .sidebar-item { @apply flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer text-sm font-medium transition-colors; }
+  .sidebar-item:hover { @apply bg-blue-700; }
+  .sidebar-item.active { @apply bg-blue-800; }
+  .btn { @apply px-3 py-1.5 rounded text-sm font-medium transition-colors cursor-pointer; }
+  .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700; }
+  .btn-success { @apply btn bg-green-600 text-white hover:bg-green-700; }
+  .btn-danger { @apply btn bg-red-500 text-white hover:bg-red-600; }
+  .btn-secondary { @apply btn bg-gray-200 text-gray-700 hover:bg-gray-300; }
+  .input { @apply border border-gray-300 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400; }
+  .label { @apply block text-xs font-medium text-gray-600 mb-1; }
+  .card { @apply bg-white rounded-xl shadow-sm border border-gray-200 p-4; }
+  .table-header { @apply bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2; }
+  .table-cell { @apply px-3 py-2 text-sm text-gray-700; }
+  .badge-add { @apply inline-block px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800; }
+  .badge-use { @apply inline-block px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800; }
+  .badge-adjust { @apply inline-block px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800; }
+</style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Layout -->
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-52 bg-blue-900 text-white flex flex-col flex-shrink-0">
+    <div class="px-4 py-4 border-b border-blue-700">
+      <h1 class="text-lg font-bold">📦 Stock Manager</h1>
+    </div>
+    <nav class="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
+      <div class="text-xs text-blue-400 px-2 py-1 uppercase tracking-widest">メイン</div>
+      <div class="sidebar-item" :class="{active: page==='dashboard'}" @click="page='dashboard'">🏠 ダッシュボード</div>
+      <div class="sidebar-item" :class="{active: page==='inventory'}" @click="page='inventory'; loadInventory()">📊 在庫一覧</div>
+      <div class="sidebar-item" :class="{active: page==='transactions'}" @click="page='transactions'; loadTransactions()">📋 履歴</div>
+      <div class="text-xs text-blue-400 px-2 py-1 mt-3 uppercase tracking-widest">マスタ</div>
+      <div class="sidebar-item" :class="{active: page==='products'}" @click="page='products'; loadProducts()">🏷️ 商品</div>
+      <div class="sidebar-item" :class="{active: page==='categories'}" @click="page='categories'; loadCategories()">🗂️ カテゴリ</div>
+      <div class="sidebar-item" :class="{active: page==='locations'}" @click="page='locations'; loadLocations()">📍 置き場</div>
+      <div class="sidebar-item" :class="{active: page==='suppliers'}" @click="page='suppliers'; loadSuppliers()">🏪 購入先</div>
+      <div class="text-xs text-blue-400 px-2 py-1 mt-3 uppercase tracking-widest">インポート</div>
+      <div class="sidebar-item" :class="{active: page==='amazon'}" @click="page='amazon'">🛒 Amazon取込</div>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-y-auto p-6">
+
+    <!-- Toast -->
+    <div x-show="toast.show" x-cloak x-transition
+      class="fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium"
+      :class="toast.type==='error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'">
+      <span x-text="toast.msg"></span>
+    </div>
+
+    <!-- Modal -->
+    <div x-show="modal.open" x-cloak class="fixed inset-0 z-40 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/40" @click="modal.open=false"></div>
+      <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" @click.stop>
+        <div class="flex items-center justify-between px-5 py-4 border-b">
+          <h2 class="font-semibold text-gray-800" x-text="modal.title"></h2>
+          <button @click="modal.open=false" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-5" x-html="modal.body"></div>
+        <div class="px-5 pb-4 flex justify-end gap-2" x-show="modal.onConfirm">
+          <button class="btn-secondary" @click="modal.open=false">キャンセル</button>
+          <button class="btn-primary" @click="modal.onConfirm && modal.onConfirm(); modal.open=false" x-text="modal.confirmLabel||'保存'"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DASHBOARD ===== -->
+    <div x-show="page==='dashboard'">
+      <h2 class="text-xl font-bold text-gray-800 mb-4">ダッシュボード</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="card text-center">
+          <div class="text-3xl font-bold text-blue-600" x-text="stats.products"></div>
+          <div class="text-sm text-gray-500 mt-1">商品数</div>
+        </div>
+        <div class="card text-center">
+          <div class="text-3xl font-bold text-green-600" x-text="stats.totalStock"></div>
+          <div class="text-sm text-gray-500 mt-1">総在庫数</div>
+        </div>
+        <div class="card text-center">
+          <div class="text-3xl font-bold text-orange-500" x-text="stats.lowStock"></div>
+          <div class="text-sm text-gray-500 mt-1">在庫少(≤1)</div>
+        </div>
+        <div class="card text-center">
+          <div class="text-3xl font-bold text-gray-600" x-text="stats.transactions"></div>
+          <div class="text-sm text-gray-500 mt-1">操作履歴数</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="font-semibold text-gray-700 mb-3">在庫少ない商品</h3>
+        <template x-if="lowStockItems.length===0">
+          <p class="text-sm text-gray-400">在庫少ない商品はありません</p>
+        </template>
+        <div class="space-y-2">
+          <template x-for="item in lowStockItems" :key="item.id">
+            <div class="flex items-center gap-3 p-2 bg-orange-50 rounded-lg">
+              <template x-if="item.photo">
+                <img :src="'/images/'+item.photo" class="w-10 h-10 object-cover rounded">
+              </template>
+              <template x-if="!item.photo">
+                <div class="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-lg">📦</div>
+              </template>
+              <div class="flex-1">
+                <div class="font-medium text-sm" x-text="item.name"></div>
+                <div class="text-xs text-gray-500" x-text="getCategoryName(item.category_id)"></div>
+              </div>
+              <div class="text-orange-600 font-bold" x-text="item.quantity + '個'"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== INVENTORY ===== -->
+    <div x-show="page==='inventory'" x-cloak>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">在庫一覧</h2>
+        <div class="flex gap-2">
+          <button class="btn-success" @click="openAddStockModal()">＋ 在庫追加</button>
+          <button class="btn-danger" @click="openUseStockModal()">－ 在庫使用</button>
+          <button class="btn-secondary" @click="openAdjustModal()">🔧 強制メンテ</button>
+        </div>
+      </div>
+      <div class="card">
+        <input type="text" x-model="invSearch" placeholder="商品名・JANコード・ASINで検索..." class="input mb-3">
+        <table class="w-full">
+          <thead><tr>
+            <th class="table-header text-left">商品</th>
+            <th class="table-header text-left">カテゴリ</th>
+            <th class="table-header text-left">置き場</th>
+            <th class="table-header text-right">在庫数</th>
+            <th class="table-header"></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="item in filteredInventory" :key="item.id">
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="table-cell">
+                  <div class="flex items-center gap-2">
+                    <template x-if="item.photo">
+                      <img :src="'/images/'+item.photo" class="w-8 h-8 object-cover rounded">
+                    </template>
+                    <template x-if="!item.photo">
+                      <div class="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-gray-400">📦</div>
+                    </template>
+                    <div>
+                      <div class="font-medium text-sm" x-text="item.name"></div>
+                      <div class="text-xs text-gray-400" x-text="item.jan_code ? 'JAN: '+item.jan_code : (item.amazon_asin ? 'ASIN: '+item.amazon_asin : '')"></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="table-cell text-xs" x-text="getCategoryName(item.category_id)"></td>
+                <td class="table-cell text-xs" x-text="getLocationName(item.location_id)"></td>
+                <td class="table-cell text-right font-bold" :class="item.quantity<=1 ? 'text-red-600' : 'text-gray-800'" x-text="item.quantity"></td>
+                <td class="table-cell">
+                  <button class="text-xs text-blue-500 hover:underline" @click="viewTransactions(item)">履歴</button>
+                </td>
+              </tr>
+            </template>
+            <template x-if="filteredInventory.length===0">
+              <tr><td colspan="5" class="table-cell text-center text-gray-400 py-8">商品がありません</td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== TRANSACTIONS ===== -->
+    <div x-show="page==='transactions'" x-cloak>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">操作履歴</h2>
+      </div>
+      <div class="card">
+        <table class="w-full">
+          <thead><tr>
+            <th class="table-header text-left">日時</th>
+            <th class="table-header text-left">種別</th>
+            <th class="table-header text-left">商品</th>
+            <th class="table-header text-right">数量</th>
+            <th class="table-header text-right">単価</th>
+            <th class="table-header text-left">メモ</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="tx in transactions" :key="tx.id">
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="table-cell text-xs text-gray-500" x-text="tx.date.replace('T',' ')"></td>
+                <td class="table-cell">
+                  <span :class="tx.type==='add'?'badge-add':tx.type==='use'?'badge-use':'badge-adjust'"
+                    x-text="tx.type==='add'?'追加':tx.type==='use'?'使用':'調整'"></span>
+                </td>
+                <td class="table-cell text-sm" x-text="getProductName(tx.product_id)"></td>
+                <td class="table-cell text-right font-medium"
+                  :class="tx.quantity>0?'text-green-600':'text-red-600'"
+                  x-text="(tx.quantity>0?'+':'')+tx.quantity"></td>
+                <td class="table-cell text-right text-xs text-gray-500" x-text="tx.unit_price ? '¥'+tx.unit_price.toLocaleString() : ''"></td>
+                <td class="table-cell text-xs text-gray-500" x-text="tx.note"></td>
+              </tr>
+            </template>
+            <template x-if="transactions.length===0">
+              <tr><td colspan="6" class="table-cell text-center text-gray-400 py-8">履歴がありません</td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== PRODUCTS ===== -->
+    <div x-show="page==='products'" x-cloak>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">商品マスタ</h2>
+        <button class="btn-primary" @click="openProductForm()">＋ 新規追加</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="p in products" :key="p.id">
+          <div class="card flex gap-3">
+            <template x-if="p.photo">
+              <img :src="'/images/'+p.photo" class="w-16 h-16 object-cover rounded-lg flex-shrink-0">
+            </template>
+            <template x-if="!p.photo">
+              <div class="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-2xl flex-shrink-0">📦</div>
+            </template>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm text-gray-800 truncate" x-text="p.name"></div>
+              <div class="text-xs text-gray-400 mt-0.5" x-text="getCategoryName(p.category_id)"></div>
+              <div x-show="p.jan_code" class="text-xs text-gray-400" x-text="'JAN: '+p.jan_code"></div>
+              <div x-show="p.amazon_asin" class="text-xs text-gray-400" x-text="'ASIN: '+p.amazon_asin"></div>
+              <div class="flex gap-2 mt-2">
+                <button class="text-xs text-blue-500 hover:underline" @click="openProductForm(p)">編集</button>
+                <button class="text-xs text-red-400 hover:underline" @click="deleteProduct(p)">削除</button>
+              </div>
+            </div>
+          </div>
+        </template>
+        <template x-if="products.length===0">
+          <div class="col-span-3 text-center text-gray-400 py-12">商品がありません</div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ===== CATEGORIES ===== -->
+    <div x-show="page==='categories'" x-cloak>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">カテゴリマスタ</h2>
+        <button class="btn-primary" @click="openSimpleForm('categories', null)">＋ 新規追加</button>
+      </div>
+      <div class="card">
+        <table class="w-full">
+          <thead><tr>
+            <th class="table-header text-left">カテゴリ名</th>
+            <th class="table-header text-left">メモ</th>
+            <th class="table-header"></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="c in categories" :key="c.id">
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="table-cell font-medium" x-text="c.name"></td>
+                <td class="table-cell text-xs text-gray-500" x-text="c.note"></td>
+                <td class="table-cell text-right">
+                  <button class="text-xs text-blue-500 hover:underline mr-2" @click="openSimpleForm('categories', c)">編集</button>
+                  <button class="text-xs text-red-400 hover:underline" @click="deleteSimple('categories', c)">削除</button>
+                </td>
+              </tr>
+            </template>
+            <template x-if="categories.length===0">
+              <tr><td colspan="3" class="table-cell text-center text-gray-400 py-8">カテゴリがありません</td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== LOCATIONS ===== -->
+    <div x-show="page==='locations'" x-cloak>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">置き場マスタ</h2>
+        <button class="btn-primary" @click="openSimpleForm('locations', null)">＋ 新規追加</button>
+      </div>
+      <div class="card">
+        <table class="w-full">
+          <thead><tr>
+            <th class="table-header text-left">置き場名</th>
+            <th class="table-header text-left">説明</th>
+            <th class="table-header"></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="l in locations" :key="l.id">
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="table-cell font-medium" x-text="l.name"></td>
+                <td class="table-cell text-xs text-gray-500" x-text="l.description"></td>
+                <td class="table-cell text-right">
+                  <button class="text-xs text-blue-500 hover:underline mr-2" @click="openSimpleForm('locations', l)">編集</button>
+                  <button class="text-xs text-red-400 hover:underline" @click="deleteSimple('locations', l)">削除</button>
+                </td>
+              </tr>
+            </template>
+            <template x-if="locations.length===0">
+              <tr><td colspan="3" class="table-cell text-center text-gray-400 py-8">置き場がありません</td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== SUPPLIERS ===== -->
+    <div x-show="page==='suppliers'" x-cloak>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">購入先マスタ</h2>
+        <button class="btn-primary" @click="openSimpleForm('suppliers', null)">＋ 新規追加</button>
+      </div>
+      <div class="card">
+        <table class="w-full">
+          <thead><tr>
+            <th class="table-header text-left">購入先名</th>
+            <th class="table-header text-left">URL</th>
+            <th class="table-header text-left">メモ</th>
+            <th class="table-header"></th>
+          </tr></thead>
+          <tbody>
+            <template x-for="s in suppliers" :key="s.id">
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="table-cell font-medium" x-text="s.name"></td>
+                <td class="table-cell text-xs">
+                  <a x-show="s.url" :href="s.url" target="_blank" class="text-blue-500 hover:underline" x-text="s.url"></a>
+                </td>
+                <td class="table-cell text-xs text-gray-500" x-text="s.note"></td>
+                <td class="table-cell text-right">
+                  <button class="text-xs text-blue-500 hover:underline mr-2" @click="openSimpleForm('suppliers', s)">編集</button>
+                  <button class="text-xs text-red-400 hover:underline" @click="deleteSimple('suppliers', s)">削除</button>
+                </td>
+              </tr>
+            </template>
+            <template x-if="suppliers.length===0">
+              <tr><td colspan="4" class="table-cell text-center text-gray-400 py-8">購入先がありません</td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== AMAZON IMPORT ===== -->
+    <div x-show="page==='amazon'" x-cloak>
+      <h2 class="text-xl font-bold text-gray-800 mb-4">Amazon購入履歴取込</h2>
+      <div class="card mb-4">
+        <h3 class="font-semibold text-gray-700 mb-2">使い方</h3>
+        <ol class="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+          <li>Amazonの「注文履歴」ページを開く</li>
+          <li>「注文レポートをリクエスト」からCSVをダウンロード</li>
+          <li>下のフォームからCSVをアップロード</li>
+          <li>ASINが一致する商品は在庫追加、新規商品は自動作成されます</li>
+        </ol>
+      </div>
+      <div class="card">
+        <label class="label">CSVファイル (Amazonの注文レポート)</label>
+        <input type="file" accept=".csv" @change="amazonFile=$event.target.files[0]" class="input mb-4">
+        <button class="btn-primary" @click="importAmazon()" :disabled="!amazonFile">
+          取込実行
+        </button>
+      </div>
+      <div x-show="amazonResults.length>0" x-cloak class="card mt-4">
+        <h3 class="font-semibold text-gray-700 mb-3">取込結果 (<span x-text="amazonResults.length"></span>件)</h3>
+        <table class="w-full">
+          <thead><tr>
+            <th class="table-header text-left">商品名</th>
+            <th class="table-header text-left">状態</th>
+            <th class="table-header text-right">数量</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="r in amazonResults" :key="r.product_id">
+              <tr class="border-t border-gray-100">
+                <td class="table-cell text-sm" x-text="r.name"></td>
+                <td class="table-cell">
+                  <span :class="r.status==='added'?'badge-add':'badge-adjust'"
+                    x-text="r.status==='added'?'在庫追加':'新規作成'"></span>
+                </td>
+                <td class="table-cell text-right font-medium text-green-600" x-text="'+'+r.qty"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Product Form (inline HTML rendered via x-html won't work with Alpine, so we use a dedicated section) -->
+<div x-show="productFormOpen" x-cloak class="fixed inset-0 z-40 flex items-center justify-center">
+  <div class="absolute inset-0 bg-black/40" @click="productFormOpen=false"></div>
+  <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-xl mx-4 max-h-[92vh] overflow-y-auto" @click.stop>
+    <div class="flex items-center justify-between px-5 py-4 border-b">
+      <h2 class="font-semibold text-gray-800" x-text="productForm.id ? '商品を編集' : '商品を追加'"></h2>
+      <button @click="productFormOpen=false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+    </div>
+    <div class="p-5 space-y-3">
+      <div>
+        <label class="label">商品名 *</label>
+        <input class="input" x-model="productForm.name" placeholder="商品名">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label">JANコード</label>
+          <input class="input" x-model="productForm.jan_code" placeholder="4901234567890">
+        </div>
+        <div>
+          <label class="label">Amazon ASIN</label>
+          <input class="input" x-model="productForm.amazon_asin" placeholder="B01XXXXXX">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label">カテゴリ</label>
+          <select class="input" x-model="productForm.category_id">
+            <option value="">-- 選択 --</option>
+            <template x-for="c in categories" :key="c.id">
+              <option :value="c.id" x-text="c.name"></option>
+            </template>
+          </select>
+        </div>
+        <div>
+          <label class="label">置き場</label>
+          <select class="input" x-model="productForm.location_id">
+            <option value="">-- 選択 --</option>
+            <template x-for="l in locations" :key="l.id">
+              <option :value="l.id" x-text="l.name"></option>
+            </template>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="label">購入先</label>
+        <select class="input" x-model="productForm.supplier_id">
+          <option value="">-- 選択 --</option>
+          <template x-for="s in suppliers" :key="s.id">
+            <option :value="s.id" x-text="s.name"></option>
+          </template>
+        </select>
+      </div>
+      <div>
+        <label class="label">メモ</label>
+        <input class="input" x-model="productForm.note" placeholder="メモ">
+      </div>
+      <div>
+        <label class="label">写真</label>
+        <input type="file" accept="image/*" @change="productForm.photoFile=$event.target.files[0]" class="input">
+        <template x-if="productForm.photo && !productForm.photoFile">
+          <img :src="'/images/'+productForm.photo" class="mt-2 w-24 h-24 object-cover rounded-lg">
+        </template>
+      </div>
+    </div>
+    <div class="px-5 pb-5 flex justify-end gap-2">
+      <button class="btn-secondary" @click="productFormOpen=false">キャンセル</button>
+      <button class="btn-primary" @click="saveProduct()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Simple form modal for categories/locations/suppliers -->
+<div x-show="simpleFormOpen" x-cloak class="fixed inset-0 z-40 flex items-center justify-center">
+  <div class="absolute inset-0 bg-black/40" @click="simpleFormOpen=false"></div>
+  <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" @click.stop>
+    <div class="flex items-center justify-between px-5 py-4 border-b">
+      <h2 class="font-semibold text-gray-800" x-text="simpleForm.title"></h2>
+      <button @click="simpleFormOpen=false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+    </div>
+    <div class="p-5 space-y-3">
+      <div>
+        <label class="label">名前 *</label>
+        <input class="input" x-model="simpleForm.name" placeholder="名前">
+      </div>
+      <div x-show="simpleForm.entity==='categories' || simpleForm.entity==='suppliers'">
+        <label class="label">メモ</label>
+        <input class="input" x-model="simpleForm.note" placeholder="メモ">
+      </div>
+      <div x-show="simpleForm.entity==='locations'">
+        <label class="label">説明</label>
+        <input class="input" x-model="simpleForm.description" placeholder="説明">
+      </div>
+      <div x-show="simpleForm.entity==='suppliers'">
+        <label class="label">URL</label>
+        <input class="input" x-model="simpleForm.url" placeholder="https://...">
+      </div>
+    </div>
+    <div class="px-5 pb-5 flex justify-end gap-2">
+      <button class="btn-secondary" @click="simpleFormOpen=false">キャンセル</button>
+      <button class="btn-primary" @click="saveSimple()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stock operation modals -->
+<div x-show="stockModal.open" x-cloak class="fixed inset-0 z-40 flex items-center justify-center">
+  <div class="absolute inset-0 bg-black/40" @click="stockModal.open=false"></div>
+  <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" @click.stop>
+    <div class="flex items-center justify-between px-5 py-4 border-b">
+      <h2 class="font-semibold text-gray-800" x-text="stockModal.title"></h2>
+      <button @click="stockModal.open=false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+    </div>
+    <div class="p-5 space-y-3">
+      <div>
+        <label class="label">商品 *</label>
+        <select class="input" x-model="stockModal.product_id">
+          <option value="">-- 選択 --</option>
+          <template x-for="p in products" :key="p.id">
+            <option :value="p.id" x-text="p.name + ' (在庫: ' + getStock(p.id) + ')'"></option>
+          </template>
+        </select>
+      </div>
+      <div>
+        <label class="label" x-text="stockModal.type==='adjust' ? '新しい在庫数 *' : '数量 *'"></label>
+        <input class="input" type="number" min="0" x-model="stockModal.quantity" placeholder="数量">
+      </div>
+      <div x-show="stockModal.type==='add'">
+        <label class="label">単価 (円)</label>
+        <input class="input" type="number" min="0" x-model="stockModal.unit_price" placeholder="0">
+      </div>
+      <div x-show="stockModal.type==='add'">
+        <label class="label">購入先</label>
+        <select class="input" x-model="stockModal.supplier_id">
+          <option value="">-- 選択 --</option>
+          <template x-for="s in suppliers" :key="s.id">
+            <option :value="s.id" x-text="s.name"></option>
+          </template>
+        </select>
+      </div>
+      <div>
+        <label class="label">メモ</label>
+        <input class="input" x-model="stockModal.note" placeholder="メモ">
+      </div>
+    </div>
+    <div class="px-5 pb-5 flex justify-end gap-2">
+      <button class="btn-secondary" @click="stockModal.open=false">キャンセル</button>
+      <button :class="stockModal.type==='use'?'btn-danger':'btn-primary'" @click="executeStockOp()">
+        <span x-text="stockModal.type==='add'?'追加':stockModal.type==='use'?'使用':'調整'"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function app() {
+  return {
+    page: 'dashboard',
+    products: [],
+    categories: [],
+    locations: [],
+    suppliers: [],
+    inventory: [],
+    transactions: [],
+    invSearch: '',
+    amazonFile: null,
+    amazonResults: [],
+    productFormOpen: false,
+    simpleFormOpen: false,
+    productForm: {},
+    simpleForm: {},
+    stockModal: { open: false, type: 'add', title: '', product_id: '', quantity: 1, unit_price: 0, supplier_id: '', note: '' },
+    toast: { show: false, msg: '', type: 'success' },
+    modal: { open: false, title: '', body: '', onConfirm: null, confirmLabel: '' },
+    stats: { products: 0, totalStock: 0, lowStock: 0, transactions: 0 },
+    lowStockItems: [],
+
+    async init() {
+      await Promise.all([
+        this.loadCategories(),
+        this.loadLocations(),
+        this.loadSuppliers(),
+        this.loadProducts(),
+        this.loadInventory(),
+        this.loadTransactions(),
+      ]);
+      this.calcStats();
+    },
+
+    async api(method, url, body) {
+      const res = await fetch(url, {
+        method,
+        headers: body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {},
+        body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    },
+
+    showToast(msg, type = 'success') {
+      this.toast = { show: true, msg, type };
+      setTimeout(() => this.toast.show = false, 3000);
+    },
+
+    async loadCategories() { this.categories = await this.api('GET', '/api/categories'); },
+    async loadLocations() { this.locations = await this.api('GET', '/api/locations'); },
+    async loadSuppliers() { this.suppliers = await this.api('GET', '/api/suppliers'); },
+    async loadProducts() { this.products = await this.api('GET', '/api/products'); },
+    async loadInventory() { this.inventory = await this.api('GET', '/api/inventory'); },
+    async loadTransactions() { this.transactions = await this.api('GET', '/api/transactions'); },
+
+    calcStats() {
+      this.stats.products = this.products.length;
+      this.stats.totalStock = this.inventory.reduce((s, i) => s + (i.quantity || 0), 0);
+      this.stats.lowStock = this.inventory.filter(i => (i.quantity || 0) <= 1).length;
+      this.stats.transactions = this.transactions.length;
+      this.lowStockItems = this.inventory.filter(i => (i.quantity || 0) <= 1).slice(0, 10);
+    },
+
+    getCategoryName(id) { return this.categories.find(c => c.id === id)?.name || ''; },
+    getLocationName(id) { return this.locations.find(l => l.id === id)?.name || ''; },
+    getSupplierName(id) { return this.suppliers.find(s => s.id === id)?.name || ''; },
+    getProductName(id) { return this.products.find(p => p.id === id)?.name || id; },
+    getStock(id) { return this.inventory.find(i => i.id === id)?.quantity ?? 0; },
+
+    get filteredInventory() {
+      const q = this.invSearch.toLowerCase();
+      if (!q) return this.inventory;
+      return this.inventory.filter(i =>
+        i.name?.toLowerCase().includes(q) ||
+        i.jan_code?.includes(q) ||
+        i.amazon_asin?.toLowerCase().includes(q)
+      );
+    },
+
+    // ---- Product CRUD ----
+    openProductForm(p = null) {
+      this.productForm = p
+        ? { ...p, photoFile: null }
+        : { id: '', name: '', jan_code: '', amazon_asin: '', category_id: '', supplier_id: '', location_id: '', note: '', photo: '', photoFile: null };
+      this.productFormOpen = true;
+    },
+
+    async saveProduct() {
+      if (!this.productForm.name) return this.showToast('商品名は必須です', 'error');
+      const fd = new FormData();
+      ['name','jan_code','amazon_asin','category_id','supplier_id','location_id','note'].forEach(k => fd.append(k, this.productForm[k] || ''));
+      if (this.productForm.photoFile) fd.append('photo', this.productForm.photoFile);
+      try {
+        if (this.productForm.id) {
+          await this.api('PUT', `/api/products/${this.productForm.id}`, fd);
+          this.showToast('商品を更新しました');
+        } else {
+          await this.api('POST', '/api/products', fd);
+          this.showToast('商品を追加しました');
+        }
+        this.productFormOpen = false;
+        await this.loadProducts();
+        await this.loadInventory();
+        this.calcStats();
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    async deleteProduct(p) {
+      if (!confirm(`「${p.name}」を削除しますか？`)) return;
+      try {
+        await this.api('DELETE', `/api/products/${p.id}`);
+        this.showToast('削除しました');
+        await this.loadProducts();
+        await this.loadInventory();
+        this.calcStats();
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    // ---- Simple master CRUD ----
+    openSimpleForm(entity, item) {
+      const titles = { categories: 'カテゴリ', locations: '置き場', suppliers: '購入先' };
+      this.simpleForm = item
+        ? { ...item, entity, title: (item.id ? '編集: ' : '追加: ') + titles[entity] }
+        : { entity, title: '追加: ' + titles[entity], name: '', note: '', description: '', url: '' };
+      this.simpleFormOpen = true;
+    },
+
+    async saveSimple() {
+      const e = this.simpleForm.entity;
+      if (!this.simpleForm.name) return this.showToast('名前は必須です', 'error');
+      try {
+        if (this.simpleForm.id) {
+          await this.api('PUT', `/api/${e}/${this.simpleForm.id}`, this.simpleForm);
+        } else {
+          await this.api('POST', `/api/${e}`, this.simpleForm);
+        }
+        this.showToast('保存しました');
+        this.simpleFormOpen = false;
+        if (e === 'categories') await this.loadCategories();
+        if (e === 'locations') await this.loadLocations();
+        if (e === 'suppliers') await this.loadSuppliers();
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    async deleteSimple(entity, item) {
+      if (!confirm(`「${item.name}」を削除しますか？`)) return;
+      try {
+        await this.api('DELETE', `/api/${entity}/${item.id}`);
+        this.showToast('削除しました');
+        if (entity === 'categories') await this.loadCategories();
+        if (entity === 'locations') await this.loadLocations();
+        if (entity === 'suppliers') await this.loadSuppliers();
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    // ---- Stock operations ----
+    openAddStockModal(productId = '') {
+      this.stockModal = { open: true, type: 'add', title: '在庫追加', product_id: productId, quantity: 1, unit_price: 0, supplier_id: '', note: '' };
+    },
+    openUseStockModal(productId = '') {
+      this.stockModal = { open: true, type: 'use', title: '在庫使用', product_id: productId, quantity: 1, unit_price: 0, supplier_id: '', note: '' };
+    },
+    openAdjustModal(productId = '') {
+      this.stockModal = { open: true, type: 'adjust', title: '強制メンテ (在庫数を直接指定)', product_id: productId, quantity: 0, unit_price: 0, supplier_id: '', note: '' };
+    },
+
+    async executeStockOp() {
+      if (!this.stockModal.product_id) return this.showToast('商品を選択してください', 'error');
+      const qty = parseInt(this.stockModal.quantity);
+      if (isNaN(qty) || qty < 0) return this.showToast('数量を入力してください', 'error');
+      try {
+        const body = {
+          product_id: this.stockModal.product_id,
+          quantity: qty,
+          note: this.stockModal.note,
+          unit_price: parseFloat(this.stockModal.unit_price) || 0,
+          supplier_id: this.stockModal.supplier_id,
+        };
+        const endpoints = { add: 'add', use: 'use', adjust: 'adjust' };
+        await this.api('POST', `/api/inventory/${endpoints[this.stockModal.type]}`, body);
+        const labels = { add: '追加', use: '使用', adjust: '調整' };
+        this.showToast(`在庫を${labels[this.stockModal.type]}しました`);
+        this.stockModal.open = false;
+        await this.loadInventory();
+        await this.loadTransactions();
+        this.calcStats();
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+
+    async viewTransactions(item) {
+      const txs = await this.api('GET', `/api/transactions?product_id=${item.id}`);
+      this.transactions = txs;
+      this.page = 'transactions';
+    },
+
+    // ---- Amazon import ----
+    async importAmazon() {
+      if (!this.amazonFile) return;
+      const fd = new FormData();
+      fd.append('file', this.amazonFile);
+      try {
+        const res = await this.api('POST', '/api/import/amazon', fd);
+        this.amazonResults = res.results;
+        this.showToast(`${res.imported}件を取込みました`);
+        await this.loadProducts();
+        await this.loadInventory();
+        await this.loadTransactions();
+        this.calcStats();
+      } catch (e) { this.showToast(e.message, 'error'); }
+    },
+  };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "Stock Manager",
+  "description": "シンプルな在庫管理アプリ。商品マスタ・カテゴリ・置き場・購入先の管理、Amazon購入履歴からの在庫追加に対応。",
+  "version": "1.0.0",
+  "slug": "stock-manager",
+  "stage": "experimental",
+  "init": false,
+  "arch": [
+    "amd64",
+    "aarch64"
+  ],
+  "startup": "services",
+  "ports": {
+    "8099/tcp": 8099
+  },
+  "ports_description": {
+    "8099/tcp": "Web UI"
+  },
+  "map": [
+    "config:rw"
+  ],
+  "options": {},
+  "schema": {}
+}
