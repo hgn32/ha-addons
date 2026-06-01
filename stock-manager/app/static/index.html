@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Manager</title>
+<script>const BASE = "__INGRESS_PATH__";</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <style>
@@ -107,7 +108,7 @@
           <template x-for="item in lowStockItems" :key="item.id">
             <div class="flex items-center gap-3 p-2 bg-orange-50 rounded-lg">
               <template x-if="item.photo">
-                <img :src="'/images/'+item.photo" class="w-10 h-10 object-cover rounded">
+                <img :src="BASE+'/images/'+item.photo" class="w-10 h-10 object-cover rounded">
               </template>
               <template x-if="!item.photo">
                 <div class="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-lg">📦</div>
@@ -149,7 +150,7 @@
                 <td class="table-cell">
                   <div class="flex items-center gap-2">
                     <template x-if="item.photo">
-                      <img :src="'/images/'+item.photo" class="w-8 h-8 object-cover rounded">
+                      <img :src="BASE+'/images/'+item.photo" class="w-8 h-8 object-cover rounded">
                     </template>
                     <template x-if="!item.photo">
                       <div class="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-gray-400">📦</div>
@@ -225,7 +226,7 @@
         <template x-for="p in products" :key="p.id">
           <div class="card flex gap-3">
             <template x-if="p.photo">
-              <img :src="'/images/'+p.photo" class="w-16 h-16 object-cover rounded-lg flex-shrink-0">
+              <img :src="BASE+'/images/'+p.photo" class="w-16 h-16 object-cover rounded-lg flex-shrink-0">
             </template>
             <template x-if="!p.photo">
               <div class="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-2xl flex-shrink-0">📦</div>
@@ -454,7 +455,7 @@
         <label class="label">写真</label>
         <input type="file" accept="image/*" @change="productForm.photoFile=$event.target.files[0]" class="input">
         <template x-if="productForm.photo && !productForm.photoFile">
-          <img :src="'/images/'+productForm.photo" class="mt-2 w-24 h-24 object-cover rounded-lg">
+          <img :src="BASE+'/images/'+productForm.photo" class="mt-2 w-24 h-24 object-cover rounded-lg">
         </template>
       </div>
     </div>
@@ -583,7 +584,7 @@ function app() {
     },
 
     async api(method, url, body) {
-      const res = await fetch(url, {
+      const res = await fetch(BASE + url, {
         method,
         headers: body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {},
         body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,

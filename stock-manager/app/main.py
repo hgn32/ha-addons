@@ -8,8 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 DATA_DIR = Path("/config/stock-manager")
@@ -75,8 +75,13 @@ def startup():
 # ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
-def index():
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+def index(request: Request):
+    # HA Ingress passes the base path via header; inject it so the SPA can
+    # build correct absolute URLs for API calls and static assets.
+    ingress_path = request.headers.get("X-Ingress-Path", "").rstrip("/")
+    html = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+    html = html.replace("__INGRESS_PATH__", ingress_path)
+    return HTMLResponse(content=html)
 
 
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
