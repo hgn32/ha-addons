@@ -9,14 +9,18 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <style>
   [x-cloak] { display: none !important; }
-  .sidebar-item { @apply flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer text-sm font-medium transition-colors; }
-  .sidebar-item:hover { @apply bg-blue-700; }
-  .sidebar-item.active { @apply bg-blue-800; }
-  .btn { @apply px-3 py-1.5 rounded text-sm font-medium transition-colors cursor-pointer; }
-  .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700; }
-  .btn-success { @apply btn bg-green-600 text-white hover:bg-green-700; }
-  .btn-danger { @apply btn bg-red-500 text-white hover:bg-red-600; }
-  .btn-secondary { @apply btn bg-gray-200 text-gray-700 hover:bg-gray-300; }
+  .sidebar-item { @apply flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium transition-all text-left text-blue-100 hover:bg-blue-700 hover:text-white; }
+  .sidebar-item.active { @apply bg-blue-600 text-white shadow-md; }
+  .btn { @apply inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer shadow-sm active:scale-95; }
+  .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200; }
+  .btn-success { @apply btn bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200; }
+  .btn-danger { @apply btn bg-red-500 text-white hover:bg-red-600 shadow-red-200; }
+  .btn-warning { @apply btn bg-amber-500 text-white hover:bg-amber-600 shadow-amber-200; }
+  .btn-secondary { @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50; }
+  .btn-xs { @apply inline-flex items-center gap-0.5 px-2 py-1 rounded text-xs font-medium transition-all cursor-pointer border active:scale-95; }
+  .btn-xs-edit { @apply btn-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100; }
+  .btn-xs-delete { @apply btn-xs bg-red-50 text-red-600 border-red-200 hover:bg-red-100; }
+  .btn-xs-view { @apply btn-xs bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100; }
   .input { @apply border border-gray-300 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400; }
   .label { @apply block text-xs font-medium text-gray-600 mb-1; }
   .card { @apply bg-white rounded-xl shadow-sm border border-gray-200 p-4; }
@@ -37,18 +41,18 @@
     <div class="px-4 py-4 border-b border-blue-700">
       <h1 class="text-lg font-bold">📦 Stock Manager</h1>
     </div>
-    <nav class="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
-      <div class="text-xs text-blue-400 px-2 py-1 uppercase tracking-widest">メイン</div>
-      <div class="sidebar-item" :class="{active: page==='dashboard'}" @click="page='dashboard'">🏠 ダッシュボード</div>
-      <div class="sidebar-item" :class="{active: page==='inventory'}" @click="page='inventory'; loadInventory()">📊 在庫一覧</div>
-      <div class="sidebar-item" :class="{active: page==='transactions'}" @click="page='transactions'; loadTransactions()">📋 履歴</div>
-      <div class="text-xs text-blue-400 px-2 py-1 mt-3 uppercase tracking-widest">マスタ</div>
-      <div class="sidebar-item" :class="{active: page==='products'}" @click="page='products'; loadProducts()">🏷️ 商品</div>
-      <div class="sidebar-item" :class="{active: page==='categories'}" @click="page='categories'; loadCategories()">🗂️ カテゴリ</div>
-      <div class="sidebar-item" :class="{active: page==='locations'}" @click="page='locations'; loadLocations()">📍 置き場</div>
-      <div class="sidebar-item" :class="{active: page==='suppliers'}" @click="page='suppliers'; loadSuppliers()">🏪 購入先</div>
-      <div class="text-xs text-blue-400 px-2 py-1 mt-3 uppercase tracking-widest">インポート</div>
-      <div class="sidebar-item" :class="{active: page==='amazon'}" @click="page='amazon'">🛒 Amazon取込</div>
+    <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+      <p class="text-xs text-blue-400 px-3 pt-1 pb-2 uppercase tracking-widest font-semibold">メイン</p>
+      <button class="sidebar-item" :class="{active: page==='dashboard'}" @click="page='dashboard'">🏠 ダッシュボード</button>
+      <button class="sidebar-item" :class="{active: page==='inventory'}" @click="page='inventory'; loadInventory()">📊 在庫一覧</button>
+      <button class="sidebar-item" :class="{active: page==='transactions'}" @click="page='transactions'; loadTransactions()">📋 履歴</button>
+      <p class="text-xs text-blue-400 px-3 pt-4 pb-2 uppercase tracking-widest font-semibold">マスタ</p>
+      <button class="sidebar-item" :class="{active: page==='products'}" @click="page='products'; loadProducts()">🏷️ 商品</button>
+      <button class="sidebar-item" :class="{active: page==='categories'}" @click="page='categories'; loadCategories()">🗂️ カテゴリ</button>
+      <button class="sidebar-item" :class="{active: page==='locations'}" @click="page='locations'; loadLocations()">📍 置き場</button>
+      <button class="sidebar-item" :class="{active: page==='suppliers'}" @click="page='suppliers'; loadSuppliers()">🏪 購入先</button>
+      <p class="text-xs text-blue-400 px-3 pt-4 pb-2 uppercase tracking-widest font-semibold">インポート</p>
+      <button class="sidebar-item" :class="{active: page==='amazon'}" @click="page='amazon'">🛒 Amazon取込</button>
     </nav>
   </aside>
 
@@ -131,7 +135,7 @@
         <div class="flex gap-2">
           <button class="btn-success" @click="openAddStockModal()">＋ 在庫追加</button>
           <button class="btn-danger" @click="openUseStockModal()">－ 在庫使用</button>
-          <button class="btn-secondary" @click="openAdjustModal()">🔧 強制メンテ</button>
+          <button class="btn-warning" @click="openAdjustModal()">🔧 強制メンテ</button>
         </div>
       </div>
       <div class="card">
@@ -165,7 +169,7 @@
                 <td class="table-cell text-xs" x-text="getLocationName(item.location_id)"></td>
                 <td class="table-cell text-right font-bold" :class="item.quantity<=1 ? 'text-red-600' : 'text-gray-800'" x-text="item.quantity"></td>
                 <td class="table-cell">
-                  <button class="text-xs text-blue-500 hover:underline" @click="viewTransactions(item)">履歴</button>
+                  <button class="btn-xs-view" @click="viewTransactions(item)">📋 履歴</button>
                 </td>
               </tr>
             </template>
@@ -236,9 +240,9 @@
               <div class="text-xs text-gray-400 mt-0.5" x-text="getCategoryName(p.category_id)"></div>
               <div x-show="p.jan_code" class="text-xs text-gray-400" x-text="'JAN: '+p.jan_code"></div>
               <div x-show="p.amazon_asin" class="text-xs text-gray-400" x-text="'ASIN: '+p.amazon_asin"></div>
-              <div class="flex gap-2 mt-2">
-                <button class="text-xs text-blue-500 hover:underline" @click="openProductForm(p)">編集</button>
-                <button class="text-xs text-red-400 hover:underline" @click="deleteProduct(p)">削除</button>
+              <div class="flex gap-1.5 mt-2">
+                <button class="btn-xs-edit" @click="openProductForm(p)">✏️ 編集</button>
+                <button class="btn-xs-delete" @click="deleteProduct(p)">🗑️ 削除</button>
               </div>
             </div>
           </div>
@@ -268,8 +272,8 @@
                 <td class="table-cell font-medium" x-text="c.name"></td>
                 <td class="table-cell text-xs text-gray-500" x-text="c.note"></td>
                 <td class="table-cell text-right">
-                  <button class="text-xs text-blue-500 hover:underline mr-2" @click="openSimpleForm('categories', c)">編集</button>
-                  <button class="text-xs text-red-400 hover:underline" @click="deleteSimple('categories', c)">削除</button>
+                  <button class="btn-xs-edit mr-1" @click="openSimpleForm('categories', c)">✏️ 編集</button>
+                  <button class="btn-xs-delete" @click="deleteSimple('categories', c)">🗑️ 削除</button>
                 </td>
               </tr>
             </template>
@@ -300,8 +304,8 @@
                 <td class="table-cell font-medium" x-text="l.name"></td>
                 <td class="table-cell text-xs text-gray-500" x-text="l.description"></td>
                 <td class="table-cell text-right">
-                  <button class="text-xs text-blue-500 hover:underline mr-2" @click="openSimpleForm('locations', l)">編集</button>
-                  <button class="text-xs text-red-400 hover:underline" @click="deleteSimple('locations', l)">削除</button>
+                  <button class="btn-xs-edit mr-1" @click="openSimpleForm('locations', l)">✏️ 編集</button>
+                  <button class="btn-xs-delete" @click="deleteSimple('locations', l)">🗑️ 削除</button>
                 </td>
               </tr>
             </template>
@@ -336,8 +340,8 @@
                 </td>
                 <td class="table-cell text-xs text-gray-500" x-text="s.note"></td>
                 <td class="table-cell text-right">
-                  <button class="text-xs text-blue-500 hover:underline mr-2" @click="openSimpleForm('suppliers', s)">編集</button>
-                  <button class="text-xs text-red-400 hover:underline" @click="deleteSimple('suppliers', s)">削除</button>
+                  <button class="btn-xs-edit mr-1" @click="openSimpleForm('suppliers', s)">✏️ 編集</button>
+                  <button class="btn-xs-delete" @click="deleteSimple('suppliers', s)">🗑️ 削除</button>
                 </td>
               </tr>
             </template>
