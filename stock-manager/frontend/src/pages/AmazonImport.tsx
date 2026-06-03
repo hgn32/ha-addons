@@ -94,8 +94,14 @@ export default function AmazonImport() {
           1. ログインCookie設定
         </Typography>
         <Alert severity="info" sx={{ mb: 2 }}>
-          ブラウザでAmazon.co.jpにログイン後、DevToolsで取得したCookie文字列を貼り付けてください。
-          セッション切れ時は再取得して差し替えてください。
+          <strong>取得手順:</strong><br />
+          1. ブラウザで <strong>Amazon.co.jp</strong> にログイン<br />
+          2. <strong>F12</strong> → 「Network」タブを開く<br />
+          3. ページ内の任意のリクエストを選択<br />
+          4. 「Request Headers」の <strong>Cookie:</strong> 行の値をまるごとコピー<br />
+          5. 下のテキストボックスに貼り付けて「Cookieを保存」<br />
+          <br />
+          セッション切れ時は同じ手順で再取得して差し替えてください。
         </Alert>
         <Stack spacing={2} alignItems="flex-start">
           <Chip
