@@ -228,10 +228,11 @@ export default function AmazonImport() {
               color="error"
               variant="outlined"
               onClick={async () => {
-                if (!confirm("取込履歴を全件削除します。次回クロール時に再取込されます。よろしいですか？")) return;
+                if (!confirm("取込履歴と同期日時をリセットします。次回クロール時に過去90日分が再取込されます。よろしいですか？")) return;
                 await api.del("/api/amazon/queue");
                 await loadQueue();
-                toast("取込履歴をリセットしました");
+                await loadSettings();
+                toast("取込履歴をリセットしました。「今すぐ取得」で再取込してください。");
               }}
             >
               履歴リセット
