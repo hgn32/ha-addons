@@ -1,0 +1,70 @@
+import { Prisma } from "@prisma/client";
+import { Router } from "express";
+import fs from "fs";
+import multer from "multer";
+import path from "path";
+import { prisma } from "../db";
+import { IMAGES_DIR, newId } from "../paths";
+
+const upload = multer({ storage: multer.memoryStorage() });
+const router = Router();
+
+const EDITABLE = [
+  "name",
+  "jan_code",
+  "amazon_asin",
+  "category_id",
+  "supplier_id",
+  "location_id",
+  "note",
+] as const;
+
+function savePhoto(id: string, file: Express.Multer.File): string {
+  const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+  const filename = `${id}${ext}`;
+  fs.writeFileSync(path.join(IMAGES_DIR, filename), file.buffer);
+  return filename;
+}
+
+function removePhoto(filename: string): void {
+  if (!filename) return;
+  const p = path.join(IMAGES_DIR, filename);
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+}
+
+router.get("/products", async (_req, res) => {
+  res.json(await prisma.product.findMany({ orderBy: { created_at: "asc" } }));
+});
+
+router.post("/products", upload.single("photo"), async (req, res) => {
+  const id = newId();
+  const data: Prisma.ProductUncheckedCreateInput = { id, name: req.body.name ?? "" };
+  for (const f of EDITABLE) data[f] = req.body[f] ?? "";
+  if (req.file) data.photo = savePhoto(id, req.file);
+  res.status(201).json(await prisma.product.create({ data }));
+});
+
+router.put("/products/:id", upload.single("photo"), async (req, res) => {
+  const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ detail: "Not found" });
+
+  const data: Prisma.ProductUncheckedUpdateInput = {};
+  for (const f of EDITABLE) {
+    if (req.body[f] !== undefined) data[f] = req.body[f];
+  }
+  if (req.file) {
+    removePhoto(existing.photo);
+    data.photo = savePhoto(existing.id, req.file);
+  }
+  res.json(await prisma.product.update({ where: { id: req.params.id }, data }));
+});
+
+router.delete("/products/:id", async (req, res) => {
+  const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ detail: "Not found" });
+  removePhoto(existing.photo);
+  await prisma.product.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+});
+
+export default router;

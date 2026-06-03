@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id         String   @id @default(uuid())
+  name       String
+  note       String   @default("")
+  created_at DateTime @default(now())
+}
+
+model Location {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @default("")
+  created_at  DateTime @default(now())
+}
+
+model Supplier {
+  id         String   @id @default(uuid())
+  name       String
+  url        String   @default("")
+  note       String   @default("")
+  created_at DateTime @default(now())
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  jan_code    String   @default("")
+  amazon_asin String   @default("")
+  category_id String   @default("")
+  supplier_id String   @default("")
+  location_id String   @default("")
+  note        String   @default("")
+  photo       String   @default("")
+  quantity    Int      @default(0)
+  created_at  DateTime @default(now())
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  type        String
+  product_id  String
+  quantity    Int
+  unit_price  Float    @default(0)
+  supplier_id String   @default("")
+  note        String   @default("")
+  date        DateTime @default(now())
+
+  @@index([product_id])
+}
