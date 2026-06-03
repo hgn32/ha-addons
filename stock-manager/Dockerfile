@@ -1,5 +1,5 @@
 # ---- Frontend build (Vite/React) ----
-FROM node:20-slim AS frontend
+FROM node:22-slim AS frontend
 WORKDIR /frontend
 COPY frontend/package*.json ./
 RUN npm install
@@ -7,10 +7,12 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- Backend build (Express/TypeScript + Prisma) ----
-FROM node:20-slim AS backend
+FROM node:22-slim AS backend
 WORKDIR /app
+# build-essential + python3 allow native modules (better-sqlite3) to compile
+# if a prebuilt binary is unavailable for this platform.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends openssl ca-certificates build-essential python3 \
   && rm -rf /var/lib/apt/lists/*
 ENV DATABASE_URL=file:./build.db
 COPY backend/package*.json ./
@@ -19,7 +21,7 @@ COPY backend/ ./
 RUN npx prisma generate && npm run build
 
 # ---- Runtime ----
-FROM node:20-slim
+FROM node:22-slim
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -31,6 +33,7 @@ ENV DATABASE_URL=file:/config/stock-manager/stock.db
 COPY --from=backend /app/node_modules ./node_modules
 COPY --from=backend /app/dist ./dist
 COPY --from=backend /app/prisma ./prisma
+COPY --from=backend /app/prisma.config.ts ./prisma.config.ts
 COPY --from=backend /app/package.json ./package.json
 COPY --from=frontend /frontend/dist ./public
 COPY backend/start.sh ./start.sh

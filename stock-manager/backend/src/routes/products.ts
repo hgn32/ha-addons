@@ -45,7 +45,7 @@ router.post("/products", upload.single("photo"), async (req, res) => {
 });
 
 router.put("/products/:id", upload.single("photo"), async (req, res) => {
-  const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
+  const existing = await prisma.product.findUnique({ where: { id: req.params.id as string } });
   if (!existing) return res.status(404).json({ detail: "Not found" });
 
   const data: Prisma.ProductUncheckedUpdateInput = {};
@@ -56,14 +56,14 @@ router.put("/products/:id", upload.single("photo"), async (req, res) => {
     removePhoto(existing.photo);
     data.photo = savePhoto(existing.id, req.file);
   }
-  res.json(await prisma.product.update({ where: { id: req.params.id }, data }));
+  res.json(await prisma.product.update({ where: { id: req.params.id as string }, data }));
 });
 
 router.delete("/products/:id", async (req, res) => {
-  const existing = await prisma.product.findUnique({ where: { id: req.params.id } });
+  const existing = await prisma.product.findUnique({ where: { id: req.params.id as string } });
   if (!existing) return res.status(404).json({ detail: "Not found" });
   removePhoto(existing.photo);
-  await prisma.product.delete({ where: { id: req.params.id } });
+  await prisma.product.delete({ where: { id: req.params.id as string } });
   res.status(204).end();
 });
 

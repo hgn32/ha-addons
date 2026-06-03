@@ -5,6 +5,6 @@ set -e
 mkdir -p /config/stock-manager/images
 
 # Create or update the SQLite schema from prisma/schema.prisma.
-npx prisma db push --skip-generate
+npx prisma db push
 
 exec node dist/index.js

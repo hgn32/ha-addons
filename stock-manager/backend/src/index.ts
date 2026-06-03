@@ -30,7 +30,7 @@ app.use(express.static(PUBLIC_DIR, { index: false }));
 // SPA fallback. HA Ingress proxies requests under a token path and passes it
 // via the X-Ingress-Path header; inject it so the frontend can build correct
 // absolute URLs for API calls and image assets.
-app.get("*", (req, res) => {
+app.get("/*splat", (req, res) => {
   const ingressPath = ((req.headers["x-ingress-path"] as string) || "").replace(/\/$/, "");
   const html = fs
     .readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf-8")
