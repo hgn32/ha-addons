@@ -2,7 +2,7 @@
   "name": "Stock Manager",
   "description": "シンプルな在庫管理アプリ。商品マスタ・カテゴリ・置き場・購入先の管理、Amazon購入履歴からの在庫追加に対応。",
   "version": "1.0.0",
-  "slug": "stock-manager",
+  "slug": "stock_manager_yhc",
   "stage": "experimental",
   "init": false,
   "arch": [
