@@ -80,11 +80,11 @@ export default function App() {
         sx={{
           width: DRAWER_WIDTH,
           flexShrink: 0,
-          "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
+          "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box", display: "flex", flexDirection: "column" },
         }}
       >
         <Toolbar />
-        <Box sx={{ overflow: "auto" }}>
+        <Box sx={{ overflow: "auto", flexGrow: 1 }}>
           <List>
             {NAV.map((item) => {
               const header =
@@ -109,6 +109,11 @@ export default function App() {
               );
             })}
           </List>
+        </Box>
+        <Box sx={{ p: 2, borderTop: "1px solid", borderColor: "divider" }}>
+          <Typography variant="caption" color="text.disabled" fontFamily="monospace">
+            {__COMMIT_HASH__}
+          </Typography>
         </Box>
       </Drawer>
 
