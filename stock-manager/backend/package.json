@@ -15,7 +15,8 @@
     "cheerio": "^1.2.0",
     "express": "^5.2.1",
     "multer": "^2.1.1",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "puppeteer-core": "^25.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

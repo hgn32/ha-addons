@@ -26,7 +26,7 @@ RUN npx prisma generate && npm run build
 FROM node:22-slim
 WORKDIR /app
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends openssl ca-certificates chromium fonts-noto-cjk \
   && rm -rf /var/lib/apt/lists/*
 RUN npm install -g npm@11.16.0
 ENV NODE_ENV=production

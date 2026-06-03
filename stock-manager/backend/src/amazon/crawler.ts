@@ -1,11 +1,40 @@
-import axios, { AxiosInstance } from "axios";
 import * as cheerio from "cheerio";
 import { log } from "./logger";
 
+// Minimal shape of puppeteer-core's Browser/Page (avoids ESM type-import issues)
+interface PuppeteerPage {
+  setUserAgent(ua: string): Promise<void>;
+  setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
+  setCookie(...cookies: Array<{ name: string; value: string; domain: string }>): Promise<void>;
+  goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
+  url(): string;
+  content(): Promise<string>;
+  close(): Promise<void>;
+}
+interface PuppeteerBrowser {
+  newPage(): Promise<PuppeteerPage>;
+  close(): Promise<void>;
+}
+
 const BASE = "https://www.amazon.co.jp";
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
+
+// Chromiumのパス候補（amd64 / aarch64 両対応）
+const CHROMIUM_PATHS = [
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+];
+
+function findChromium(): string {
+  const { existsSync } = require("fs") as typeof import("fs");
+  for (const p of CHROMIUM_PATHS) {
+    if (existsSync(p)) return p;
+  }
+  throw new Error(
+    `Chromiumが見つかりません。確認したパス: ${CHROMIUM_PATHS.join(", ")}`
+  );
+}
 
 export interface CrawledItem {
   order_id: string;
@@ -20,7 +49,6 @@ export interface CrawledItem {
   unit_price: number;
 }
 
-// Raised when the session cookie is no longer valid (Amazon redirects to sign-in).
 export class CookieExpiredError extends Error {
   constructor() {
     super("Amazon Cookieが無効です。再取得して設定し直してください。");
@@ -29,51 +57,8 @@ export class CookieExpiredError extends Error {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const politeDelay = (): Promise<void> => sleep(1000 + Math.floor(Math.random() * 2000));
+const politeDelay = (): Promise<void> => sleep(1500 + Math.floor(Math.random() * 1500));
 
-function makeClient(cookie: string): AxiosInstance {
-  return axios.create({
-    baseURL: BASE,
-    timeout: 20000,
-    maxRedirects: 5,
-    validateStatus: (s) => s >= 200 && s < 400,
-    headers: {
-      Cookie: cookie,
-      "User-Agent": UA,
-      "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "same-origin",
-      "Sec-Fetch-User": "?1",
-      "Upgrade-Insecure-Requests": "1",
-    },
-  });
-}
-
-function assertLoggedIn(html: string, finalUrl: string): void {
-  const challengePatterns = [
-    /\/ap\/signin/,       // ログインページ
-    /\/ax\/claim/,        // bot認証チャレンジ
-    /\/errors\/validateCaptcha/, // CAPTCHA
-    /\/gp\/aw\/c\b/,      // モバイルカート（未ログイン時リダイレクト先）
-  ];
-  if (
-    challengePatterns.some((p) => p.test(finalUrl)) ||
-    html.includes('id="ap_password"') ||
-    html.includes('name="ap_email"') ||
-    html.includes("validateCaptcha")
-  ) {
-    log("error", `認証ブロック検知: ${finalUrl}`);
-    log("error", "CookieまたはCaptchaが原因です。Cookieを再取得して貼り直してください。");
-    throw new CookieExpiredError();
-  }
-}
-
-// Extract a 10-char ASIN from any Amazon product URL.
 function asinFromUrl(href: string): string {
   const m = href.match(/\/(?:dp|gp\/product|product|gp\/aw\/d)\/([A-Z0-9]{10})/);
   return m ? m[1] : "";
@@ -91,18 +76,42 @@ function parsePrice(text: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+// Cookie文字列をPuppeteer形式に変換
+function parseCookies(cookieStr: string): Array<{ name: string; value: string; domain: string }> {
+  return cookieStr
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const idx = s.indexOf("=");
+      if (idx === -1) return null;
+      return {
+        name: s.slice(0, idx).trim(),
+        value: s.slice(idx + 1).trim(),
+        domain: ".amazon.co.jp",
+      };
+    })
+    .filter(Boolean) as Array<{ name: string; value: string; domain: string }>;
+}
+
+function assertLoggedIn(url: string, html: string): void {
+  const challenges = [/\/ap\/signin/, /\/ax\/claim/, /\/errors\/validateCaptcha/, /\/gp\/aw\/c\b/];
+  if (
+    challenges.some((p) => p.test(url)) ||
+    html.includes('id="ap_password"') ||
+    html.includes("validateCaptcha")
+  ) {
+    log("error", `認証ブロック検知: ${url}`);
+    log("error", "Cookieを再取得して貼り直してください。");
+    throw new CookieExpiredError();
+  }
+}
+
 export function parseOrderHistory(html: string): CrawledItem[] {
   const $ = cheerio.load(html);
   const items: CrawledItem[] = [];
 
-  // セレクタの候補を順に試す
-  const CARD_SELECTORS = [
-    ".order-card",
-    ".js-order-card",
-    ".a-box-group.order",
-    ".order",
-    "[data-component='order']",
-  ];
+  const CARD_SELECTORS = [".order-card", ".js-order-card", ".a-box-group.order", ".order"];
   let cards = $();
   for (const sel of CARD_SELECTORS) {
     cards = $(sel);
@@ -113,39 +122,36 @@ export function parseOrderHistory(html: string): CrawledItem[] {
   }
 
   if (cards.length === 0) {
-    const snippet = $.html().slice(0, 500).replace(/\s+/g, " ");
+    const snippet = $.html().slice(0, 600).replace(/\s+/g, " ");
     log("warn", `注文カードが見つかりません。HTML先頭: ${snippet}`);
+    return items;
   }
 
   cards.each((idx, card) => {
     const $card = $(card);
+    const cardText = $card.text();
 
-    const headerText = $card.find(".order-info, .order-header, .a-row").first().text();
-    const purchased = parseDate($card.text()) || parseDate(headerText) || null;
-
-    let orderId = "";
-    const idMatch = $card.text().match(/\b([0-9]{3}-[0-9]{7}-[0-9]{7})\b/);
-    if (idMatch) orderId = idMatch[1];
-
-    const priceText = $card.find(".a-color-price, .order-total, .yohtmlc-order-total").first().text();
-    const orderPrice = parsePrice(priceText);
-
-    // 商品リンク: /dp/ /gp/product/ /product/ いずれかを含むhref
-    const productLinks = $card.find(
-      "a[href*='/dp/'], a[href*='/gp/product/'], a[href*='/product/']"
+    const purchased = parseDate(cardText) || null;
+    const orderIdMatch = cardText.match(/\b([0-9]{3}-[0-9]{7}-[0-9]{7})\b/);
+    const orderId = orderIdMatch?.[1] ?? "";
+    const orderPrice = parsePrice(
+      $card.find(".a-color-price, .order-total, .yohtmlc-order-total").first().text()
     );
 
-    // 1枚目のカードだけ詳細をログ出力してHTML構造を確認する
+    const allLinks = $card.find("a[href]");
+    const productLinks = allLinks.filter(
+      (_, a) => /\/(?:dp|gp\/product|product)\/[A-Z0-9]{10}/.test($(a).attr("href") || "")
+    );
+
+    // 1枚目のカードだけ診断ログ
     if (idx === 0) {
-      log("info", `[診断] カード0 orderId=${orderId} 購入日=${purchased?.toLocaleDateString("ja-JP") ?? "不明"}`);
-      log("info", `[診断] 全リンク数=${$card.find("a[href]").length} 商品リンク候補数=${productLinks.length}`);
-      // カード内の全aタグのhrefを最大10件表示
-      $card.find("a[href]").slice(0, 10).each((_, a) => {
-        log("info", `[診断]   href=${$(a).attr("href")?.slice(0, 80)} text=${$(a).text().trim().slice(0, 40)}`);
+      log("info", `[診断] orderId=${orderId} 購入日=${purchased?.toLocaleDateString("ja-JP") ?? "不明"}`);
+      log("info", `[診断] 全リンク=${allLinks.length} 商品リンク候補=${productLinks.length}`);
+      allLinks.slice(0, 8).each((_, a) => {
+        const href = $(a).attr("href") ?? "";
+        const text = $(a).text().trim().slice(0, 50);
+        log("info", `[診断]   ${href.slice(0, 80)} | "${text}"`);
       });
-      // カードHTMLの先頭600文字
-      const cardHtml = $.html(card).replace(/\s+/g, " ").slice(0, 600);
-      log("info", `[診断] カードHTML先頭: ${cardHtml}`);
     }
 
     const seen = new Set<string>();
@@ -153,11 +159,9 @@ export function parseOrderHistory(html: string): CrawledItem[] {
       const $a = $(a);
       const href = $a.attr("href") || "";
       const asin = asinFromUrl(href);
-      const name = $a.text().trim();
       if (!asin || seen.has(asin)) return;
-      // テキストがない場合はimg alt を使う
-      const displayName = name || $a.find("img").attr("alt") || "";
-      if (!displayName) return;
+      const name = $a.text().trim() || $a.find("img").attr("alt") || "";
+      if (!name) return;
       seen.add(asin);
 
       const $row = $a.closest(".a-fixed-left-grid, .yohtmlc-item, .item-box, .a-row");
@@ -170,7 +174,7 @@ export function parseOrderHistory(html: string): CrawledItem[] {
         order_id: orderId,
         asin,
         jan_code: "",
-        product_name: displayName,
+        product_name: name,
         maker: "",
         product_url: href.startsWith("http") ? href : `${BASE}${href.split("?")[0]}`,
         image_url: img,
@@ -178,33 +182,80 @@ export function parseOrderHistory(html: string): CrawledItem[] {
         quantity,
         unit_price: orderPrice,
       });
-      log("info", `  商品検出: [${orderId}] ${displayName} (ASIN=${asin}, qty=${quantity})`);
+      log("info", `  商品検出: [${orderId}] ${name} (ASIN=${asin})`);
     });
   });
 
   return items;
 }
 
-async function enrichItem(client: AxiosInstance, item: CrawledItem): Promise<void> {
+async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Promise<T> {
+  const executablePath = findChromium();
+  log("info", `Chromium起動: ${executablePath}`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
+  const browser = await puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-software-rasterizer",
+    ],
+  });
+  try {
+    return await fn(browser);
+  } finally {
+    await browser.close();
+    log("info", "Chromium終了");
+  }
+}
+
+async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<PuppeteerPage> {
+  const page = await browser.newPage();
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+  );
+  await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
+  // Cookieをセット
+  const cookies = parseCookies(cookie);
+  log("info", `Cookie ${cookies.length} 件をセット`);
+  await page.setCookie(...cookies);
+  return page;
+}
+
+async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: string; finalUrl: string }> {
+  log("info", `ページ取得: ${url}`);
+  await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+  // JavaScriptの復号が完了するまで少し待つ
+  await sleep(2000);
+  const finalUrl = page.url();
+  const html = await page.content();
+  log("info", `finalUrl: ${finalUrl} / HTML長さ: ${html.length}`);
+  return { html, finalUrl };
+}
+
+async function enrichItem(page: PuppeteerPage, item: CrawledItem): Promise<void> {
   try {
     log("info", `詳細ページ取得: ${item.product_url}`);
-    const res = await client.get(item.product_url);
-    const finalUrl: string = res.request?.res?.responseUrl || "";
-    assertLoggedIn(String(res.data), finalUrl);
-    const $ = cheerio.load(res.data as string);
-
+    await page.goto(item.product_url, { waitUntil: "networkidle2", timeout: 20000 });
+    await sleep(1000);
+    const html = await page.content();
+    const $ = cheerio.load(html);
     if (!item.maker) {
-      const brand = $("#bylineInfo, #brand, a#bylineInfo").first().text().trim();
+      const brand = $("#bylineInfo, #brand").first().text().trim();
       item.maker = brand.replace(/^(ブランド:|Brand:|Visit the|のストアを表示)/i, "").trim();
     }
     if (!item.image_url) {
-      item.image_url = $("#landingImage, #imgBlkFront, #main-image").first().attr("src") || "";
+      item.image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
     }
-    const bullets = $("#detailBullets_feature_div, #productDetails_detailBullets_sections1, #prodDetails").text();
+    const bullets = $("#detailBullets_feature_div, #prodDetails").text();
     const jan = bullets.match(/\b(\d{13})\b/);
     if (jan) item.jan_code = jan[1];
   } catch (e) {
-    if (e instanceof CookieExpiredError) throw e;
     log("warn", `詳細ページ取得失敗 (${item.asin}): ${(e as Error).message}`);
   }
 }
@@ -216,65 +267,44 @@ export interface CrawlOptions {
 }
 
 export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<CrawledItem[]> {
-  const client = makeClient(cookie);
   const collected: CrawledItem[] = [];
   const maxPages = opts.maxPages ?? 10;
-
   log("info", `クロール開始 (since=${opts.since.toISOString()}, maxPages=${maxPages})`);
 
-  for (let page = 0; page < maxPages; page++) {
-    const startIndex = page * 10;
-    // /your-orders/orders が現行エンドポイント。/gp/css/order-history は廃止済み。
-    const url = `/your-orders/orders?startIndex=${startIndex}&unifiedOrders=1`;
-    log("info", `注文履歴ページ取得: ${url}`);
+  await withBrowser(async (browser) => {
+    const page = await setupPage(browser, cookie);
 
-    let res;
-    try {
-      res = await client.get(url);
-    } catch (e) {
-      log("error", `HTTPリクエスト失敗: ${(e as Error).message}`);
-      throw e;
-    }
+    for (let p = 0; p < maxPages; p++) {
+      const url = `${BASE}/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
+      const { html, finalUrl } = await fetchPageHtml(page, url);
+      assertLoggedIn(finalUrl, html);
 
-    const finalUrl: string = res.request?.res?.responseUrl || url;
-    log("info", `レスポンス: status=${res.status}, finalUrl=${finalUrl}`);
+      const pageItems = parseOrderHistory(html);
+      log("info", `ページ ${p + 1}: ${pageItems.length} 件の商品を検出`);
+      if (pageItems.length === 0) { log("info", "商品なし — クロール終了"); break; }
 
-    const html = String(res.data);
-    assertLoggedIn(html, finalUrl);
-
-    const pageItems = parseOrderHistory(html);
-    log("info", `ページ ${page + 1}: ${pageItems.length} 件の商品を検出`);
-
-    if (pageItems.length === 0) {
-      log("info", "商品なし — クロール終了");
-      break;
-    }
-
-    let reachedOld = false;
-    for (const it of pageItems) {
-      if (it.purchased_at < opts.since) {
-        log("info", `  スキップ (古い): [${it.order_id}] ${it.product_name} (${it.purchased_at.toLocaleDateString("ja-JP")})`);
-        reachedOld = true;
-        continue;
+      let reachedOld = false;
+      for (const it of pageItems) {
+        if (it.purchased_at < opts.since) {
+          log("info", `  スキップ(古): [${it.order_id}] ${it.product_name}`);
+          reachedOld = true;
+          continue;
+        }
+        collected.push(it);
       }
-      collected.push(it);
-    }
-    if (reachedOld) {
-      log("info", "差分の終端に到達 — クロール終了");
-      break;
-    }
-    await politeDelay();
-  }
-
-  log("info", `クロール完了: 対象 ${collected.length} 件`);
-
-  if (opts.enrich && collected.length > 0) {
-    log("info", "詳細ページ補完開始...");
-    for (const it of collected) {
-      await enrichItem(client, it);
+      if (reachedOld) { log("info", "差分終端に到達 — 終了"); break; }
       await politeDelay();
     }
-  }
 
+    if (opts.enrich && collected.length > 0) {
+      log("info", "詳細ページ補完開始...");
+      for (const it of collected) {
+        await enrichItem(page, it);
+        await politeDelay();
+      }
+    }
+  });
+
+  log("info", `クロール完了: 対象 ${collected.length} 件`);
   return collected;
 }
