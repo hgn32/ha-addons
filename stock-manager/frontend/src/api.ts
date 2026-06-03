@@ -18,7 +18,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   const res = await fetch(`${BASE}${url}`, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
+    throw new Error(err.detail || err.message || res.statusText || "エラーが発生しました");
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
