@@ -113,12 +113,11 @@ export function parseOrderHistory(html: string): CrawledItem[] {
   }
 
   if (cards.length === 0) {
-    // デバッグ用: HTMLの先頭500文字をログに残す
     const snippet = $.html().slice(0, 500).replace(/\s+/g, " ");
     log("warn", `注文カードが見つかりません。HTML先頭: ${snippet}`);
   }
 
-  cards.each((_, card) => {
+  cards.each((idx, card) => {
     const $card = $(card);
 
     const headerText = $card.find(".order-info, .order-header, .a-row").first().text();
@@ -131,16 +130,34 @@ export function parseOrderHistory(html: string): CrawledItem[] {
     const priceText = $card.find(".a-color-price, .order-total, .yohtmlc-order-total").first().text();
     const orderPrice = parsePrice(priceText);
 
+    // 商品リンク: /dp/ /gp/product/ /product/ いずれかを含むhref
     const productLinks = $card.find(
-      "a.a-link-normal[href*='/dp/'], a.a-link-normal[href*='/gp/product/'], a.a-link-normal[href*='/product/']"
+      "a[href*='/dp/'], a[href*='/gp/product/'], a[href*='/product/']"
     );
+
+    // 1枚目のカードだけ詳細をログ出力してHTML構造を確認する
+    if (idx === 0) {
+      log("info", `[診断] カード0 orderId=${orderId} 購入日=${purchased?.toLocaleDateString("ja-JP") ?? "不明"}`);
+      log("info", `[診断] 全リンク数=${$card.find("a[href]").length} 商品リンク候補数=${productLinks.length}`);
+      // カード内の全aタグのhrefを最大10件表示
+      $card.find("a[href]").slice(0, 10).each((_, a) => {
+        log("info", `[診断]   href=${$(a).attr("href")?.slice(0, 80)} text=${$(a).text().trim().slice(0, 40)}`);
+      });
+      // カードHTMLの先頭600文字
+      const cardHtml = $.html(card).replace(/\s+/g, " ").slice(0, 600);
+      log("info", `[診断] カードHTML先頭: ${cardHtml}`);
+    }
+
     const seen = new Set<string>();
     productLinks.each((__, a) => {
       const $a = $(a);
       const href = $a.attr("href") || "";
       const asin = asinFromUrl(href);
       const name = $a.text().trim();
-      if (!name || !asin || seen.has(asin)) return;
+      if (!asin || seen.has(asin)) return;
+      // テキストがない場合はimg alt を使う
+      const displayName = name || $a.find("img").attr("alt") || "";
+      if (!displayName) return;
       seen.add(asin);
 
       const $row = $a.closest(".a-fixed-left-grid, .yohtmlc-item, .item-box, .a-row");
@@ -153,7 +170,7 @@ export function parseOrderHistory(html: string): CrawledItem[] {
         order_id: orderId,
         asin,
         jan_code: "",
-        product_name: name,
+        product_name: displayName,
         maker: "",
         product_url: href.startsWith("http") ? href : `${BASE}${href.split("?")[0]}`,
         image_url: img,
@@ -161,7 +178,7 @@ export function parseOrderHistory(html: string): CrawledItem[] {
         quantity,
         unit_price: orderPrice,
       });
-      log("info", `  商品検出: [${orderId}] ${name} (ASIN=${asin}, qty=${quantity})`);
+      log("info", `  商品検出: [${orderId}] ${displayName} (ASIN=${asin}, qty=${quantity})`);
     });
   });
 
