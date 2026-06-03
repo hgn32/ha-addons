@@ -50,6 +50,12 @@ export interface Transaction {
   date: string;
 }
 
+export interface AmazonLogEntry {
+  ts: string;
+  level: "info" | "warn" | "error";
+  msg: string;
+}
+
 export interface AmazonSettings {
   cookie_set: boolean;
   last_sync: string;

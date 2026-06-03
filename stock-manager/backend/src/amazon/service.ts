@@ -5,6 +5,7 @@ import { prisma } from "../db";
 import { IMAGES_DIR, newId } from "../paths";
 import { getCookie, getSetting, setSetting } from "./config";
 import { crawlOrders, CrawledItem } from "./crawler";
+import { log } from "./logger";
 
 const LAST_SYNC_KEY = "amazon_last_sync";
 const DEFAULT_LOOKBACK_DAYS = 90;
@@ -51,11 +52,13 @@ function queueData(item: CrawledItem, status: string) {
 export async function runAmazonCrawl(): Promise<CrawlSummary> {
   const cookie = await getCookie();
   if (!cookie) throw new Error("Amazon Cookieが設定されていません");
+  log("info", `Cookie確認: 先頭30文字= ${cookie.slice(0, 30)}...`);
 
   const lastSyncStr = await getSetting(LAST_SYNC_KEY);
   const since = lastSyncStr
     ? new Date(lastSyncStr)
     : new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  log("info", `差分取得基準日: ${since.toISOString()}`);
 
   const orders = await crawlOrders(cookie, { since, enrich: true });
 
@@ -87,6 +90,7 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
 
     const product = await matchProduct(item.asin, item.jan_code);
     if (product) {
+      log("info", `  自動加算: "${product.name}" +${item.quantity} (ASIN=${item.asin})`);
       await prisma.product.update({
         where: { id: product.id },
         data: { quantity: { increment: item.quantity } },
@@ -103,12 +107,14 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
       await prisma.amazonQueue.create({ data: queueData(item, "auto") });
       auto++;
     } else {
+      log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
       await prisma.amazonQueue.create({ data: queueData(item, "pending") });
       queued++;
     }
   }
 
   await setSetting(LAST_SYNC_KEY, maxDate.toISOString());
+  log("info", `完了: fetched=${orders.length} auto=${auto} queued=${queued} skipped=${skipped}`);
 
   return { fetched: orders.length, auto, queued, skipped, last_sync: maxDate.toISOString() };
 }

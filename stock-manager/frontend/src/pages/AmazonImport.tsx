@@ -1,5 +1,7 @@
 import BlockIcon from "@mui/icons-material/Block";
+import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import InventoryIcon from "@mui/icons-material/Inventory";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import SyncIcon from "@mui/icons-material/Sync";
 import {
   Alert,
@@ -17,11 +19,11 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import AmazonManageDialog from "../components/AmazonManageDialog";
 import { useStore } from "../store";
-import { AmazonCrawlSummary, AmazonQueueItem, AmazonSettings } from "../types";
+import { AmazonCrawlSummary, AmazonLogEntry, AmazonQueueItem, AmazonSettings } from "../types";
 
 export default function AmazonImport() {
   const { reloadProducts, reloadInventory, reloadTransactions, toast } = useStore();
@@ -29,9 +31,11 @@ export default function AmazonImport() {
   const [settings, setSettings] = useState<AmazonSettings | null>(null);
   const [cookie, setCookie] = useState("");
   const [queue, setQueue] = useState<AmazonQueueItem[]>([]);
+  const [logs, setLogs] = useState<AmazonLogEntry[]>([]);
   const [crawling, setCrawling] = useState(false);
   const [savingCookie, setSavingCookie] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
+  const logBoxRef = useRef<HTMLDivElement>(null);
 
   const loadSettings = useCallback(async () => {
     setSettings(await api.get<AmazonSettings>("/api/amazon/settings"));
@@ -39,11 +43,15 @@ export default function AmazonImport() {
   const loadQueue = useCallback(async () => {
     setQueue(await api.get<AmazonQueueItem[]>("/api/amazon/queue?status=pending"));
   }, []);
+  const loadLogs = useCallback(async () => {
+    setLogs(await api.get<AmazonLogEntry[]>("/api/amazon/logs"));
+  }, []);
 
   useEffect(() => {
     loadSettings().catch((e) => toast((e as Error).message, "error"));
     loadQueue().catch(() => undefined);
-  }, [loadSettings, loadQueue, toast]);
+    loadLogs().catch(() => undefined);
+  }, [loadSettings, loadQueue, loadLogs, toast]);
 
   const saveCookie = async () => {
     setSavingCookie(true);
@@ -64,12 +72,18 @@ export default function AmazonImport() {
     try {
       const s = await api.post<AmazonCrawlSummary>("/api/amazon/crawl");
       toast(`取得 ${s.fetched}件（自動 ${s.auto} / 要確認 ${s.queued} / スキップ ${s.skipped}）`);
-      await Promise.all([loadQueue(), loadSettings(), reloadProducts(), reloadInventory(), reloadTransactions()]);
+      await Promise.all([loadQueue(), loadSettings(), loadLogs(), reloadProducts(), reloadInventory(), reloadTransactions()]);
     } catch (e) {
       toast((e as Error).message, "error");
+      await loadLogs();
     } finally {
       setCrawling(false);
     }
+  };
+
+  const clearLogs = async () => {
+    await api.del("/api/amazon/logs");
+    setLogs([]);
   };
 
   const ignore = async (item: AmazonQueueItem) => {
@@ -80,6 +94,12 @@ export default function AmazonImport() {
     } catch (e) {
       toast((e as Error).message, "error");
     }
+  };
+
+  const levelColor: Record<string, string> = {
+    info: "inherit",
+    warn: "#ed6c02",
+    error: "#d32f2f",
   };
 
   return (
@@ -110,7 +130,7 @@ export default function AmazonImport() {
             size="small"
           />
           <TextField
-            label="Cookie"
+            label="Cookie / cURL コマンド"
             value={cookie}
             onChange={(e) => setCookie(e.target.value)}
             fullWidth
@@ -145,10 +165,46 @@ export default function AmazonImport() {
         </Stack>
       </Paper>
 
-      {/* --- 3. 取込待ちリスト --- */}
+      {/* --- 3. 実行ログ --- */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
+          <Typography variant="h6">3. 実行ログ</Typography>
+          <Stack direction="row" spacing={1}>
+            <Button size="small" startIcon={<RefreshIcon />} onClick={loadLogs}>更新</Button>
+            <Button size="small" color="inherit" startIcon={<DeleteSweepIcon />} onClick={clearLogs}>クリア</Button>
+          </Stack>
+        </Stack>
+        <Box
+          ref={logBoxRef}
+          sx={{
+            bgcolor: "#1e1e1e",
+            color: "#d4d4d4",
+            fontFamily: "monospace",
+            fontSize: "0.75rem",
+            p: 1.5,
+            borderRadius: 1,
+            height: 260,
+            overflowY: "auto",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-all",
+          }}
+        >
+          {logs.length === 0 ? (
+            <span style={{ color: "#888" }}>ログなし — 「今すぐ取得」を実行するとここに表示されます</span>
+          ) : (
+            logs.map((e, i) => (
+              <div key={i} style={{ color: levelColor[e.level] }}>
+                {new Date(e.ts).toLocaleTimeString("ja-JP")} [{e.level.toUpperCase()}] {e.msg}
+              </div>
+            ))
+          )}
+        </Box>
+      </Paper>
+
+      {/* --- 4. 取込待ちリスト --- */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" mb={1}>
-          3. 取込待ちリスト（{queue.length}件）
+          4. 取込待ちリスト（{queue.length}件）
         </Typography>
         <Typography variant="body2" color="text.secondary" mb={2}>
           マスタに一致した商品は自動で在庫加算済みです。未登録の商品をここで振り分けます。

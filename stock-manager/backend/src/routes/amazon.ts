@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
+import { clearLogs, getLogs } from "../amazon/logger";
 import { ignoreQueueItem, manageQueueItem, runAmazonCrawl } from "../amazon/service";
 
 const router = Router();
@@ -34,6 +35,17 @@ function extractCookieFromInput(input: string): string {
   // そのまま（生Cookieとして扱う）
   return input;
 }
+
+// --- Logs ------------------------------------------------------------------
+
+router.get("/amazon/logs", (_req, res) => {
+  res.json(getLogs());
+});
+
+router.delete("/amazon/logs", (_req, res) => {
+  clearLogs();
+  res.status(204).end();
+});
 
 // --- Crawler: run + queue --------------------------------------------------
 
