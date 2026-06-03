@@ -54,3 +54,35 @@ model Transaction {
 
   @@index([product_id])
 }
+
+// Key/value store for crawler state (e.g. amazon_last_sync, amazon_cookie).
+model Setting {
+  key   String @id
+  value String @default("")
+}
+
+// Items crawled from Amazon order history waiting to be triaged.
+// status: pending (要手動) / auto (マスタ一致で自動加算) / managed (在庫管理する) / ignored (在庫管理しない)
+model AmazonQueue {
+  id           String   @id @default(uuid())
+  order_id     String   @default("")
+  asin         String   @default("")
+  jan_code     String   @default("")
+  product_name String
+  maker        String   @default("")
+  product_url  String   @default("")
+  image_url    String   @default("")
+  purchased_at DateTime
+  quantity     Int      @default(1)
+  unit_price   Float    @default(0)
+  status       String   @default("pending")
+  created_at   DateTime @default(now())
+
+  @@index([status])
+}
+
+// ASINs the user chose "在庫管理しない"; skipped on subsequent crawls.
+model AmazonIgnoredAsin {
+  asin       String   @id
+  created_at DateTime @default(now())
+}

@@ -5,6 +5,7 @@ import amazonRouter from "./routes/amazon";
 import inventoryRouter from "./routes/inventory";
 import mastersRouter from "./routes/masters";
 import productsRouter from "./routes/products";
+import { startAmazonCron } from "./amazon/cron";
 import { ensureDirs, IMAGES_DIR } from "./paths";
 
 const PORT = Number(process.env.PORT) || 8099;
@@ -40,4 +41,5 @@ app.get(/.*/, (req, res) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Stock Manager listening on :${PORT}`);
+  startAmazonCron();
 });

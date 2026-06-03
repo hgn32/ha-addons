@@ -56,3 +56,33 @@ export interface ImportResult {
   name: string;
   qty: number;
 }
+
+export interface AmazonSettings {
+  cookie_set: boolean;
+  last_sync: string;
+  cron: string;
+}
+
+export interface AmazonCrawlSummary {
+  fetched: number;
+  auto: number;
+  queued: number;
+  skipped: number;
+  last_sync: string;
+}
+
+export interface AmazonQueueItem {
+  id: string;
+  order_id: string;
+  asin: string;
+  jan_code: string;
+  product_name: string;
+  maker: string;
+  product_url: string;
+  image_url: string;
+  purchased_at: string;
+  quantity: number;
+  unit_price: number;
+  status: string;
+  created_at: string;
+}
