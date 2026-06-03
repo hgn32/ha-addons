@@ -19,7 +19,7 @@
 
 ## データ保存場所
 
-`/config/stock-manager/` に保存します。
+`/config/stock_manager_3a30c8ec/` に保存します。
 
 - `stock.db` — SQLite データベース（商品・在庫・履歴・各マスタ）
 - `images/` — 商品画像

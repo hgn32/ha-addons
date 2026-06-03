@@ -30,7 +30,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 RUN npm install -g npm@11.16.0
 ENV NODE_ENV=production
-ENV DATABASE_URL=file:/config/stock-manager/stock.db
+ENV DATABASE_URL=file:/config/stock_manager_3a30c8ec/stock.db
 
 # Bring over installed deps (incl. generated Prisma client + engines) and build output.
 COPY --from=backend /app/node_modules ./node_modules
