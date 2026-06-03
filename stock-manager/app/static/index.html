@@ -419,7 +419,7 @@
 </div>
 
 <!-- ===== Modal: 商品フォーム ===== -->
-<div x-show="productFormOpen" x-cloak class="modal d-block" style="background:rgba(0,0,0,.4)">
+<div x-show="productFormOpen" x-cloak class="modal d-block" style="display:none;background:rgba(0,0,0,.4)">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
@@ -493,7 +493,7 @@
 </div>
 
 <!-- ===== Modal: シンプルマスタフォーム ===== -->
-<div x-show="simpleFormOpen" x-cloak class="modal d-block" style="background:rgba(0,0,0,.4)">
+<div x-show="simpleFormOpen" x-cloak class="modal d-block" style="display:none;background:rgba(0,0,0,.4)">
   <div class="modal-dialog">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
@@ -529,7 +529,7 @@
 </div>
 
 <!-- ===== Modal: 在庫操作 ===== -->
-<div x-show="stockModal.open" x-cloak class="modal d-block" style="background:rgba(0,0,0,.4)">
+<div x-show="stockModal.open" x-cloak class="modal d-block" style="display:none;background:rgba(0,0,0,.4)">
   <div class="modal-dialog">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
@@ -570,7 +570,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" @click="stockModal.open=false">キャンセル</button>
-        <button :class="stockModal.type==='use'?'btn btn-danger':'stockModal.type===\'add\'?\'btn btn-success\':\'btn btn-warning\'"
+        <button :class="stockModal.type==='use' ? 'btn btn-danger' : stockModal.type==='add' ? 'btn btn-success' : 'btn btn-warning'"
           @click="executeStockOp()">
           <span x-text="stockModal.type==='add'?'追加する':stockModal.type==='use'?'使用する':'調整する'"></span>
         </button>
