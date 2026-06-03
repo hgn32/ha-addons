@@ -1,10 +1,8 @@
-import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import {
   Avatar,
   Box,
-  Button,
   Card,
   CardContent,
   IconButton,
@@ -13,6 +11,7 @@ import {
 } from "@mui/material";
 import { useState } from "react";
 import { api, imageUrl } from "../api";
+import AddFab from "../components/AddFab";
 import ProductDialog from "../components/ProductDialog";
 import { useStore } from "../store";
 import { Product } from "../types";
@@ -37,14 +36,9 @@ export default function Products() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
-        <Typography variant="h5" fontWeight={700}>
-          商品マスタ
-        </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialog({ open: true, product: null })}>
-          新規追加
-        </Button>
-      </Stack>
+      <Typography variant="h5" fontWeight={700} mb={3}>
+        商品マスタ
+      </Typography>
 
       <Box
         sx={{
@@ -82,11 +76,11 @@ export default function Products() {
                     </Typography>
                   )}
                   <Stack direction="row" spacing={0.5} mt={1}>
-                    <IconButton size="small" color="primary" onClick={() => setDialog({ open: true, product: p })}>
-                      <EditIcon fontSize="small" />
+                    <IconButton color="primary" onClick={() => setDialog({ open: true, product: p })}>
+                      <EditIcon />
                     </IconButton>
-                    <IconButton size="small" color="error" onClick={() => remove(p)}>
-                      <DeleteIcon fontSize="small" />
+                    <IconButton color="error" onClick={() => remove(p)}>
+                      <DeleteIcon />
                     </IconButton>
                   </Stack>
                 </Box>
@@ -100,6 +94,8 @@ export default function Products() {
           </Typography>
         )}
       </Box>
+
+      <AddFab label="新規追加" onClick={() => setDialog({ open: true, product: null })} />
 
       <ProductDialog
         open={dialog.open}

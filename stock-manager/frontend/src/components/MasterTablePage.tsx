@@ -1,9 +1,7 @@
-import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import {
   Box,
-  Button,
   IconButton,
   Link,
   Paper,
@@ -19,6 +17,7 @@ import {
 import { useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
+import AddFab from "./AddFab";
 import SimpleMasterDialog, { MasterEntity } from "./SimpleMasterDialog";
 
 interface Column {
@@ -55,14 +54,9 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
-        <Typography variant="h5" fontWeight={700}>
-          {title}
-        </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialog({ open: true, item: null })}>
-          新規追加
-        </Button>
-      </Stack>
+      <Typography variant="h5" fontWeight={700} mb={3}>
+        {title}
+      </Typography>
 
       <Paper sx={{ p: 2 }}>
         <TableContainer>
@@ -90,11 +84,11 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
                     </TableCell>
                   ))}
                   <TableCell align="right">
-                    <IconButton size="small" color="primary" onClick={() => setDialog({ open: true, item })}>
-                      <EditIcon fontSize="small" />
+                    <IconButton color="primary" onClick={() => setDialog({ open: true, item })}>
+                      <EditIcon />
                     </IconButton>
-                    <IconButton size="small" color="error" onClick={() => remove(item)}>
-                      <DeleteIcon fontSize="small" />
+                    <IconButton color="error" onClick={() => remove(item)}>
+                      <DeleteIcon />
                     </IconButton>
                   </TableCell>
                 </TableRow>
@@ -110,6 +104,8 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
           </Table>
         </TableContainer>
       </Paper>
+
+      <AddFab label="新規追加" onClick={() => setDialog({ open: true, item: null })} />
 
       <SimpleMasterDialog
         open={dialog.open}

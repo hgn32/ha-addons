@@ -2,11 +2,15 @@ import AddIcon from "@mui/icons-material/Add";
 import BuildIcon from "@mui/icons-material/Build";
 import HistoryIcon from "@mui/icons-material/History";
 import RemoveIcon from "@mui/icons-material/Remove";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
 import {
   Avatar,
   Box,
   Button,
   Paper,
+  SpeedDial,
+  SpeedDialAction,
+  SpeedDialIcon,
   Stack,
   Table,
   TableBody,
@@ -46,22 +50,9 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3}>
-        <Typography variant="h5" fontWeight={700}>
-          在庫一覧
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          <Button variant="contained" color="success" startIcon={<AddIcon />} onClick={() => setDialog({ open: true, mode: "add" })}>
-            在庫追加
-          </Button>
-          <Button variant="contained" color="error" startIcon={<RemoveIcon />} onClick={() => setDialog({ open: true, mode: "use" })}>
-            在庫使用
-          </Button>
-          <Button variant="contained" color="warning" startIcon={<BuildIcon />} onClick={() => setDialog({ open: true, mode: "adjust" })}>
-            強制メンテ
-          </Button>
-        </Stack>
-      </Stack>
+      <Typography variant="h5" fontWeight={700} mb={3}>
+        在庫一覧
+      </Typography>
 
       <Paper sx={{ p: 2 }}>
         <TextField
@@ -109,7 +100,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Button size="small" startIcon={<HistoryIcon />} onClick={() => viewHistory(item.id)}>
+                    <Button startIcon={<HistoryIcon />} onClick={() => viewHistory(item.id)}>
                       履歴
                     </Button>
                   </TableCell>
@@ -126,6 +117,28 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
           </Table>
         </TableContainer>
       </Paper>
+
+      <SpeedDial
+        ariaLabel="在庫操作"
+        icon={<SpeedDialIcon icon={<Inventory2Icon />} />}
+        sx={{ position: "fixed", right: 32, bottom: 32 }}
+      >
+        <SpeedDialAction
+          icon={<AddIcon color="success" />}
+          slotProps={{ tooltip: { title: "在庫追加", open: true } }}
+          onClick={() => setDialog({ open: true, mode: "add" })}
+        />
+        <SpeedDialAction
+          icon={<RemoveIcon color="error" />}
+          slotProps={{ tooltip: { title: "在庫使用", open: true } }}
+          onClick={() => setDialog({ open: true, mode: "use" })}
+        />
+        <SpeedDialAction
+          icon={<BuildIcon color="warning" />}
+          slotProps={{ tooltip: { title: "強制メンテ", open: true } }}
+          onClick={() => setDialog({ open: true, mode: "adjust" })}
+        />
+      </SpeedDial>
 
       <StockDialog open={dialog.open} mode={dialog.mode} onClose={() => setDialog({ ...dialog, open: false })} />
     </Box>
