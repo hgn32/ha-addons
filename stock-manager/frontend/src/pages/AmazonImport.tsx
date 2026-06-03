@@ -94,14 +94,14 @@ export default function AmazonImport() {
           1. ログインCookie設定
         </Typography>
         <Alert severity="info" sx={{ mb: 2 }}>
-          <strong>取得手順:</strong><br />
+          <strong>取得手順（cURLコマンドをそのまま貼るだけでOK）:</strong><br />
           1. ブラウザで <strong>Amazon.co.jp</strong> にログイン<br />
           2. <strong>F12</strong> → 「Network」タブを開く<br />
-          3. ページ内の任意のリクエストを選択<br />
-          4. 「Request Headers」の <strong>Cookie:</strong> 行の値をまるごとコピー<br />
-          5. 下のテキストボックスに貼り付けて「Cookieを保存」<br />
+          3. リスト内の任意のリクエストを<strong>右クリック</strong><br />
+          4. 「コピー」→ <strong>「cURL (bash) としてコピー」</strong> を選択<br />
+          5. コピーしたテキストを<strong>そのまま</strong>下のテキストボックスに貼り付けて「Cookieを保存」<br />
           <br />
-          セッション切れ時は同じ手順で再取得して差し替えてください。
+          Cookie の値だけを貼り付けても構いません。セッション切れ時は同じ手順で差し替えてください。
         </Alert>
         <Stack spacing={2} alignItems="flex-start">
           <Chip
@@ -116,7 +116,7 @@ export default function AmazonImport() {
             fullWidth
             multiline
             minRows={2}
-            placeholder="session-id=...; ubid-acbjp=...; at-acbjp=..."
+            placeholder="cURL コマンドをそのまま貼り付け、または Cookie の値のみ貼り付け"
           />
           <Button variant="contained" disabled={!cookie.trim() || savingCookie} onClick={saveCookie}>
             Cookieを保存

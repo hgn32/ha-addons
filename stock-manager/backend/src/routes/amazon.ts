@@ -17,10 +17,23 @@ router.get("/amazon/settings", async (_req, res) => {
 });
 
 router.post("/amazon/settings", async (req, res) => {
-  const cookie = String(req.body.cookie ?? "").trim();
+  const raw = String(req.body.cookie ?? "").trim();
+  // cURLコマンドをそのまま貼った場合は -b '...' または -H 'Cookie: ...' から値を抽出する。
+  const cookie = extractCookieFromInput(raw);
   await setSetting("amazon_cookie", cookie);
   res.json({ cookie_set: Boolean(cookie) });
 });
+
+function extractCookieFromInput(input: string): string {
+  // -b 'value' または --cookie 'value'
+  const bFlag = input.match(/(?:^|\s)-b\s+['"](.+?)['"]/s)?.[1];
+  if (bFlag) return bFlag.trim();
+  // -H 'Cookie: value' または -H "Cookie: value"
+  const hFlag = input.match(/(?:^|\s)-H\s+['"]Cookie:\s*(.+?)['"]/si)?.[1];
+  if (hFlag) return hFlag.trim();
+  // そのまま（生Cookieとして扱う）
+  return input;
+}
 
 // --- Crawler: run + queue --------------------------------------------------
 
