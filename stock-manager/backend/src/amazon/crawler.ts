@@ -78,18 +78,20 @@ function parsePrice(text: string): number {
 
 // Cookie文字列をPuppeteer形式に変換
 function parseCookies(cookieStr: string): Array<{ name: string; value: string; domain: string }> {
-  return cookieStr
+  // Strip control characters (newlines, carriage returns, tabs) that cause CDP errors
+  const sanitized = cookieStr.replace(/[\r\n\t]/g, " ");
+  return sanitized
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean)
     .map((s) => {
       const idx = s.indexOf("=");
       if (idx === -1) return null;
-      return {
-        name: s.slice(0, idx).trim(),
-        value: s.slice(idx + 1).trim(),
-        domain: ".amazon.co.jp",
-      };
+      const name = s.slice(0, idx).trim();
+      // Strip any remaining control characters from value
+      const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
+      if (!name) return null;
+      return { name, value, domain: ".amazon.co.jp" };
     })
     .filter(Boolean) as Array<{ name: string; value: string; domain: string }>;
 }
@@ -220,10 +222,18 @@ async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<Pup
       "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
   );
   await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
-  // Cookieをセット
+  // Cookieを1件ずつセット（1件のエラーで全体が止まらないよう）
   const cookies = parseCookies(cookie);
-  log("info", `Cookie ${cookies.length} 件をセット`);
-  await page.setCookie(...cookies);
+  let set = 0;
+  for (const c of cookies) {
+    try {
+      await page.setCookie(c);
+      set++;
+    } catch (e) {
+      log("warn", `Cookie "${c.name}" のセットをスキップ: ${(e as Error).message}`);
+    }
+  }
+  log("info", `Cookie ${set}/${cookies.length} 件をセット`);
   return page;
 }
 
