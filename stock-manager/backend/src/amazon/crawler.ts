@@ -5,7 +5,7 @@ import { log } from "./logger";
 const BASE = "https://www.amazon.co.jp";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+  "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
 
 export interface CrawledItem {
   order_id: string;
@@ -40,15 +40,35 @@ function makeClient(cookie: string): AxiosInstance {
     headers: {
       Cookie: cookie,
       "User-Agent": UA,
-      "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "same-origin",
+      "Sec-Fetch-User": "?1",
+      "Upgrade-Insecure-Requests": "1",
     },
   });
 }
 
 function assertLoggedIn(html: string, finalUrl: string): void {
-  if (/\/ap\/signin/.test(finalUrl) || html.includes('id="ap_password"') || html.includes('name="ap_email"')) {
-    log("error", `サインインページにリダイレクトされました (url=${finalUrl}) — Cookieが無効です`);
+  const challengePatterns = [
+    /\/ap\/signin/,       // ログインページ
+    /\/ax\/claim/,        // bot認証チャレンジ
+    /\/errors\/validateCaptcha/, // CAPTCHA
+    /\/gp\/aw\/c\b/,      // モバイルカート（未ログイン時リダイレクト先）
+  ];
+  if (
+    challengePatterns.some((p) => p.test(finalUrl)) ||
+    html.includes('id="ap_password"') ||
+    html.includes('name="ap_email"') ||
+    html.includes("validateCaptcha")
+  ) {
+    log("error", `認証ブロック検知: ${finalUrl}`);
+    log("error", "CookieまたはCaptchaが原因です。Cookieを再取得して貼り直してください。");
     throw new CookieExpiredError();
   }
 }
@@ -187,7 +207,8 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
 
   for (let page = 0; page < maxPages; page++) {
     const startIndex = page * 10;
-    const url = `/gp/css/order-history?startIndex=${startIndex}&unifiedOrders=1`;
+    // /your-orders/orders が現行エンドポイント。/gp/css/order-history は廃止済み。
+    const url = `/your-orders/orders?startIndex=${startIndex}&unifiedOrders=1`;
     log("info", `注文履歴ページ取得: ${url}`);
 
     let res;

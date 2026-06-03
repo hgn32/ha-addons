@@ -58,6 +58,8 @@ export interface AmazonLogEntry {
 
 export interface AmazonSettings {
   cookie_set: boolean;
+  cookie_preview: string;
+  cookie_length: number;
   last_sync: string;
   cron: string;
 }

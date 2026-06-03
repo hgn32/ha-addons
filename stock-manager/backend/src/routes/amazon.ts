@@ -12,6 +12,9 @@ router.get("/amazon/settings", async (_req, res) => {
   const cookie = await getCookie();
   res.json({
     cookie_set: Boolean(cookie),
+    // 先頭80文字を表示（確認用）
+    cookie_preview: cookie ? cookie.slice(0, 80) + (cookie.length > 80 ? "..." : "") : "",
+    cookie_length: cookie.length,
     last_sync: await getSetting("amazon_last_sync"),
     cron: getCronSchedule(),
   });
@@ -26,12 +29,18 @@ router.post("/amazon/settings", async (req, res) => {
 });
 
 function extractCookieFromInput(input: string): string {
-  // -b 'value' または --cookie 'value'
-  const bFlag = input.match(/(?:^|\s)-b\s+['"](.+?)['"]/s)?.[1];
-  if (bFlag) return bFlag.trim();
-  // -H 'Cookie: value' または -H "Cookie: value"
-  const hFlag = input.match(/(?:^|\s)-H\s+['"]Cookie:\s*(.+?)['"]/si)?.[1];
-  if (hFlag) return hFlag.trim();
+  // -b 'value' : cURLのbashコピーはシングルクォートで囲む。
+  // Cookieの値自体にダブルクォートが含まれるため ['"] で閉じると途中で切れてしまう。
+  // シングルクォート → シングルクォートまで、ダブルクォート → ダブルクォートまでで個別に処理する。
+  const bSingle = input.match(/(?:^|\s)-b\s+'([^']+)'/)?.[1];
+  if (bSingle) return bSingle.trim();
+  const bDouble = input.match(/(?:^|\s)-b\s+"([^"]+)"/)?.[1];
+  if (bDouble) return bDouble.trim();
+  // -H 'Cookie: value'
+  const hSingle = input.match(/(?:^|\s)-H\s+'Cookie:\s*([^']+)'/i)?.[1];
+  if (hSingle) return hSingle.trim();
+  const hDouble = input.match(/(?:^|\s)-H\s+"Cookie:\s*([^"]+)"/i)?.[1];
+  if (hDouble) return hDouble.trim();
   // そのまま（生Cookieとして扱う）
   return input;
 }

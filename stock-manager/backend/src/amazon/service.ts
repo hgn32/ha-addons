@@ -52,7 +52,8 @@ function queueData(item: CrawledItem, status: string) {
 export async function runAmazonCrawl(): Promise<CrawlSummary> {
   const cookie = await getCookie();
   if (!cookie) throw new Error("Amazon Cookieが設定されていません");
-  log("info", `Cookie確認: 先頭30文字= ${cookie.slice(0, 30)}...`);
+  log("info", `Cookie長さ: ${cookie.length}文字`);
+  log("info", `Cookie先頭: ${cookie.slice(0, 60)}...`);
 
   const lastSyncStr = await getSetting(LAST_SYNC_KEY);
   const since = lastSyncStr

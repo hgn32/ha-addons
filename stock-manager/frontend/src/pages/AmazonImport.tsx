@@ -124,11 +124,18 @@ export default function AmazonImport() {
           Cookie の値だけを貼り付けても構いません。セッション切れ時は同じ手順で差し替えてください。
         </Alert>
         <Stack spacing={2} alignItems="flex-start">
-          <Chip
-            label={settings?.cookie_set ? "Cookie設定済み" : "Cookie未設定"}
-            color={settings?.cookie_set ? "success" : "default"}
-            size="small"
-          />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip
+              label={settings?.cookie_set ? "Cookie設定済み" : "Cookie未設定"}
+              color={settings?.cookie_set ? "success" : "default"}
+              size="small"
+            />
+            {settings?.cookie_set && (
+              <Typography variant="caption" color="text.secondary">
+                {settings.cookie_length}文字 / 先頭: {settings.cookie_preview}
+              </Typography>
+            )}
+          </Stack>
           <TextField
             label="Cookie / cURL コマンド"
             value={cookie}
