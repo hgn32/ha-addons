@@ -77,7 +77,7 @@ function parsePrice(text: string): number {
 }
 
 // Cookie文字列をPuppeteer形式に変換
-function parseCookies(cookieStr: string): Array<{ name: string; value: string; domain: string }> {
+function parseCookies(cookieStr: string): Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }> {
   // Strip control characters (newlines, carriage returns, tabs) that cause CDP errors
   const sanitized = cookieStr.replace(/[\r\n\t]/g, " ");
   return sanitized
@@ -91,9 +91,12 @@ function parseCookies(cookieStr: string): Array<{ name: string; value: string; d
       // Strip any remaining control characters from value
       const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
       if (!name) return null;
-      return { name, value, domain: ".amazon.co.jp" };
+      // __Secure- prefix requires secure:true; __Host- requires secure:true + path:"/"
+      const secure = name.startsWith("__Secure-") || name.startsWith("__Host-");
+      const path = name.startsWith("__Host-") ? "/" : undefined;
+      return { name, value, domain: ".amazon.co.jp", ...(secure ? { secure } : {}), ...(path ? { path } : {}) };
     })
-    .filter(Boolean) as Array<{ name: string; value: string; domain: string }>;
+    .filter(Boolean) as Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }>;
 }
 
 function assertLoggedIn(url: string, html: string): void {

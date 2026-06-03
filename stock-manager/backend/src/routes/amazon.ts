@@ -77,6 +77,12 @@ router.get("/amazon/queue", async (req, res) => {
   );
 });
 
+// キュー全リセット（重複dedup解除用）
+router.delete("/amazon/queue", async (_req, res) => {
+  await prisma.amazonQueue.deleteMany({});
+  res.status(204).end();
+});
+
 // パターンA: 在庫管理する（商品マスタ登録 + 在庫加算）
 router.post("/amazon/queue/:id/manage", async (req, res) => {
   try {

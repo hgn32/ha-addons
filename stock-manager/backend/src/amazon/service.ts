@@ -80,11 +80,13 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
       continue;
     }
 
-    // Dedup against anything already crawled for this order+asin.
+    // Dedup: skip if already processed (auto/managed/ignored).
+    // Re-queue if a previous pending entry somehow disappeared but don't double-insert.
     const dup = await prisma.amazonQueue.findFirst({
       where: { order_id: item.order_id, asin: item.asin },
     });
     if (dup) {
+      log("info", `  スキップ(重複 status=${dup.status}): [${item.order_id}] ${item.product_name}`);
       skipped++;
       continue;
     }

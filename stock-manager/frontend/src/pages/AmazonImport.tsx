@@ -8,8 +8,10 @@ import {
   Box,
   Button,
   Chip,
+  FormControlLabel,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -35,14 +37,16 @@ export default function AmazonImport() {
   const [crawling, setCrawling] = useState(false);
   const [savingCookie, setSavingCookie] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const logBoxRef = useRef<HTMLDivElement>(null);
 
   const loadSettings = useCallback(async () => {
     setSettings(await api.get<AmazonSettings>("/api/amazon/settings"));
   }, []);
-  const loadQueue = useCallback(async () => {
-    setQueue(await api.get<AmazonQueueItem[]>("/api/amazon/queue?status=pending"));
-  }, []);
+  const loadQueue = useCallback(async (all?: boolean) => {
+    const s = all !== undefined ? all : showAll;
+    setQueue(await api.get<AmazonQueueItem[]>(`/api/amazon/queue?status=${s ? "all" : "pending"}`));
+  }, [showAll]);
   const loadLogs = useCallback(async () => {
     setLogs(await api.get<AmazonLogEntry[]>("/api/amazon/logs"));
   }, []);
@@ -210,9 +214,30 @@ export default function AmazonImport() {
 
       {/* --- 4. 取込待ちリスト --- */}
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" mb={1}>
-          4. 取込待ちリスト（{queue.length}件）
-        </Typography>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
+          <Typography variant="h6">
+            4. 取込待ちリスト（{queue.length}件）
+          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <FormControlLabel
+              control={<Switch size="small" checked={showAll} onChange={(e) => { setShowAll(e.target.checked); loadQueue(e.target.checked); }} />}
+              label="全件表示（自動処理済み含む）"
+            />
+            <Button
+              size="small"
+              color="error"
+              variant="outlined"
+              onClick={async () => {
+                if (!confirm("取込履歴を全件削除します。次回クロール時に再取込されます。よろしいですか？")) return;
+                await api.del("/api/amazon/queue");
+                await loadQueue();
+                toast("取込履歴をリセットしました");
+              }}
+            >
+              履歴リセット
+            </Button>
+          </Stack>
+        </Stack>
         <Typography variant="body2" color="text.secondary" mb={2}>
           マスタに一致した商品は自動で在庫加算済みです。未登録の商品をここで振り分けます。
         </Typography>
@@ -225,6 +250,7 @@ export default function AmazonImport() {
                 <TableCell>購入日</TableCell>
                 <TableCell align="right">数量</TableCell>
                 <TableCell align="right">単価</TableCell>
+                <TableCell>状態</TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
@@ -235,32 +261,41 @@ export default function AmazonImport() {
                   <TableCell>{q.asin}</TableCell>
                   <TableCell>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
                   <TableCell align="right">{q.quantity}</TableCell>
-                  <TableCell align="right">¥{q.unit_price}</TableCell>
+                  <TableCell align="right">¥{q.unit_price.toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={{ pending: "要確認", auto: "自動処理済", managed: "管理中", ignored: "無視" }[q.status] ?? q.status}
+                      color={{ pending: "warning", auto: "success", managed: "primary", ignored: "default" }[q.status] as "warning" | "success" | "primary" | "default" ?? "default"}
+                    />
+                  </TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<InventoryIcon />}
-                        onClick={() => setManageItem(q)}
-                      >
-                        在庫管理する
-                      </Button>
-                      <Button
-                        size="small"
-                        color="inherit"
-                        startIcon={<BlockIcon />}
-                        onClick={() => ignore(q)}
-                      >
-                        管理しない
-                      </Button>
-                    </Stack>
+                    {q.status === "pending" && (
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          startIcon={<InventoryIcon />}
+                          onClick={() => setManageItem(q)}
+                        >
+                          在庫管理する
+                        </Button>
+                        <Button
+                          size="small"
+                          color="inherit"
+                          startIcon={<BlockIcon />}
+                          onClick={() => ignore(q)}
+                        >
+                          管理しない
+                        </Button>
+                      </Stack>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
               {queue.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: "text.secondary" }}>
                     取込待ちの商品はありません
                   </TableCell>
                 </TableRow>
