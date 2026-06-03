@@ -39,7 +39,19 @@ app.get(/.*/, (req, res) => {
   res.type("html").send(html);
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Stock Manager listening on :${PORT}`);
   startAmazonCron();
 });
+
+// Graceful shutdown. As PID 1 in the container, Node ignores SIGTERM unless we
+// install an explicit handler — without this the supervisor waits ~10s before
+// SIGKILL. Close the HTTP server and exit promptly.
+function shutdown(signal: string): void {
+  console.log(`Received ${signal}, shutting down...`);
+  server.close(() => process.exit(0));
+  // Failsafe in case connections linger.
+  setTimeout(() => process.exit(0), 2000).unref();
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

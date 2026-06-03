@@ -50,13 +50,6 @@ export interface Transaction {
   date: string;
 }
 
-export interface ImportResult {
-  status: "added" | "created";
-  product_id: string;
-  name: string;
-  qty: number;
-}
-
 export interface AmazonSettings {
   cookie_set: boolean;
   last_sync: string;

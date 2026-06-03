@@ -1,5 +1,4 @@
 import BlockIcon from "@mui/icons-material/Block";
-import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import InventoryIcon from "@mui/icons-material/Inventory";
 import SyncIcon from "@mui/icons-material/Sync";
 import {
@@ -7,7 +6,6 @@ import {
   Box,
   Button,
   Chip,
-  Divider,
   Paper,
   Stack,
   Table,
@@ -23,7 +21,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import AmazonManageDialog from "../components/AmazonManageDialog";
 import { useStore } from "../store";
-import { AmazonCrawlSummary, AmazonQueueItem, AmazonSettings, ImportResult } from "../types";
+import { AmazonCrawlSummary, AmazonQueueItem, AmazonSettings } from "../types";
 
 export default function AmazonImport() {
   const { reloadProducts, reloadInventory, reloadTransactions, toast } = useStore();
@@ -34,10 +32,6 @@ export default function AmazonImport() {
   const [crawling, setCrawling] = useState(false);
   const [savingCookie, setSavingCookie] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
-
-  const [file, setFile] = useState<File | null>(null);
-  const [results, setResults] = useState<ImportResult[]>([]);
-  const [busy, setBusy] = useState(false);
 
   const loadSettings = useCallback(async () => {
     setSettings(await api.get<AmazonSettings>("/api/amazon/settings"));
@@ -85,23 +79,6 @@ export default function AmazonImport() {
       await loadQueue();
     } catch (e) {
       toast((e as Error).message, "error");
-    }
-  };
-
-  const runCsv = async () => {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await api.post<{ imported: number; results: ImportResult[] }>("/api/import/amazon", fd);
-      setResults(res.results);
-      toast(`${res.imported}件を取込みました`);
-      await Promise.all([reloadProducts(), reloadInventory(), reloadTransactions()]);
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -222,58 +199,6 @@ export default function AmazonImport() {
             </TableBody>
           </Table>
         </TableContainer>
-      </Paper>
-
-      {/* --- CSV取込（補助） --- */}
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" mb={1}>
-          CSVから取込（補助）
-        </Typography>
-        <Divider sx={{ mb: 2 }} />
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Amazonの「注文レポートをリクエスト」でダウンロードしたCSVからも取込できます。
-          ASIN一致は在庫追加、未登録は自動作成されます。
-        </Alert>
-        <Stack spacing={2} alignItems="flex-start">
-          <Button component="label" variant="outlined">
-            {file ? file.name : "CSVファイルを選択"}
-            <input hidden type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          </Button>
-          <Button variant="contained" startIcon={<CloudUploadIcon />} disabled={!file || busy} onClick={runCsv}>
-            取込実行
-          </Button>
-        </Stack>
-
-        {results.length > 0 && (
-          <TableContainer sx={{ mt: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>商品名</TableCell>
-                  <TableCell>状態</TableCell>
-                  <TableCell align="right">数量</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {results.map((r) => (
-                  <TableRow key={r.product_id} hover>
-                    <TableCell>{r.name}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        color={r.status === "added" ? "success" : "warning"}
-                        label={r.status === "added" ? "在庫追加" : "新規作成"}
-                      />
-                    </TableCell>
-                    <TableCell align="right" sx={{ color: "success.main", fontWeight: 600 }}>
-                      +{r.qty}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
       </Paper>
 
       <AmazonManageDialog
