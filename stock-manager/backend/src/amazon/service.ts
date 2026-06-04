@@ -65,7 +65,13 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
     : new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   log("info", `差分取得基準日: ${since.toISOString()}`);
 
-  const orders = await crawlOrders(cookie, { since, enrich: true });
+  const { items: orders, refreshedCookie } = await crawlOrders(cookie, { since, enrich: true });
+
+  // Save refreshed cookies so the next crawl uses the latest session tokens
+  if (refreshedCookie) {
+    await setSetting("amazon_cookie", refreshedCookie);
+    log("info", "セッションCookieを自動更新しました");
+  }
 
   log("info", `★ crawlOrders完了: ${orders.length}件取得`);
 

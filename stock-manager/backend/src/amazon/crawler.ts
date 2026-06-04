@@ -2,14 +2,25 @@ import * as cheerio from "cheerio";
 import { log } from "./logger";
 
 // Minimal shape of puppeteer-core's Browser/Page (avoids ESM type-import issues)
+interface PuppeteerCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  expires?: number;
+}
 interface PuppeteerPage {
   setUserAgent(ua: string): Promise<void>;
   setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
   setCookie(...cookies: Array<{ name: string; value: string; domain: string }>): Promise<void>;
+  cookies(...urls: string[]): Promise<PuppeteerCookie[]>;
   goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
   url(): string;
   content(): Promise<string>;
   close(): Promise<void>;
+  evaluateOnNewDocument?: (fn: string | ((...args: unknown[]) => unknown), ...args: unknown[]) => Promise<void>;
 }
 interface PuppeteerBrowser {
   newPage(): Promise<PuppeteerPage>;
@@ -226,13 +237,45 @@ async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Pr
 
 async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<PuppeteerPage> {
   const page = await browser.newPage();
-  // Hide automation fingerprints before any script runs
-  await (page as unknown as { evaluateOnNewDocument: (fn: () => void) => Promise<void> }).evaluateOnNewDocument(() => {
+  // Inject stealth overrides before any page script runs
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (page as any).evaluateOnNewDocument(() => {
+    // Hide webdriver flag
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(navigator, "languages", { get: () => ["ja-JP", "ja", "en"] });
+    // Realistic plugins/mimeTypes
+    Object.defineProperty(navigator, "plugins", { get: () => {
+      const arr = [
+        { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
+        { name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai" },
+        { name: "Native Client", filename: "internal-nacl-plugin" },
+      ] as unknown as Plugin[];
+      Object.setPrototypeOf(arr, PluginArray.prototype);
+      return arr;
+    }});
+    Object.defineProperty(navigator, "mimeTypes", { get: () => {
+      const arr = [] as unknown as MimeTypeArray;
+      Object.setPrototypeOf(arr, MimeTypeArray.prototype);
+      return arr;
+    }});
+    Object.defineProperty(navigator, "languages", { get: () => ["ja-JP", "ja", "en-US", "en"] });
+    Object.defineProperty(navigator, "hardwareConcurrency", { get: () => 8 });
+    Object.defineProperty(navigator, "deviceMemory", { get: () => 8 });
+    // Complete chrome object
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).chrome = { runtime: {} };
+    (window as any).chrome = {
+      app: { isInstalled: false, InstallState: { DISABLED: "disabled", INSTALLED: "installed", NOT_INSTALLED: "not_installed" }, RunningState: { CANNOT_RUN: "cannot_run", READY_TO_RUN: "ready_to_run", RUNNING: "running" } },
+      runtime: { OnInstalledReason: {}, OnRestartRequiredReason: {}, PlatformArch: {}, PlatformNaclArch: {}, PlatformOs: {}, RequestUpdateCheckStatus: {} },
+      loadTimes: () => ({}),
+      csi: () => ({}),
+    };
+    // Mock permissions API (headless returns 'denied' for notifications by default)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const origQuery = (window.navigator.permissions as any).query.bind(navigator.permissions);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window.navigator.permissions as any).query = (params: any) =>
+      params.name === "notifications"
+        ? Promise.resolve({ state: "default", onchange: null })
+        : origQuery(params);
   });
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -295,9 +338,24 @@ export interface CrawlOptions {
   maxPages?: number;
 }
 
-export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<CrawledItem[]> {
+export interface CrawlResult {
+  items: CrawledItem[];
+  // Refreshed cookie string from Puppeteer (Amazon updates session cookies on each request)
+  refreshedCookie: string | null;
+}
+
+// Serialize Puppeteer cookie objects back to "name=value; name2=value2" format
+function serializeCookies(cookies: PuppeteerCookie[]): string {
+  return cookies
+    .filter((c) => c.domain && c.domain.includes("amazon"))
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+}
+
+export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<CrawlResult> {
   const collected: CrawledItem[] = [];
   const maxPages = opts.maxPages ?? 10;
+  let refreshedCookie: string | null = null;
   log("info", `クロール開始 (since=${opts.since.toISOString()}, maxPages=${maxPages})`);
 
   await withBrowser(async (browser) => {
@@ -307,6 +365,20 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
       const url = `${BASE}/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
       const { html, finalUrl } = await fetchPageHtml(page, url);
       assertLoggedIn(finalUrl, html);
+
+      // After first successful page load, save refreshed cookies
+      if (p === 0) {
+        try {
+          const liveCookies = await page.cookies("https://www.amazon.co.jp");
+          const serialized = serializeCookies(liveCookies);
+          if (serialized) {
+            refreshedCookie = serialized;
+            log("info", `Cookieを更新: ${liveCookies.length}件 (${serialized.length}文字)`);
+          }
+        } catch (e) {
+          log("warn", `Cookie更新スキップ: ${(e as Error).message}`);
+        }
+      }
 
       const pageItems = parseOrderHistory(html);
       log("info", `ページ ${p + 1}: ${pageItems.length} 件の品目を検出`);
@@ -336,5 +408,5 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
   });
 
   log("info", `クロール完了: 対象 ${collected.length} 件`);
-  return collected;
+  return { items: collected, refreshedCookie };
 }
