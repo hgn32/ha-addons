@@ -34,7 +34,7 @@ export default function Transactions() {
               <TableRow>
                 <TableCell>日時</TableCell>
                 <TableCell>種別</TableCell>
-                <TableCell>商品</TableCell>
+                <TableCell>品目</TableCell>
                 <TableCell align="right">数量</TableCell>
                 <TableCell align="right">単価</TableCell>
                 <TableCell>メモ</TableCell>

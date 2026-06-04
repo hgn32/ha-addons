@@ -153,7 +153,7 @@ export interface ManageOverrides {
   note?: string;
 }
 
-// パターンA-1「新規登録」: 商品マスタに新規登録 + 在庫加算 + ASIN紐づけ
+// パターンA-1「新規登録」: 品目マスタに新規登録 + 在庫加算 + ASIN紐づけ
 export async function manageQueueItemNew(id: string, overrides: ManageOverrides) {
   const item = await prisma.amazonQueue.findUnique({ where: { id } });
   if (!item) throw new Error("取込データが見つかりません");
@@ -208,7 +208,7 @@ export async function manageQueueItemMerge(id: string, productId: string) {
   const item = await prisma.amazonQueue.findUnique({ where: { id } });
   if (!item) throw new Error("取込データが見つかりません");
   const product = await prisma.product.findUnique({ where: { id: productId } });
-  if (!product) throw new Error("マージ先のアイテムが見つかりません");
+  if (!product) throw new Error("マージ先の品目が見つかりません");
 
   // Add ASIN association
   if (item.asin) {

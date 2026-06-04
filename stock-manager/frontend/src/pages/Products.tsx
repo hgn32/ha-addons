@@ -155,7 +155,7 @@ export default function Products() {
   return (
     <Box>
       <Typography variant="h5" fontWeight={700} mb={3}>
-        商品マスタ
+        品目マスタ
       </Typography>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -185,7 +185,7 @@ export default function Products() {
             })}
             {localProducts.length === 0 && (
               <Typography color="text.secondary" sx={{ gridColumn: "1 / -1", textAlign: "center", py: 6 }}>
-                商品がありません
+                品目がありません
               </Typography>
             )}
           </Box>

@@ -31,7 +31,7 @@ const CONFIG: Record<StockMode, { title: string; color: "success" | "error" | "w
 };
 
 const schema = yup.object({
-  product_id: yup.string().required("商品を選択してください"),
+  product_id: yup.string().required("品目を選択してください"),
   quantity: yup
     .number()
     .typeError("数量を入力してください")
@@ -95,7 +95,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
               render={({ field }) => (
                 <TextField
                   select
-                  label="商品"
+                  label="品目"
                   required
                   fullWidth
                   {...field}

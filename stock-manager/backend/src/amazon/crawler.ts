@@ -154,7 +154,7 @@ export function parseOrderHistory(html: string): CrawledItem[] {
     // 1枚目のカードだけ診断ログ
     if (idx === 0) {
       log("info", `[診断] orderId=${orderId} 購入日=${purchased?.toLocaleDateString("ja-JP") ?? "不明"}`);
-      log("info", `[診断] 全リンク=${allLinks.length} 商品リンク候補=${productLinks.length}`);
+      log("info", `[診断] 全リンク=${allLinks.length} 品目リンク候補=${productLinks.length}`);
       allLinks.slice(0, 8).each((_, a) => {
         const href = $(a).attr("href") ?? "";
         const text = $(a).text().trim().slice(0, 50);
@@ -190,7 +190,7 @@ export function parseOrderHistory(html: string): CrawledItem[] {
         quantity,
         unit_price: orderPrice,
       });
-      log("info", `  商品検出: [${orderId}] ${name} (ASIN=${asin})`);
+      log("info", `  品目検出: [${orderId}] ${name} (ASIN=${asin})`);
     });
   });
 
@@ -309,8 +309,8 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
       assertLoggedIn(finalUrl, html);
 
       const pageItems = parseOrderHistory(html);
-      log("info", `ページ ${p + 1}: ${pageItems.length} 件の商品を検出`);
-      if (pageItems.length === 0) { log("info", "商品なし — クロール終了"); break; }
+      log("info", `ページ ${p + 1}: ${pageItems.length} 件の品目を検出`);
+      if (pageItems.length === 0) { log("info", "品目なし — クロール終了"); break; }
 
       let reachedOld = false;
       for (const it of pageItems) {

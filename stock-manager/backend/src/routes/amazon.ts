@@ -149,7 +149,7 @@ router.post("/amazon/queue/:id/ignore", async (req, res) => {
   }
 });
 
-// --- Amazon URL → 商品情報取込 --------------------------------------------------
+// --- Amazon URL → 品目情報取込 --------------------------------------------------
 
 const CHROMIUM_PATHS = [
   "/usr/bin/chromium",

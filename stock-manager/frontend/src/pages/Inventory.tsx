@@ -58,7 +58,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
         <TextField
           size="small"
           fullWidth
-          placeholder="商品名・JANコード・ASINで検索..."
+          placeholder="品目名・JANコード・ASINで検索..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           sx={{ mb: 2 }}
@@ -67,7 +67,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>商品</TableCell>
+                <TableCell>品目</TableCell>
                 <TableCell>カテゴリ</TableCell>
                 <TableCell>置き場</TableCell>
                 <TableCell align="right">在庫数</TableCell>
@@ -109,7 +109,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                    商品がありません
+                    品目がありません
                   </TableCell>
                 </TableRow>
               )}

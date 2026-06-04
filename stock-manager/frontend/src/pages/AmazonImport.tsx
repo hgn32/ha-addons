@@ -241,14 +241,14 @@ export default function AmazonImport() {
           </Stack>
         </Stack>
         <Typography variant="body2" color="text.secondary" mb={2}>
-          マスタに一致した商品は自動で在庫加算済みです。未登録の商品をここで振り分けます。
+          マスタに一致した品目は自動で在庫加算済みです。未登録の品目をここで振り分けます。
         </Typography>
         <TableContainer>
           <Table>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ width: 56 }} />
-                <TableCell>商品名</TableCell>
+                <TableCell>品目名</TableCell>
                 <TableCell>ASIN</TableCell>
                 <TableCell>購入日</TableCell>
                 <TableCell align="right">数量</TableCell>
@@ -308,7 +308,7 @@ export default function AmazonImport() {
               {queue.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                    取込待ちの商品はありません
+                    取込待ちの品目はありません
                   </TableCell>
                 </TableRow>
               )}

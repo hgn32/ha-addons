@@ -27,7 +27,7 @@ import { InventoryItem, Transaction } from "../types";
 import type { Page } from "../App";
 
 // --- 次回購入想定日の計算 ---
-// 同商品の「add」トランザクションが2件以上あれば、購入インターバルの平均から推定する。
+// 同品目の「add」トランザクションが2件以上あれば、購入インターバルの平均から推定する。
 function estimateNextPurchase(productId: string, stock: number, txs: Transaction[]): Date | null {
   const adds = txs
     .filter((t) => t.product_id === productId && t.type === "add" && t.quantity > 0)
@@ -164,7 +164,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>商品</TableCell>
+                <TableCell>品目</TableCell>
                 <TableCell>カテゴリ</TableCell>
                 <TableCell align="center">在庫数</TableCell>
                 <TableCell>次回購入</TableCell>
@@ -235,7 +235,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
               {sorted.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} align="center" sx={{ py: 6, color: "text.secondary" }}>
-                    商品がありません
+                    品目がありません
                   </TableCell>
                 </TableRow>
               )}

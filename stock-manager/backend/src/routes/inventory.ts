@@ -41,7 +41,7 @@ router.post("/inventory/add", async (req, res) => {
     await recordTx("add", product_id, qty, { unit_price, supplier_id, note });
     res.json({ product_id, quantity: product.quantity });
   } catch {
-    res.status(404).json({ detail: "商品が見つかりません" });
+    res.status(404).json({ detail: "品目が見つかりません" });
   }
 });
 
@@ -50,7 +50,7 @@ router.post("/inventory/use", async (req, res) => {
   const qty = parseInt(req.body.quantity, 10);
   if (!(qty > 0)) return res.status(400).json({ detail: "数量は1以上で指定してください" });
   const product = await prisma.product.findUnique({ where: { id: product_id } });
-  if (!product) return res.status(404).json({ detail: "商品が見つかりません" });
+  if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
   if (product.quantity < qty) return res.status(400).json({ detail: `在庫不足 (現在: ${product.quantity})` });
   const updated = await prisma.product.update({
     where: { id: product_id },
@@ -65,7 +65,7 @@ router.post("/inventory/adjust", async (req, res) => {
   const qty = parseInt(req.body.quantity, 10);
   if (!(qty >= 0)) return res.status(400).json({ detail: "在庫数は0以上で指定してください" });
   const product = await prisma.product.findUnique({ where: { id: product_id } });
-  if (!product) return res.status(404).json({ detail: "商品が見つかりません" });
+  if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
   const before = product.quantity;
   await prisma.product.update({ where: { id: product_id }, data: { quantity: qty } });
   await recordTx("adjust", product_id, qty - before, { note: note || `強制メンテ: ${before}→${qty}` });

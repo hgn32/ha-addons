@@ -53,7 +53,7 @@ const NAV: NavItem[] = [
   { key: "dashboard", label: "ダッシュボード", icon: <DashboardIcon />, section: "メイン" },
   { key: "inventory", label: "在庫一覧", icon: <Inventory2Icon />, section: "メイン" },
   { key: "transactions", label: "操作履歴", icon: <HistoryIcon />, section: "メイン" },
-  { key: "products", label: "商品", icon: <SellIcon />, section: "マスタ" },
+  { key: "products", label: "品目", icon: <SellIcon />, section: "マスタ" },
   { key: "categories", label: "カテゴリ", icon: <CategoryIcon />, section: "マスタ" },
   { key: "locations", label: "置き場", icon: <PlaceIcon />, section: "マスタ" },
   { key: "suppliers", label: "購入先", icon: <StorefrontIcon />, section: "マスタ" },
@@ -120,7 +120,7 @@ export default function App() {
             sx={{ mb: 1 }}
             onClick={async () => {
               const input = window.prompt(
-                '全マスタデータ（商品・カテゴリ・置き場・購入先・履歴・取込履歴）を削除します。\n\n確認のため「全削除」と入力してください。'
+                '全マスタデータ（品目・カテゴリ・置き場・購入先・履歴・取込履歴）を削除します。\n\n確認のため「全削除」と入力してください。'
               );
               if (input !== "全削除") return;
               await fetch("./api/admin/all-data", { method: "DELETE" });
