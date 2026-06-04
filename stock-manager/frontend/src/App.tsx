@@ -111,6 +111,23 @@ export default function App() {
           </List>
         </Box>
         <Box sx={{ p: 2, borderTop: "1px solid", borderColor: "divider" }}>
+          <Button
+            fullWidth
+            size="small"
+            color="error"
+            variant="outlined"
+            sx={{ mb: 1 }}
+            onClick={async () => {
+              const input = window.prompt(
+                '全マスタデータ（商品・カテゴリ・置き場・購入先・履歴・取込履歴）を削除します。\n\n確認のため「全削除」と入力してください。'
+              );
+              if (input !== "全削除") return;
+              await fetch("./api/admin/all-data", { method: "DELETE" });
+              window.location.reload();
+            }}
+          >
+            全データ削除
+          </Button>
           <Typography variant="caption" color="text.disabled" fontFamily="monospace">
             {__COMMIT_HASH__}
           </Typography>

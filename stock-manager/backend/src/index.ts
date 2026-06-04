@@ -1,6 +1,7 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import adminRouter from "./routes/admin";
 import amazonRouter from "./routes/amazon";
 import inventoryRouter from "./routes/inventory";
 import mastersRouter from "./routes/masters";
@@ -17,6 +18,7 @@ const app = express();
 app.use(express.json());
 
 // REST API
+app.use("/api", adminRouter);
 app.use("/api", mastersRouter);
 app.use("/api", productsRouter);
 app.use("/api", inventoryRouter);
