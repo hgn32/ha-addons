@@ -18,7 +18,7 @@ interface Props {
   open: boolean;
   item: AmazonQueueItem | null;
   onClose: () => void;
-  onDone: () => void;
+  onDone: (id: string) => void;
 }
 
 // パターンA「在庫管理する」: 商品マスタへ登録する前に内容を確認・補完する。
@@ -56,7 +56,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
       await api.post(`/api/amazon/queue/${item.id}/manage`, form);
       toast(`「${form.name}」を登録し在庫を${item.quantity}加算しました`);
       await Promise.all([reloadProducts(), reloadInventory()]);
-      onDone();
+      onDone(item.id);
       onClose();
     } catch (e) {
       toast((e as Error).message || "エラーが発生しました", "error");

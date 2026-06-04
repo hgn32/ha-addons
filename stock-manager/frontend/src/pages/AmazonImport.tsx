@@ -5,6 +5,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import SyncIcon from "@mui/icons-material/Sync";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Chip,
@@ -22,7 +23,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, imageUrl } from "../api";
 import AmazonManageDialog from "../components/AmazonManageDialog";
 import { useStore } from "../store";
 import { AmazonCrawlSummary, AmazonLogEntry, AmazonQueueItem, AmazonSettings } from "../types";
@@ -246,6 +247,7 @@ export default function AmazonImport() {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell sx={{ width: 56 }} />
                 <TableCell>商品名</TableCell>
                 <TableCell>ASIN</TableCell>
                 <TableCell>購入日</TableCell>
@@ -258,6 +260,15 @@ export default function AmazonImport() {
             <TableBody>
               {queue.map((q) => (
                 <TableRow key={q.id} hover>
+                  <TableCell sx={{ p: 1 }}>
+                    <Avatar
+                      src={q.image_url.startsWith("http") ? q.image_url : q.image_url ? imageUrl(q.image_url) : ""}
+                      variant="rounded"
+                      sx={{ width: 40, height: 40 }}
+                    >
+                      📦
+                    </Avatar>
+                  </TableCell>
                   <TableCell>{q.product_name}</TableCell>
                   <TableCell>{q.asin}</TableCell>
                   <TableCell>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
@@ -296,7 +307,7 @@ export default function AmazonImport() {
               ))}
               {queue.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>
                     取込待ちの商品はありません
                   </TableCell>
                 </TableRow>
@@ -310,7 +321,10 @@ export default function AmazonImport() {
         open={Boolean(manageItem)}
         item={manageItem}
         onClose={() => setManageItem(null)}
-        onDone={loadQueue}
+        onDone={(id) => {
+          setQueue((prev) => prev.filter((q) => q.id !== id));
+          loadQueue();
+        }}
       />
     </Box>
   );
