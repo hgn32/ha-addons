@@ -9,7 +9,7 @@ import { IMAGES_DIR, newId } from "../paths";
 const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
 
-const EDITABLE = [
+const EDITABLE: string[] = [
   "name",
   "volume",
   "piece_count",
@@ -20,7 +20,7 @@ const EDITABLE = [
   "category_id",
   "location_id",
   "note",
-] as const;
+];
 
 function savePhoto(id: string, file: Express.Multer.File): string {
   const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
