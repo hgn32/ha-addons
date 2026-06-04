@@ -1,56 +1,8 @@
+import axios from "axios";
 import * as cheerio from "cheerio";
 import { log } from "./logger";
 
-// Minimal shape of puppeteer-core's Browser/Page (avoids ESM type-import issues)
-interface PuppeteerCookie {
-  name: string;
-  value: string;
-  domain?: string;
-  path?: string;
-  secure?: boolean;
-  httpOnly?: boolean;
-  expires?: number;
-}
-interface PuppeteerResponse {
-  url(): string;
-  headers(): Record<string, string>;
-}
-interface PuppeteerPage {
-  setUserAgent(ua: string): Promise<void>;
-  setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
-  setCookie(...cookies: Array<{ name: string; value: string; domain: string }>): Promise<void>;
-  cookies(...urls: string[]): Promise<PuppeteerCookie[]>;
-  goto(url: string, opts?: { waitUntil?: string; timeout?: number }): Promise<unknown>;
-  url(): string;
-  content(): Promise<string>;
-  close(): Promise<void>;
-  evaluateOnNewDocument?: (fn: string | ((...args: unknown[]) => unknown), ...args: unknown[]) => Promise<void>;
-  on(event: "response", handler: (res: PuppeteerResponse) => void): void;
-}
-interface PuppeteerBrowser {
-  newPage(): Promise<PuppeteerPage>;
-  close(): Promise<void>;
-}
-
 const BASE = "https://www.amazon.co.jp";
-
-// Chromiumのパス候補（amd64 / aarch64 両対応）
-const CHROMIUM_PATHS = [
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-];
-
-function findChromium(): string {
-  const { existsSync } = require("fs") as typeof import("fs");
-  for (const p of CHROMIUM_PATHS) {
-    if (existsSync(p)) return p;
-  }
-  throw new Error(
-    `Chromiumが見つかりません。確認したパス: ${CHROMIUM_PATHS.join(", ")}`
-  );
-}
 
 export interface CrawledItem {
   order_id: string;
@@ -73,10 +25,8 @@ export class CookieExpiredError extends Error {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-// 一覧ページ間のウェイト（ボット検知回避）
 const politeDelay = (): Promise<void> => sleep(1500 + Math.floor(Math.random() * 1500));
-// 詳細ページ間のウェイト（一覧より短くしてOK）
-const enrichDelay = (): Promise<void> => sleep(600 + Math.floor(Math.random() * 400));
+const enrichDelay = (): Promise<void> => sleep(800 + Math.floor(Math.random() * 400));
 
 function asinFromUrl(href: string): string {
   const m = href.match(/\/(?:dp|gp\/product|product|gp\/aw\/d)\/([A-Z0-9]{10})/);
@@ -95,27 +45,85 @@ function parsePrice(text: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-// Cookie文字列をPuppeteer形式に変換
-function parseCookies(cookieStr: string): Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }> {
-  // Strip control characters (newlines, carriage returns, tabs) that cause CDP errors
-  const sanitized = cookieStr.replace(/[\r\n\t]/g, " ");
-  return sanitized
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => {
-      const idx = s.indexOf("=");
-      if (idx === -1) return null;
-      const name = s.slice(0, idx).trim();
-      // Strip any remaining control characters from value
-      const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
-      if (!name) return null;
-      // __Secure- prefix requires secure:true; __Host- requires secure:true + path:"/"
-      const secure = name.startsWith("__Secure-") || name.startsWith("__Host-");
-      const path = name.startsWith("__Host-") ? "/" : undefined;
-      return { name, value, domain: ".amazon.co.jp", ...(secure ? { secure } : {}), ...(path ? { path } : {}) };
-    })
-    .filter(Boolean) as Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }>;
+// axiosインスタンス: 本物ブラウザと同じヘッダを付与して直接HTTPリクエスト
+function makeClient(cookie: string) {
+  const client = axios.create({
+    baseURL: BASE,
+    timeout: 30000,
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+      "Accept":
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Cookie": cookie,
+      "Referer": "https://www.amazon.co.jp/",
+      "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "sec-fetch-dest": "document",
+      "sec-fetch-mode": "navigate",
+      "sec-fetch-site": "same-origin",
+      "sec-fetch-user": "?1",
+      "upgrade-insecure-requests": "1",
+    },
+    // Cookieの自動リダイレクト追跡
+    maxRedirects: 5,
+  });
+  return client;
+}
+
+// レスポンスのSet-Cookieを元のcookie文字列にマージして返す
+function mergeResponseCookies(originalCookie: string, setCookieHeaders: string[]): string {
+  const map = new Map<string, string>();
+  // 既存cookieをmapに展開
+  for (const part of originalCookie.split(";")) {
+    const idx = part.trim().indexOf("=");
+    if (idx === -1) continue;
+    const name = part.trim().slice(0, idx).trim();
+    const value = part.trim().slice(idx + 1).trim();
+    if (name) map.set(name, value);
+  }
+  // Set-Cookieで上書き
+  for (const header of setCookieHeaders) {
+    const segment = header.split(";")[0].trim();
+    const idx = segment.indexOf("=");
+    if (idx === -1) continue;
+    const name = segment.slice(0, idx).trim();
+    const value = segment.slice(idx + 1).trim();
+    if (name) {
+      const prev = map.get(name);
+      if (prev !== value) {
+        log("info", `[Set-Cookie] ${name} 更新`);
+        map.set(name, value);
+      }
+    }
+  }
+  return Array.from(map.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
+}
+
+async function fetchHtml(
+  client: ReturnType<typeof makeClient>,
+  url: string,
+  currentCookie: string
+): Promise<{ html: string; finalUrl: string; updatedCookie: string }> {
+  log("info", `ページ取得: ${url}`);
+  const resp = await client.get(url, { responseType: "text" });
+  const finalUrl = resp.request?.res?.responseUrl ?? url;
+  log("info", `finalUrl: ${finalUrl} / ステータス: ${resp.status} / HTML長さ: ${resp.data.length}`);
+
+  const setCookies: string[] = [];
+  const raw = resp.headers["set-cookie"];
+  if (Array.isArray(raw)) setCookies.push(...raw);
+  else if (typeof raw === "string") setCookies.push(raw);
+
+  if (setCookies.length > 0) {
+    log("info", `Set-Cookie ${setCookies.length}件受信`);
+  }
+  const updatedCookie = mergeResponseCookies(currentCookie, setCookies);
+  return { html: resp.data as string, finalUrl, updatedCookie };
 }
 
 function assertLoggedIn(url: string, html: string): void {
@@ -167,15 +175,9 @@ export function parseOrderHistory(html: string): CrawledItem[] {
       (_, a) => /\/(?:dp|gp\/product|product)\/[A-Z0-9]{10}/.test($(a).attr("href") || "")
     );
 
-    // 1枚目のカードだけ診断ログ
     if (idx === 0) {
       log("info", `[診断] orderId=${orderId} 購入日=${purchased?.toLocaleDateString("ja-JP") ?? "不明"}`);
       log("info", `[診断] 全リンク=${allLinks.length} 品目リンク候補=${productLinks.length}`);
-      allLinks.slice(0, 8).each((_, a) => {
-        const href = $(a).attr("href") ?? "";
-        const text = $(a).text().trim().slice(0, 50);
-        log("info", `[診断]   ${href.slice(0, 80)} | "${text}"`);
-      });
     }
 
     const seen = new Set<string>();
@@ -213,159 +215,16 @@ export function parseOrderHistory(html: string): CrawledItem[] {
   return items;
 }
 
-async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Promise<T> {
-  const executablePath = findChromium();
-  log("info", `Chromium起動: ${executablePath}`);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
-  const browser = await puppeteer.launch({
-    executablePath,
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-software-rasterizer",
-      "--disable-blink-features=AutomationControlled",
-      "--window-size=1920,1080",
-      "--lang=ja-JP,ja",
-    ],
-  });
-  try {
-    return await fn(browser);
-  } finally {
-    await browser.close();
-    log("info", "Chromium終了");
-  }
-}
-
-// Parse Set-Cookie header string into name=value pairs and merge into a cookie map
-function mergeSetCookie(cookieMap: Map<string, string>, setCookieHeader: string): void {
-  // Set-Cookie header may be comma-separated (though technically each header is one cookie)
-  // Each cookie is: name=value; attr1; attr2=...
-  const parts = setCookieHeader.split(/,(?=[^;]+=)/);
-  for (const part of parts) {
-    const segment = part.trim().split(";")[0].trim();
-    const eqIdx = segment.indexOf("=");
-    if (eqIdx === -1) continue;
-    const name = segment.slice(0, eqIdx).trim();
-    const value = segment.slice(eqIdx + 1).trim();
-    if (name) {
-      cookieMap.set(name, value);
-    }
-  }
-}
-
-// Sets up page with cookie monitoring — returns page and a getter for the latest cookie string
-export async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<{ page: PuppeteerPage; getLatestCookie: () => string }> {
-  const page = await browser.newPage();
-  // Inject stealth overrides before any page script runs
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (page as any).evaluateOnNewDocument(() => {
-    // Hide webdriver flag
-    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    // Realistic plugins/mimeTypes
-    Object.defineProperty(navigator, "plugins", { get: () => {
-      const arr = [
-        { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer" },
-        { name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai" },
-        { name: "Native Client", filename: "internal-nacl-plugin" },
-      ] as unknown as Plugin[];
-      Object.setPrototypeOf(arr, PluginArray.prototype);
-      return arr;
-    }});
-    Object.defineProperty(navigator, "mimeTypes", { get: () => {
-      const arr = [] as unknown as MimeTypeArray;
-      Object.setPrototypeOf(arr, MimeTypeArray.prototype);
-      return arr;
-    }});
-    Object.defineProperty(navigator, "languages", { get: () => ["ja-JP", "ja", "en-US", "en"] });
-    Object.defineProperty(navigator, "hardwareConcurrency", { get: () => 8 });
-    Object.defineProperty(navigator, "deviceMemory", { get: () => 8 });
-    // Complete chrome object
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).chrome = {
-      app: { isInstalled: false, InstallState: { DISABLED: "disabled", INSTALLED: "installed", NOT_INSTALLED: "not_installed" }, RunningState: { CANNOT_RUN: "cannot_run", READY_TO_RUN: "ready_to_run", RUNNING: "running" } },
-      runtime: { OnInstalledReason: {}, OnRestartRequiredReason: {}, PlatformArch: {}, PlatformNaclArch: {}, PlatformOs: {}, RequestUpdateCheckStatus: {} },
-      loadTimes: () => ({}),
-      csi: () => ({}),
-    };
-    // Mock permissions API (headless returns 'denied' for notifications by default)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const origQuery = (window.navigator.permissions as any).query.bind(navigator.permissions);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window.navigator.permissions as any).query = (params: any) =>
-      params.name === "notifications"
-        ? Promise.resolve({ state: "default", onchange: null })
-        : origQuery(params);
-  });
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-  );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (page as any).setViewport({ width: 1920, height: 1080 });
-  await page.setExtraHTTPHeaders({
-    "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Referer": "https://www.amazon.co.jp/",
-  });
-  // Cookieを1件ずつセット（1件のエラーで全体が止まらないよう）
-  const cookies = parseCookies(cookie);
-  let set = 0;
-  for (const c of cookies) {
-    try {
-      await page.setCookie(c);
-      set++;
-    } catch (e) {
-      log("warn", `Cookie "${c.name}" のセットをスキップ: ${(e as Error).message}`);
-    }
-  }
-  log("info", `Cookie ${set}/${cookies.length} 件をセット`);
-  log("info", `セット済みCookie名: ${cookies.map((c) => c.name).join(", ")}`);
-
-  // レスポンスのSet-Cookieヘッダを毎リクエスト監視してcookieMapに反映
-  const cookieMap = new Map<string, string>();
-  // 初期値としてセット済みクッキーをcookieMapに登録
-  for (const c of cookies) {
-    cookieMap.set(c.name, c.value);
-  }
-  page.on("response", (res: PuppeteerResponse) => {
-    const url = res.url();
-    if (!url.includes("amazon.co.jp")) return;
-    const headers = res.headers();
-    const setCookie = headers["set-cookie"];
-    if (setCookie) {
-      const before = cookieMap.size;
-      mergeSetCookie(cookieMap, setCookie);
-      const after = cookieMap.size;
-      log("info", `[Set-Cookie] ${url.slice(0, 80)} → ${setCookie.slice(0, 120)} (合計${after}件${after > before ? ` +${after - before}` : ""})`);
-    }
-  });
-
-  const getLatestCookie = () =>
-    Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
-
-  return { page, getLatestCookie };
-}
-
-async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: string; finalUrl: string }> {
-  log("info", `ページ取得: ${url}`);
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await sleep(1500);
-  const finalUrl = page.url();
-  const html = await page.content();
-  log("info", `finalUrl: ${finalUrl} / HTML長さ: ${html.length}`);
-  return { html, finalUrl };
-}
-
-async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
+async function enrichItem(
+  client: ReturnType<typeof makeClient>,
+  item: CrawledItem,
+  index: number,
+  total: number,
+  currentCookie: string
+): Promise<string> {
   try {
     log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
-    await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: 20000 });
-    await sleep(800);
-    const html = await page.content();
+    const { html, updatedCookie } = await fetchHtml(client, item.product_url, currentCookie);
     const $ = cheerio.load(html);
     if (!item.maker) {
       const brand = $("#bylineInfo, #brand").first().text().trim();
@@ -380,10 +239,13 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
     const bullets = $("#detailBullets_feature_div, #prodDetails").text();
     const jan = bullets.match(/\b(\d{13})\b/);
     if (jan) item.jan_code = jan[1];
-    const got = [item.maker && "maker", item.image_url && "image", item.jan_code && "JAN"].filter(Boolean).join(", ");
-    log("info", `  → ${got || "補完データなし"} (JAN=${item.jan_code || "-"}, maker=${item.maker || "-"})`);
+    const got = [item.maker && "maker", item.image_url && "image", item.jan_code && "JAN"]
+      .filter(Boolean).join(", ");
+    log("info", `  → ${got || "補完データなし"}`);
+    return updatedCookie;
   } catch (e) {
     log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${(e as Error).message}`);
+    return currentCookie;
   }
 }
 
@@ -400,40 +262,47 @@ export interface CrawlResult {
 export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<CrawlResult> {
   const collected: CrawledItem[] = [];
   const maxPages = opts.maxPages ?? 10;
-  let refreshedCookie: string | null = null;
+  let currentCookie = cookie;
   log("info", `クロール開始 (since=${opts.since.toISOString()}, maxPages=${maxPages})`);
+  log("info", `Cookie長さ: ${cookie.length}文字`);
 
-  await withBrowser(async (browser) => {
-    const { page, getLatestCookie } = await setupPage(browser, cookie);
+  const client = makeClient(currentCookie);
 
-    for (let p = 0; p < maxPages; p++) {
-      const url = `${BASE}/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
-      const { html, finalUrl } = await fetchPageHtml(page, url);
-
-      const latest = getLatestCookie();
-      if (latest) refreshedCookie = latest;
-
-      assertLoggedIn(finalUrl, html);
-
-      const pageItems = parseOrderHistory(html);
-      log("info", `ページ ${p + 1}: ${pageItems.length} 件の品目を検出`);
-      if (pageItems.length === 0) { log("info", "品目なし — クロール終了"); break; }
-
-      let reachedOld = false;
-      for (const it of pageItems) {
-        if (it.purchased_at < opts.since) {
-          log("info", `  スキップ(古): [${it.order_id}] ${it.product_name}`);
-          reachedOld = true;
-          continue;
-        }
-        collected.push(it);
-      }
-      if (reachedOld) { log("info", "差分終端に到達 — 終了"); break; }
-      await politeDelay();
+  for (let p = 0; p < maxPages; p++) {
+    const url = `/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
+    let html: string;
+    let finalUrl: string;
+    try {
+      ({ html, finalUrl, updatedCookie: currentCookie } = await fetchHtml(client, url, currentCookie));
+      // axiosのCookieヘッダを最新に更新
+      client.defaults.headers.common["Cookie"] = currentCookie;
+    } catch (e) {
+      log("error", `ページ取得失敗: ${(e as Error).message}`);
+      throw e;
     }
-  });
+
+    assertLoggedIn(finalUrl, html);
+
+    const pageItems = parseOrderHistory(html);
+    log("info", `ページ ${p + 1}: ${pageItems.length} 件の品目を検出`);
+    if (pageItems.length === 0) { log("info", "品目なし — クロール終了"); break; }
+
+    let reachedOld = false;
+    for (const it of pageItems) {
+      if (it.purchased_at < opts.since) {
+        log("info", `  スキップ(古): [${it.order_id}] ${it.product_name}`);
+        reachedOld = true;
+        continue;
+      }
+      collected.push(it);
+    }
+    if (reachedOld) { log("info", "差分終端に到達 — 終了"); break; }
+    await politeDelay();
+  }
 
   log("info", `クロール完了: 対象 ${collected.length} 件`);
+  const refreshedCookie = currentCookie !== cookie ? currentCookie : null;
+  if (refreshedCookie) log("info", "Cookieを更新しました");
   return { items: collected, refreshedCookie };
 }
 
@@ -441,12 +310,13 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
 export async function enrichItems(cookie: string, items: CrawledItem[]): Promise<void> {
   if (items.length === 0) return;
   log("info", `詳細補完開始: ${items.length}件`);
-  await withBrowser(async (browser) => {
-    const { page } = await setupPage(browser, cookie);
-    for (let i = 0; i < items.length; i++) {
-      await enrichItem(page, items[i], i + 1, items.length);
-      await enrichDelay();
-    }
-  });
+  let currentCookie = cookie;
+  const client = makeClient(currentCookie);
+
+  for (let i = 0; i < items.length; i++) {
+    currentCookie = await enrichItem(client, items[i], i + 1, items.length, currentCookie);
+    client.defaults.headers.common["Cookie"] = currentCookie;
+    await enrichDelay();
+  }
   log("info", "詳細補完完了");
 }
