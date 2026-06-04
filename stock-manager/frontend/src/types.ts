@@ -2,6 +2,7 @@ export interface Category {
   id: string;
   name: string;
   note: string;
+  icon: string;
   created_at: string;
 }
 
@@ -9,6 +10,7 @@ export interface Location {
   id: string;
   name: string;
   description: string;
+  icon: string;
   created_at: string;
 }
 

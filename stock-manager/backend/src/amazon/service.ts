@@ -115,16 +115,9 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
       await prisma.amazonQueue.create({ data: queueData(item, "auto") });
       auto++;
     } else {
-      // マスタ未登録 → 画像をローカル保存してから取込待ちキューに追加
-      const queueId = newId();
-      const localImage = await downloadImage(queueId, item.image_url);
-      if (localImage) {
-        item.image_url = localImage;
-        log("info", `  取込待ち追加(画像保存済): "${item.product_name}" (ASIN=${item.asin})`);
-      } else {
-        log("info", `  取込待ち追加(画像なし): "${item.product_name}" (ASIN=${item.asin})`);
-      }
-      await prisma.amazonQueue.create({ data: { id: queueId, ...queueData(item, "pending") } });
+      // マスタ未登録 → 取込待ちキューに追加
+      log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
+      await prisma.amazonQueue.create({ data: queueData(item, "pending") });
       queued++;
     }
   }

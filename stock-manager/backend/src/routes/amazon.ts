@@ -1,4 +1,5 @@
 import { Router } from "express";
+import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
@@ -101,6 +102,98 @@ router.post("/amazon/queue/:id/ignore", async (req, res) => {
     res.status(204).end();
   } catch (e) {
     res.status(400).json({ detail: (e as Error).message });
+  }
+});
+
+// --- Amazon URL → 商品情報取込 --------------------------------------------------
+
+const CHROMIUM_PATHS = [
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+];
+
+function findChromium(): string {
+  const { existsSync } = require("fs") as typeof import("fs");
+  for (const p of CHROMIUM_PATHS) {
+    if (existsSync(p)) return p;
+  }
+  throw new Error(`Chromiumが見つかりません。確認したパス: ${CHROMIUM_PATHS.join(", ")}`);
+}
+
+function parseCookiesForFetch(cookieStr: string): Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }> {
+  const sanitized = cookieStr.replace(/[\r\n\t]/g, " ");
+  return sanitized
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const idx = s.indexOf("=");
+      if (idx === -1) return null;
+      const name = s.slice(0, idx).trim();
+      const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
+      if (!name) return null;
+      const secure = name.startsWith("__Secure-") || name.startsWith("__Host-");
+      const path = name.startsWith("__Host-") ? "/" : undefined;
+      return { name, value, domain: ".amazon.co.jp", ...(secure ? { secure } : {}), ...(path ? { path } : {}) };
+    })
+    .filter(Boolean) as Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }>;
+}
+
+router.post("/amazon/fetch-product", async (req, res) => {
+  const url = String(req.body.url ?? "").trim();
+  const asinMatch = url.match(/\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/);
+  if (!asinMatch) {
+    return res.status(400).json({ detail: "URLからASINを取得できませんでした" });
+  }
+  const asin = asinMatch[1];
+  const productUrl = `https://www.amazon.co.jp/dp/${asin}`;
+
+  try {
+    const executablePath = findChromium();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
+    const browser = await puppeteer.launch({
+      executablePath,
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer"],
+    });
+    try {
+      const page = await browser.newPage();
+      await page.setUserAgent(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+      );
+      await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
+
+      const cookie = await getCookie();
+      if (cookie) {
+        const cookies = parseCookiesForFetch(cookie);
+        for (const c of cookies) {
+          try { await page.setCookie(c); } catch { /* skip bad cookies */ }
+        }
+      }
+
+      await page.goto(productUrl, { waitUntil: "networkidle2", timeout: 20000 });
+      await new Promise((r) => setTimeout(r, 1000));
+      const html = await page.content();
+      await page.close();
+
+      const $ = cheerio.load(html);
+      const name = $("#productTitle").text().trim();
+      const makerRaw = $("#bylineInfo, #brand").first().text().trim();
+      const maker = makerRaw.replace(/^(ブランド:|Brand:|Visit the|のストアを表示)/i, "").trim();
+      const image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
+      const bullets = $("#detailBullets_feature_div, #prodDetails").text();
+      const janMatch = bullets.match(/\b(\d{13})\b/);
+      const jan_code = janMatch ? janMatch[1] : "";
+
+      res.json({ name, maker, jan_code, asin, product_url: productUrl, image_url });
+    } finally {
+      await browser.close();
+    }
+  } catch (e) {
+    res.status(500).json({ detail: (e as Error).message });
   }
 });
 
