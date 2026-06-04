@@ -31,8 +31,10 @@ model Supplier {
 model Product {
   id          String   @id @default(uuid())
   name        String
+  maker       String   @default("")
   jan_code    String   @default("")
   amazon_asin String   @default("")
+  amazon_url  String   @default("")
   category_id String   @default("")
   supplier_id String   @default("")
   location_id String   @default("")

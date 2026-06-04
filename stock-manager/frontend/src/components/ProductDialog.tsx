@@ -27,8 +27,10 @@ interface Props {
 
 const schema = yup.object({
   name: yup.string().required("商品名は必須です"),
+  maker: yup.string().default(""),
   jan_code: yup.string().default(""),
   amazon_asin: yup.string().default(""),
+  amazon_url: yup.string().default(""),
   category_id: yup.string().default(""),
   supplier_id: yup.string().default(""),
   location_id: yup.string().default(""),
@@ -49,15 +51,17 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", jan_code: "", amazon_asin: "", category_id: "", supplier_id: "", location_id: "", note: "" },
+    defaultValues: { name: "", maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", supplier_id: "", location_id: "", note: "" },
   });
 
   useEffect(() => {
     if (open) {
       reset({
         name: product?.name ?? "",
+        maker: product?.maker ?? "",
         jan_code: product?.jan_code ?? "",
         amazon_asin: product?.amazon_asin ?? "",
+        amazon_url: product?.amazon_url ?? "",
         category_id: product?.category_id ?? "",
         supplier_id: product?.supplier_id ?? "",
         location_id: product?.location_id ?? "",
@@ -102,10 +106,12 @@ export default function ProductDialog({ open, product, onClose }: Props) {
               error={!!errors.name}
               helperText={errors.name?.message}
             />
+            <TextField label="メーカー" fullWidth {...register("maker")} />
             <Stack direction="row" spacing={2}>
               <TextField label="JANコード" fullWidth {...register("jan_code")} />
               <TextField label="Amazon ASIN" fullWidth {...register("amazon_asin")} />
             </Stack>
+            <TextField label="Amazon商品URL" fullWidth {...register("amazon_url")} />
             <Stack direction="row" spacing={2}>
               <Controller
                 name="category_id"

@@ -23,8 +23,10 @@ export interface Supplier {
 export interface Product {
   id: string;
   name: string;
+  maker: string;
   jan_code: string;
   amazon_asin: string;
+  amazon_url: string;
   category_id: string;
   supplier_id: string;
   location_id: string;
