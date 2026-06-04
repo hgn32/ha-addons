@@ -6,6 +6,7 @@ import {
   Box,
   Card,
   CardContent,
+  Chip,
   IconButton,
   Stack,
   Typography,
@@ -74,22 +75,18 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
                 <DragIndicatorIcon fontSize="small" />
               </Box>
             </Stack>
-            {p.maker && (
-              <Typography variant="caption" color="text.secondary" display="block">
-                {p.maker}
-              </Typography>
-            )}
-            {categoryLabel && (
-              <Typography variant="caption" color="text.secondary" display="block">
-                {categoryLabel}
-              </Typography>
-            )}
-            {lastPurchased && (
-              <Typography variant="caption" color="text.secondary" display="block">
-                最終購入: {lastPurchased}
-              </Typography>
-            )}
-            <Stack direction="row" spacing={0.5} mt={1}>
+            <Stack direction="row" flexWrap="wrap" gap={0.5} mt={0.5}>
+              {p.maker && (
+                <Chip label={p.maker} size="small" variant="outlined" />
+              )}
+              {categoryLabel && (
+                <Chip label={categoryLabel} size="small" color="primary" variant="outlined" />
+              )}
+              {lastPurchased && (
+                <Chip label={`購入: ${lastPurchased}`} size="small" />
+              )}
+            </Stack>
+            <Stack direction="row" spacing={0.5} mt={0.5}>
               <IconButton size="small" color="primary" onClick={onEdit}>
                 <EditIcon fontSize="small" />
               </IconButton>

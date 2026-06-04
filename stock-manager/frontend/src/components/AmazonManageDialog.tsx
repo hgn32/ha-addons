@@ -1,4 +1,6 @@
 import {
+  Autocomplete,
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -6,13 +8,15 @@ import {
   DialogTitle,
   MenuItem,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, imageUrl } from "../api";
 import { useStore } from "../store";
-import { AmazonQueueItem } from "../types";
+import { AmazonQueueItem, Product } from "../types";
 
 interface Props {
   open: boolean;
@@ -21,9 +25,9 @@ interface Props {
   onDone: (id: string) => void;
 }
 
-// パターンA「在庫管理する」: 商品マスタへ登録する前に内容を確認・補完する。
 export default function AmazonManageDialog({ open, item, onClose, onDone }: Props) {
-  const { categories, locations, suppliers, reloadProducts, reloadInventory, toast } = useStore();
+  const { categories, locations, suppliers, products, reloadProducts, reloadInventory, toast } = useStore();
+  const [tab, setTab] = useState(0); // 0=新規登録, 1=既存にマージ
   const [form, setForm] = useState({
     name: "",
     jan_code: "",
@@ -31,10 +35,12 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
     location_id: "",
     supplier_id: "",
   });
+  const [mergeTarget, setMergeTarget] = useState<Product | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (open && item) {
+      setTab(0);
       setForm({
         name: item.product_name,
         jan_code: item.jan_code,
@@ -42,6 +48,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
         location_id: "",
         supplier_id: "",
       });
+      setMergeTarget(null);
     }
   }, [open, item]);
 
@@ -50,11 +57,17 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
 
   const submit = async () => {
     if (!item) return;
-    if (!form.name.trim()) return toast("商品名は必須です", "error");
     setBusy(true);
     try {
-      await api.post(`/api/amazon/queue/${item.id}/manage`, form);
-      toast(`「${form.name}」を登録し在庫を${item.quantity}加算しました`);
+      if (tab === 0) {
+        if (!form.name.trim()) return toast("アイテム名は必須です", "error");
+        await api.post(`/api/amazon/queue/${item.id}/manage`, { mode: "new", ...form });
+        toast(`「${form.name}」を登録し在庫を${item.quantity}加算しました`);
+      } else {
+        if (!mergeTarget) return toast("マージ先を選択してください", "error");
+        await api.post(`/api/amazon/queue/${item.id}/manage`, { mode: "merge", product_id: mergeTarget.id });
+        toast(`「${mergeTarget.name}」にASINを紐づけ、在庫を${item.quantity}加算しました`);
+      }
       await Promise.all([reloadProducts(), reloadInventory()]);
       onDone(item.id);
       onClose();
@@ -67,49 +80,85 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>在庫管理する（商品マスタ登録）</DialogTitle>
+      <DialogTitle>在庫管理する</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {item && (
-            <Typography variant="caption" color="text.secondary">
-              ASIN: {item.asin || "-"} / 数量: {item.quantity} / 単価: ¥{item.unit_price}
-              {item.maker ? ` / メーカー: ${item.maker}` : ""}
-            </Typography>
+            <Stack direction="row" spacing={2} alignItems="center">
+              {item.image_url && (
+                <Box
+                  component="img"
+                  src={item.image_url.startsWith("http") ? item.image_url : imageUrl(item.image_url)}
+                  sx={{ width: 56, height: 56, objectFit: "contain", borderRadius: 1, border: "1px solid #eee" }}
+                />
+              )}
+              <Box>
+                <Typography variant="body2" fontWeight={600}>{item.product_name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  ASIN: {item.asin || "-"} / 数量: {item.quantity} / 単価: ¥{item.unit_price.toLocaleString()}
+                  {item.maker ? ` / ${item.maker}` : ""}
+                </Typography>
+              </Box>
+            </Stack>
           )}
-          <TextField label="商品名" required value={form.name} onChange={set("name")} fullWidth />
-          <TextField label="JANコード" value={form.jan_code} onChange={set("jan_code")} fullWidth />
-          <Stack direction="row" spacing={2}>
-            <TextField select label="カテゴリ" value={form.category_id} onChange={set("category_id")} fullWidth>
-              <MenuItem value="">-- 選択 --</MenuItem>
-              {categories.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField select label="置き場" value={form.location_id} onChange={set("location_id")} fullWidth>
-              <MenuItem value="">-- 選択 --</MenuItem>
-              {locations.map((l) => (
-                <MenuItem key={l.id} value={l.id}>
-                  {l.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Stack>
-          <TextField select label="購入先" value={form.supplier_id} onChange={set("supplier_id")} fullWidth>
-            <MenuItem value="">-- 選択 --</MenuItem>
-            {suppliers.map((s) => (
-              <MenuItem key={s.id} value={s.id}>
-                {s.name}
-              </MenuItem>
-            ))}
-          </TextField>
+
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: "divider" }}>
+            <Tab label="新規アイテムとして登録" />
+            <Tab label="既存アイテムに紐づける" />
+          </Tabs>
+
+          {tab === 0 && (
+            <Stack spacing={2}>
+              <TextField label="アイテム名" required value={form.name} onChange={set("name")} fullWidth />
+              <TextField label="JANコード" value={form.jan_code} onChange={set("jan_code")} fullWidth />
+              <Stack direction="row" spacing={2}>
+                <TextField select label="カテゴリ" value={form.category_id} onChange={set("category_id")} fullWidth>
+                  <MenuItem value="">-- 選択 --</MenuItem>
+                  {categories.map((c) => (
+                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                  ))}
+                </TextField>
+                <TextField select label="置き場" value={form.location_id} onChange={set("location_id")} fullWidth>
+                  <MenuItem value="">-- 選択 --</MenuItem>
+                  {locations.map((l) => (
+                    <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>
+                  ))}
+                </TextField>
+              </Stack>
+              <TextField select label="購入先" value={form.supplier_id} onChange={set("supplier_id")} fullWidth>
+                <MenuItem value="">-- 選択 --</MenuItem>
+                {suppliers.map((s) => (
+                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+          )}
+
+          {tab === 1 && (
+            <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                このASINを既存のアイテムに紐づけます。次回以降のクロールで自動加算されます。
+              </Typography>
+              <Autocomplete
+                options={products}
+                getOptionLabel={(p) => p.name}
+                value={mergeTarget}
+                onChange={(_, v) => setMergeTarget(v)}
+                renderInput={(params) => <TextField {...params} label="マージ先のアイテムを選択" />}
+              />
+              {mergeTarget && (
+                <Typography variant="caption" color="text.secondary">
+                  在庫 +{item?.quantity} 加算されます
+                </Typography>
+              )}
+            </Stack>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>キャンセル</Button>
         <Button variant="contained" disabled={busy} onClick={submit}>
-          登録して在庫加算
+          {tab === 0 ? "登録して在庫加算" : "紐づけて在庫加算"}
         </Button>
       </DialogActions>
     </Dialog>

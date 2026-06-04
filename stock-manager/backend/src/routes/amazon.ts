@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
-import { ignoreQueueItem, manageQueueItem, runAmazonCrawl } from "../amazon/service";
+import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, runAmazonCrawl } from "../amazon/service";
 
 const router = Router();
 
@@ -85,13 +85,57 @@ router.delete("/amazon/queue", async (_req, res) => {
   res.status(204).end();
 });
 
-// パターンA: 在庫管理する（商品マスタ登録 + 在庫加算）
+// パターンA: 在庫管理する
+// mode="new"   → 新規アイテム登録 + 在庫加算 + ASIN紐づけ
+// mode="merge" → 既存アイテムにASIN紐づけ + 在庫加算
 router.post("/amazon/queue/:id/manage", async (req, res) => {
   try {
-    const product = await manageQueueItem(req.params.id as string, req.body ?? {});
+    const { mode, product_id, ...overrides } = req.body ?? {};
+    let product;
+    if (mode === "merge") {
+      if (!product_id) return res.status(400).json({ detail: "product_id is required for merge" });
+      product = await manageQueueItemMerge(req.params.id as string, product_id as string);
+    } else {
+      product = await manageQueueItemNew(req.params.id as string, overrides);
+    }
     res.json(product);
   } catch (e) {
     res.status(400).json({ detail: (e as Error).message });
+  }
+});
+
+// ProductAsin管理: アイテムに紐づくASIN一覧を取得
+router.get("/products/:id/asins", async (req, res) => {
+  const asins = await prisma.productAsin.findMany({
+    where: { product_id: req.params.id as string },
+    orderBy: { created_at: "asc" },
+  });
+  res.json(asins);
+});
+
+// ASINを追加
+router.post("/products/:id/asins", async (req, res) => {
+  const asin = String(req.body.asin ?? "").trim().toUpperCase();
+  if (!asin) return res.status(400).json({ detail: "asin is required" });
+  try {
+    const row = await prisma.productAsin.upsert({
+      where: { asin },
+      update: { product_id: req.params.id as string },
+      create: { product_id: req.params.id as string, asin },
+    });
+    res.status(201).json(row);
+  } catch (e) {
+    res.status(400).json({ detail: (e as Error).message });
+  }
+});
+
+// ASINを削除
+router.delete("/products/asins/:asinId", async (req, res) => {
+  try {
+    await prisma.productAsin.delete({ where: { id: req.params.asinId as string } });
+    res.status(204).end();
+  } catch {
+    res.status(404).json({ detail: "Not found" });
   }
 });
 

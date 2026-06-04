@@ -34,20 +34,32 @@ model Supplier {
 }
 
 model Product {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   name        String
-  maker       String   @default("")
-  jan_code    String   @default("")
-  amazon_asin String   @default("")
-  amazon_url  String   @default("")
-  category_id String   @default("")
-  supplier_id String   @default("")
-  location_id String   @default("")
-  note        String   @default("")
-  photo       String   @default("")
-  quantity    Int      @default(0)
-  sort_order  Int      @default(0)
-  created_at  DateTime @default(now())
+  maker       String        @default("")
+  jan_code    String        @default("")
+  amazon_asin String        @default("")
+  amazon_url  String        @default("")
+  category_id String        @default("")
+  supplier_id String        @default("")
+  location_id String        @default("")
+  note        String        @default("")
+  photo       String        @default("")
+  quantity    Int           @default(0)
+  sort_order  Int           @default(0)
+  created_at  DateTime      @default(now())
+  asins       ProductAsin[]
+}
+
+// One product can be associated with multiple ASINs (e.g. same item re-listed or capacity variants)
+model ProductAsin {
+  id         String   @id @default(uuid())
+  product_id String
+  asin       String   @unique
+  created_at DateTime @default(now())
+  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([product_id])
 }
 
 model Transaction {

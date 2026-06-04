@@ -19,10 +19,14 @@ export interface CrawlSummary {
 }
 
 // Find a product master entry matching the crawled item's ASIN or JAN.
+// Checks ProductAsin table first, then legacy product.amazon_asin field, then JAN code.
 async function matchProduct(asin: string, jan: string) {
   if (asin) {
-    const byAsin = await prisma.product.findFirst({ where: { amazon_asin: asin } });
-    if (byAsin) return byAsin;
+    const byProductAsin = await prisma.productAsin.findUnique({ where: { asin }, include: { product: true } });
+    if (byProductAsin) return byProductAsin.product;
+    // Legacy fallback: products created before multi-ASIN support
+    const byLegacyAsin = await prisma.product.findFirst({ where: { amazon_asin: asin } });
+    if (byLegacyAsin) return byLegacyAsin;
   }
   if (jan) {
     const byJan = await prisma.product.findFirst({ where: { jan_code: jan } });
@@ -97,7 +101,6 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
 
     const product = await matchProduct(item.asin, item.jan_code);
     if (product) {
-      // 既存マスタに一致 → 在庫加算のみ
       log("info", `  自動加算: "${product.name}" +${item.quantity} (ASIN=${item.asin})`);
       await prisma.product.update({
         where: { id: product.id },
@@ -115,7 +118,6 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
       await prisma.amazonQueue.create({ data: queueData(item, "auto") });
       auto++;
     } else {
-      // マスタ未登録 → 取込待ちキューに追加
       log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
       await prisma.amazonQueue.create({ data: queueData(item, "pending") });
       queued++;
@@ -151,13 +153,12 @@ export interface ManageOverrides {
   note?: string;
 }
 
-// パターンA「在庫管理する」: 商品マスタに新規登録 + 在庫加算。
-export async function manageQueueItem(id: string, overrides: ManageOverrides) {
+// パターンA-1「新規登録」: 商品マスタに新規登録 + 在庫加算 + ASIN紐づけ
+export async function manageQueueItemNew(id: string, overrides: ManageOverrides) {
   const item = await prisma.amazonQueue.findUnique({ where: { id } });
   if (!item) throw new Error("取込データが見つかりません");
 
   const productId = newId();
-  // image_url がローカルファイル名（http非始まり）なら既にダウンロード済み
   const photo = item.image_url.startsWith("http")
     ? await downloadImage(productId, item.image_url)
     : item.image_url;
@@ -179,13 +180,57 @@ export async function manageQueueItem(id: string, overrides: ManageOverrides) {
     },
   });
 
+  // Register ASIN in ProductAsin table
+  if (item.asin) {
+    await prisma.productAsin.upsert({
+      where: { asin: item.asin },
+      update: { product_id: product.id },
+      create: { product_id: product.id, asin: item.asin },
+    });
+  }
+
   await prisma.transaction.create({
     data: {
       type: "add",
       product_id: product.id,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      note: `Amazon取込(在庫管理) 注文:${item.order_id}`,
+      note: `Amazon取込(新規登録) 注文:${item.order_id}`,
+    },
+  });
+
+  await prisma.amazonQueue.update({ where: { id }, data: { status: "managed" } });
+  return product;
+}
+
+// パターンA-2「既存アイテムにマージ」: 既存マスタにASIN紐づけ + 在庫加算
+export async function manageQueueItemMerge(id: string, productId: string) {
+  const item = await prisma.amazonQueue.findUnique({ where: { id } });
+  if (!item) throw new Error("取込データが見つかりません");
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) throw new Error("マージ先のアイテムが見つかりません");
+
+  // Add ASIN association
+  if (item.asin) {
+    await prisma.productAsin.upsert({
+      where: { asin: item.asin },
+      update: { product_id: productId },
+      create: { product_id: productId, asin: item.asin },
+    });
+  }
+
+  await prisma.product.update({
+    where: { id: productId },
+    data: { quantity: { increment: item.quantity } },
+  });
+
+  await prisma.transaction.create({
+    data: {
+      type: "add",
+      product_id: productId,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      note: `Amazon取込(マージ) 注文:${item.order_id}`,
     },
   });
 
@@ -204,7 +249,6 @@ export async function ignoreQueueItem(id: string): Promise<void> {
       update: {},
       create: { asin: item.asin },
     });
-    // Drop any other pending rows for the same ASIN too.
     await prisma.amazonQueue.deleteMany({ where: { asin: item.asin, status: "pending" } });
   } else {
     await prisma.amazonQueue.delete({ where: { id } });

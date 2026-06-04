@@ -3,10 +3,16 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 function gitHash(): string {
-  if (process.env.GIT_HASH) return process.env.GIT_HASH;
+  if (process.env.GIT_HASH) {
+    console.log(`[vite] GIT_HASH from env: ${process.env.GIT_HASH}`);
+    return process.env.GIT_HASH;
+  }
   try {
-    return execSync("git rev-parse --short HEAD").toString().trim();
-  } catch {
+    const hash = execSync("git rev-parse --short HEAD").toString().trim();
+    console.log(`[vite] GIT_HASH from git: ${hash}`);
+    return hash;
+  } catch (e) {
+    console.log(`[vite] GIT_HASH fallback to "unknown": ${(e as Error).message}`);
     return "unknown";
   }
 }
