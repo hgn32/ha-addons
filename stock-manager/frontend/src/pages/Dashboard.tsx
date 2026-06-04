@@ -14,6 +14,7 @@ import {
   DialogTitle,
   Grid,
   IconButton,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -25,7 +26,6 @@ import { InventoryItem, Transaction } from "../types";
 import type { Page } from "../App";
 
 // --- 次回購入想定日の計算 ---
-// 同品目の「add」トランザクションが2件以上あれば、購入インターバルの平均から推定する。
 function estimateNextPurchase(productId: string, stock: number, txs: Transaction[]): Date | null {
   const adds = txs
     .filter((t) => t.product_id === productId && t.type === "add" && t.quantity > 0)
@@ -58,7 +58,7 @@ function NextPurchaseChip({ date }: { date: Date }) {
       ? `残${diff}日`
       : date.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
   const color = diff <= 0 ? "error" : diff <= 7 ? "warning" : "default";
-  return <Chip label={`次回購入: ${label}`} color={color} size="small" />;
+  return <Chip label={`次回購入: ${label}`} color={color} size="small" sx={{ mr: 0.5, mb: 0.5 }} />;
 }
 
 // --- 履歴ダイアログ ---
@@ -181,28 +181,82 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   );
 }
 
+type SortKey = "stock_asc" | "stock_desc" | "name_asc" | "next_purchase";
+
 // --- Dashboard ---
-export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => void }) {
-  const { inventory, transactions, categoryName } = useStore();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p: Page) => void }) {
+  const { inventory, transactions, categories, categoryName } = useStore();
   const [dialogItem, setDialogItem] = useState<InventoryItem | null>(null);
   const [dialogMode, setDialogMode] = useState<"add" | "use">("add");
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("stock_asc");
 
-  const sorted = useMemo(
-    () => [...inventory].sort((a, b) => a.quantity - b.quantity),
-    [inventory]
-  );
+  const nextPurchaseMap = useMemo(() => {
+    const m = new Map<string, Date | null>();
+    for (const item of inventory) {
+      m.set(item.id, estimateNextPurchase(item.id, item.quantity, transactions));
+    }
+    return m;
+  }, [inventory, transactions]);
+
+  const displayed = useMemo(() => {
+    let list = filterCategory
+      ? inventory.filter((i) => i.category_id === filterCategory)
+      : [...inventory];
+
+    list.sort((a, b) => {
+      if (sortKey === "stock_asc") return a.quantity - b.quantity;
+      if (sortKey === "stock_desc") return b.quantity - a.quantity;
+      if (sortKey === "name_asc") return a.name.localeCompare(b.name, "ja");
+      // next_purchase: 期限切れ→近い順、未推定は末尾
+      const da = nextPurchaseMap.get(a.id);
+      const db = nextPurchaseMap.get(b.id);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da.getTime() - db.getTime();
+    });
+    return list;
+  }, [inventory, filterCategory, sortKey, nextPurchaseMap]);
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>ダッシュボード</Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} sx={{ mb: 3, columnGap: 4 }}>
+        <Typography variant="h5" fontWeight={700} sx={{ mr: 2 }}>ダッシュボード</Typography>
+        <Stack direction="row" spacing={2} flexWrap="wrap">
+          <TextField
+            select label="カテゴリ" size="small" sx={{ minWidth: 160 }}
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+          >
+            <MenuItem value="">すべて</MenuItem>
+            {categories.map((c) => (
+              <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select label="並び替え" size="small" sx={{ minWidth: 160 }}
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+          >
+            <MenuItem value="stock_asc">在庫 少ない順</MenuItem>
+            <MenuItem value="stock_desc">在庫 多い順</MenuItem>
+            <MenuItem value="name_asc">名前順</MenuItem>
+            <MenuItem value="next_purchase">購入予定日順</MenuItem>
+          </TextField>
+        </Stack>
+      </Stack>
 
-      {sorted.length === 0 ? (
-        <Typography color="text.secondary" sx={{ py: 6, textAlign: "center" }}>品目がありません</Typography>
+      {displayed.length === 0 ? (
+        <Typography color="text.secondary" sx={{ py: 6, textAlign: "center" }}>
+          {inventory.length === 0 ? "品目がありません" : "該当する品目がありません"}
+        </Typography>
       ) : (
         <Grid container spacing={2}>
-          {sorted.map((item) => {
-            const next = estimateNextPurchase(item.id, item.quantity, transactions);
+          {displayed.map((item) => {
+            const next = nextPurchaseMap.get(item.id) ?? null;
             const low = item.quantity <= 1;
             return (
               <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
@@ -217,13 +271,13 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
                             {item.quantity}
                           </Typography>
                         </Stack>
-                        <Stack direction="row" flexWrap="wrap" gap={0.5} mt={0.5}>
+                        <Box sx={{ mt: 0.5, mb: 0.5 }}>
                           {categoryName(item.category_id) && (
-                            <Chip label={categoryName(item.category_id)} size="small" color="primary" variant="outlined" />
+                            <Chip label={categoryName(item.category_id)} size="small" color="primary" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                           )}
                           {next && <NextPurchaseChip date={next} />}
-                        </Stack>
-                        <Stack direction="row" spacing={0.5} mt={0.5}>
+                        </Box>
+                        <Stack direction="row" spacing={0.5}>
                           <IconButton size="small" onClick={() => setHistoryItem(item)}>
                             <HistoryIcon fontSize="small" />
                           </IconButton>

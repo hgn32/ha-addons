@@ -16,12 +16,12 @@ model Category {
 }
 
 model Location {
-  id          String   @id @default(uuid())
-  name        String
-  description String   @default("")
-  icon        String   @default("")
-  sort_order  Int      @default(0)
-  created_at  DateTime @default(now())
+  id         String   @id @default(uuid())
+  name       String
+  note       String   @default("")
+  icon       String   @default("")
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
 }
 
 model Supplier {

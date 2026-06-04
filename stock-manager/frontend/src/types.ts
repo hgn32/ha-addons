@@ -9,7 +9,7 @@ export interface Category {
 export interface Location {
   id: string;
   name: string;
-  description: string;
+  note: string;
   icon: string;
   created_at: string;
 }

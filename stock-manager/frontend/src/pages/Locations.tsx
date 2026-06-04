@@ -22,7 +22,7 @@ export default function Locations() {
             </Box>
           ),
         },
-        { key: "description", label: "説明" },
+        { key: "note", label: "メモ" },
       ]}
     />
   );

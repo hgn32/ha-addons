@@ -57,7 +57,7 @@ function crudRouter(path: string, delegate: Delegate, fields: string[]): Router 
 
 const router = Router();
 router.use(crudRouter("categories", prisma.category as unknown as Delegate, ["name", "note", "icon"]));
-router.use(crudRouter("locations", prisma.location as unknown as Delegate, ["name", "description", "icon"]));
+router.use(crudRouter("locations", prisma.location as unknown as Delegate, ["name", "note", "icon"]));
 router.use(crudRouter("suppliers", prisma.supplier as unknown as Delegate, ["name", "url", "note"]));
 
 export default router;

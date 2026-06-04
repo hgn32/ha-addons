@@ -34,7 +34,6 @@ const LABELS: Record<MasterEntity, string> = {
 const schema = yup.object({
   name: yup.string().required("名前は必須です"),
   note: yup.string().default(""),
-  description: yup.string().default(""),
   url: yup.string().default(""),
   icon: yup.string().default(""),
 });
@@ -53,7 +52,7 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", note: "", description: "", url: "", icon: "" },
+    defaultValues: { name: "", note: "", url: "", icon: "" },
   });
 
   const watchedIcon = watch("icon");
@@ -63,7 +62,6 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
       reset({
         name: item?.name ?? "",
         note: item?.note ?? "",
-        description: item?.description ?? "",
         url: item?.url ?? "",
         icon: item?.icon ?? "",
       });
@@ -104,24 +102,13 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
               error={!!errors.name}
               helperText={errors.name?.message}
             />
-            {(entity === "categories" || entity === "suppliers") && (
-              <TextField
-                label="メモ"
-                fullWidth
-                {...register("note")}
-                error={!!errors.note}
-                helperText={errors.note?.message}
-              />
-            )}
-            {entity === "locations" && (
-              <TextField
-                label="説明"
-                fullWidth
-                {...register("description")}
-                error={!!errors.description}
-                helperText={errors.description?.message}
-              />
-            )}
+            <TextField
+              label="メモ"
+              fullWidth
+              {...register("note")}
+              error={!!errors.note}
+              helperText={errors.note?.message}
+            />
             {entity === "suppliers" && (
               <TextField
                 label="URL"
