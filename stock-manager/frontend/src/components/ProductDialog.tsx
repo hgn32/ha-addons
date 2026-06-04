@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import { useEffect, useState } from "react";
 import { useForm, Controller, type FieldPath } from "react-hook-form";
@@ -55,6 +56,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [fetchUrl, setFetchUrl] = useState("");
   const [fetching, setFetching] = useState(false);
+  const [fetchingPhoto, setFetchingPhoto] = useState(false);
   const [tab, setTab] = useState(0);
   const [asins, setAsins] = useState<ProductAsin[]>([]);
   const [newAsin, setNewAsin] = useState("");
@@ -65,6 +67,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     control,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -94,6 +97,8 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       }
     }
   }, [open, product, reset]);
+
+  const watchedAmazonUrl = watch("amazon_url");
 
   const preview = file ? URL.createObjectURL(file) : product?.photo ? imageUrl(product.photo) : "";
 
@@ -140,6 +145,26 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       toast("ASINを削除しました");
     } catch (e) {
       toast((e as Error).message || "エラーが発生しました", "error");
+    }
+  };
+
+  const handleFetchPhoto = async () => {
+    const url = watchedAmazonUrl;
+    if (!url) return;
+    setFetchingPhoto(true);
+    try {
+      const data = await api.post<{ image_url: string }>("/api/amazon/fetch-product", { url });
+      if (!data.image_url) return toast("画像URLが取得できませんでした", "error");
+      const res = await fetch(data.image_url);
+      const blob = await res.blob();
+      const ext = data.image_url.split(".").pop()?.split("?")[0] ?? "jpg";
+      const f = new File([blob], `amazon_photo.${ext}`, { type: blob.type });
+      setFile(f);
+      toast("画像を取り込みました");
+    } catch (e) {
+      toast((e as Error).message || "画像取込に失敗しました", "error");
+    } finally {
+      setFetchingPhoto(false);
     }
   };
 
@@ -236,15 +261,25 @@ export default function ProductDialog({ open, product, onClose }: Props) {
                 <Avatar src={preview} variant="rounded" sx={{ width: 64, height: 64 }}>
                   📦
                 </Avatar>
-                <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />}>
-                  写真を選択
-                  <input
-                    hidden
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  />
-                </Button>
+                <Stack spacing={1}>
+                  <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />}>
+                    写真を選択
+                    <input
+                      hidden
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    />
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CloudDownloadIcon />}
+                    disabled={!watchedAmazonUrl || fetchingPhoto}
+                    onClick={handleFetchPhoto}
+                  >
+                    {fetchingPhoto ? "取込中..." : "写真をAmazonから取込"}
+                  </Button>
+                </Stack>
               </Box>
             </Stack>
           )}
