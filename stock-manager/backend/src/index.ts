@@ -37,7 +37,7 @@ app.get(/.*/, (req, res) => {
   const ingressPath = ((req.headers["x-ingress-path"] as string) || "").replace(/\/$/, "");
   const html = fs
     .readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf-8")
-    .replace("{{INGRESS_PATH}}", ingressPath);
+    .replaceAll("{{INGRESS_PATH}}", ingressPath);
   res.type("html").send(html);
 });
 
