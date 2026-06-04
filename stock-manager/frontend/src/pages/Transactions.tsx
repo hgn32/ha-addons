@@ -50,9 +50,9 @@ export default function Transactions() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700} sx={{ mr: 2 }}>在庫履歴</Typography>
-        <Stack direction="row" spacing={2} flexWrap="wrap">
+      <Stack direction="row" alignItems="center" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>在庫履歴</Typography>
+        <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ ml: "auto" }}>
           <TextField
             select label="品目" size="small" sx={{ minWidth: 200 }}
             value={filterProduct}

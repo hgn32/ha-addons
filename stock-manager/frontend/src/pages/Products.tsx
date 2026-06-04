@@ -169,9 +169,9 @@ export default function Products() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+      <Stack direction="row" alignItems="center" sx={{ mb: 3 }}>
         <Typography variant="h5" fontWeight={700}>品目マスタ</Typography>
-        <Button size="small" startIcon={<DownloadIcon />} onClick={exportCsv}>CSV出力</Button>
+        <Button size="small" startIcon={<DownloadIcon />} onClick={exportCsv} sx={{ ml: "auto" }}>CSV出力</Button>
       </Stack>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

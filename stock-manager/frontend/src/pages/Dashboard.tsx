@@ -223,9 +223,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} sx={{ mb: 3, columnGap: 4 }}>
-        <Typography variant="h5" fontWeight={700} sx={{ mr: 2 }}>ダッシュボード</Typography>
-        <Stack direction="row" spacing={2} flexWrap="wrap">
+      <Stack direction="row" alignItems="center" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>ダッシュボード</Typography>
+        <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ ml: "auto" }}>
           <TextField
             select label="カテゴリ" size="small" sx={{ minWidth: 160 }}
             value={filterCategory}
