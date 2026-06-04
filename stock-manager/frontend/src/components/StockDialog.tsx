@@ -7,6 +7,7 @@ import {
   MenuItem,
   Stack,
   TextField,
+  Typography,
 } from "@mui/material";
 import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
@@ -54,6 +55,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -71,6 +73,12 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
       });
     }
   }, [open, mode, initialProductId, reset]);
+
+  const watchedProductId = watch("product_id");
+  const watchedQty = watch("quantity");
+  const selectedProduct = products.find((p) => p.id === watchedProductId);
+  const pieceCount = selectedProduct?.piece_count ?? 1;
+  const actualAdd = (watchedQty > 0 && pieceCount > 1) ? watchedQty * pieceCount : null;
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -113,7 +121,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
             />
             <TextField
               type="number"
-              label={mode === "adjust" ? "新しい在庫数" : "数量"}
+              label={mode === "adjust" ? "新しい在庫数" : mode === "add" ? "購入数量（箱・パック数）" : "数量"}
               required
               fullWidth
               inputProps={{ min: 0 }}
@@ -121,6 +129,11 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
               error={!!errors.quantity}
               helperText={errors.quantity?.message}
             />
+            {mode === "add" && actualAdd && (
+              <Typography variant="body2" color="success.main" sx={{ mt: -1, fontWeight: 600 }}>
+                {watchedQty} × 入り数{pieceCount} = <strong>{actualAdd}個</strong> 追加
+              </Typography>
+            )}
             {mode === "add" && (
               <>
                 <TextField

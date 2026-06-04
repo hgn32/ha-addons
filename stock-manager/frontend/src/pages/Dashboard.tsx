@@ -97,23 +97,26 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
             {txs.map((t) => (
               <Card key={t.id} variant="outlined">
                 <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between">
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Typography fontWeight={600} color={TX_COLOR[t.type] === "success" ? "success.main" : TX_COLOR[t.type] === "error" ? "error.main" : "text.secondary"}>
-                        {t.type === "use" ? "-" : "+"}{t.quantity}
+                  <Stack direction="row" alignItems="flex-start" sx={{ justifyContent: "space-between", gap: 1 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                      <Chip
+                        label={{ add: "購入", use: "消費", adjust: "調整" }[t.type] ?? t.type}
+                        color={TX_COLOR[t.type] as "success" | "error" | "default"}
+                        size="small"
+                      />
+                      <Typography fontWeight={700} color={TX_COLOR[t.type] === "success" ? "success.main" : TX_COLOR[t.type] === "error" ? "error.main" : "text.secondary"}>
+                        {t.type === "use" ? `-${t.quantity}` : `+${t.quantity}`}
                       </Typography>
                       {t.supplier_id && (
-                        <Typography variant="caption" color="text.secondary">
-                          {supplierName(t.supplier_id)}
-                        </Typography>
+                        <Typography variant="caption" color="text.secondary">{supplierName(t.supplier_id)}</Typography>
                       )}
                     </Stack>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap", flexShrink: 0 }}>
                       {new Date(t.date).toLocaleDateString("ja-JP")}
                     </Typography>
                   </Stack>
                   {t.note && (
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75, pl: 0.5 }}>
                       {t.note}
                     </Typography>
                   )}
@@ -146,7 +149,9 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
     setBusy(true);
     try {
       await api.post(`/api/inventory/${mode}`, { product_id: item.id, quantity: n });
-      toast(mode === "add" ? `在庫を${n}追加しました` : `在庫を${n}消費しました`);
+      const pc = item?.piece_count ?? 1;
+      const actual = mode === "add" ? n * pc : n;
+      toast(mode === "add" ? `在庫を${actual}追加しました${pc > 1 ? ` (${n}×${pc})` : ""}` : `在庫を${actual}消費しました`);
       await Promise.all([reloadInventory(), reloadTransactions()]);
       onClose();
     } catch (e) {
@@ -156,6 +161,10 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
     }
   };
 
+  const pieceCount = item?.piece_count ?? 1;
+  const qtyNum = parseInt(qty, 10);
+  const actualAdd = mode === "add" && qtyNum > 0 && pieceCount > 1 ? qtyNum * pieceCount : null;
+
   return (
     <Dialog open={Boolean(item)} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>
@@ -164,12 +173,17 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
       </DialogTitle>
       <DialogContent>
         <TextField
-          autoFocus type="number" label="数量" value={qty}
+          autoFocus type="number" label={mode === "add" ? "購入数量（箱・パック数）" : "数量"} value={qty}
           onChange={(e) => setQty(e.target.value)}
           slotProps={{ htmlInput: { min: 1 } }}
           fullWidth sx={{ mt: 1 }}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
+        {actualAdd && (
+          <Typography variant="body2" color="success.main" sx={{ mt: 1, fontWeight: 600 }}>
+            {qtyNum} × 入り数{pieceCount} = <strong>{actualAdd}個</strong> 追加
+          </Typography>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>キャンセル</Button>

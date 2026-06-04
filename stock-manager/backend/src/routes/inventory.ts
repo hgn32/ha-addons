@@ -34,12 +34,15 @@ router.post("/inventory/add", async (req, res) => {
   const unit_price = parseFloat(req.body.unit_price) || 0;
   if (!(qty > 0)) return res.status(400).json({ detail: "数量は1以上で指定してください" });
   try {
-    const product = await prisma.product.update({
+    const product = await prisma.product.findUnique({ where: { id: product_id } });
+    if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
+    const actualQty = qty * (product.piece_count || 1);
+    const updated = await prisma.product.update({
       where: { id: product_id },
-      data: { quantity: { increment: qty } },
+      data: { quantity: { increment: actualQty } },
     });
-    await recordTx("add", product_id, qty, { unit_price, supplier_id, note });
-    res.json({ product_id, quantity: product.quantity });
+    await recordTx("add", product_id, actualQty, { unit_price, supplier_id, note });
+    res.json({ product_id, quantity: updated.quantity });
   } catch {
     res.status(404).json({ detail: "品目が見つかりません" });
   }

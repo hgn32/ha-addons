@@ -130,16 +130,17 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
   // DB登録
   for (const { item, product } of toProcess) {
     if (product) {
-      log("info", `  自動加算: "${product.name}" +${item.quantity} (ASIN=${item.asin})`);
+      const actualQty = item.quantity * (product.piece_count || 1);
+      log("info", `  自動加算: "${product.name}" +${actualQty}${product.piece_count > 1 ? ` (${item.quantity}×${product.piece_count})` : ""}`);
       await prisma.product.update({
         where: { id: product.id },
-        data: { quantity: { increment: item.quantity } },
+        data: { quantity: { increment: actualQty } },
       });
       await prisma.transaction.create({
         data: {
           type: "add",
           product_id: product.id,
-          quantity: item.quantity,
+          quantity: actualQty,
           supplier_id: amazonSupplier?.id ?? "",
           note: `Amazon自動取込 注文:${item.order_id}`,
         },
