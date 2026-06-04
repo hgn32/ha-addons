@@ -54,9 +54,9 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
   };
 
   return (
-    <Card ref={setNodeRef} style={style}>
-      <CardContent>
-        <Stack direction="row" spacing={2}>
+    <Card ref={setNodeRef} style={style} sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
+        <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
           <Avatar
             src={p.photo ? imageUrl(p.photo) : undefined}
             variant="rounded"

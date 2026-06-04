@@ -260,9 +260,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
             const low = item.quantity <= 1;
             return (
               <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                <Card sx={{ height: "100%" }}>
-                  <CardContent>
-                    <Stack direction="row" spacing={2}>
+                <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                  <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
+                    <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
                       <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }}>📦</Avatar>
                       <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
