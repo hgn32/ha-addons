@@ -72,10 +72,10 @@ export default function AmazonImport() {
     }
   };
 
-  const crawl = async () => {
+  const crawl = async (full = false) => {
     setCrawling(true);
     try {
-      const s = await api.post<AmazonCrawlSummary>("/api/amazon/crawl");
+      const s = await api.post<AmazonCrawlSummary>("/api/amazon/crawl", { full });
       toast(`取得 ${s.fetched}件（自動 ${s.auto} / 要確認 ${s.queued} / スキップ ${s.skipped}）`);
       await Promise.all([loadQueue(), loadSettings(), loadLogs(), reloadProducts(), reloadInventory(), reloadTransactions()]);
     } catch (e) {
@@ -161,16 +161,24 @@ export default function AmazonImport() {
       {/* --- 2. クロール実行 --- */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" mb={1}>
-          2. 購入履歴を取得（差分同期）
+          2. 購入履歴を取得
         </Typography>
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
           <Button
             variant="contained"
             startIcon={<SyncIcon />}
             disabled={!settings?.cookie_set || crawling}
-            onClick={crawl}
+            onClick={() => crawl(false)}
           >
-            {crawling ? "取得中..." : "今すぐ取得"}
+            {crawling ? "取得中..." : "差分取得"}
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<SyncIcon />}
+            disabled={!settings?.cookie_set || crawling}
+            onClick={() => crawl(true)}
+          >
+            90日分取込
           </Button>
           <Typography variant="body2" color="text.secondary">
             前回同期: {settings?.last_sync ? new Date(settings.last_sync).toLocaleString("ja-JP") : "未実行"}

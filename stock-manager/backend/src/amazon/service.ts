@@ -53,17 +53,19 @@ function queueData(item: CrawledItem, status: string) {
 
 // Run a differential crawl: fetch orders since last sync, auto-add matches,
 // queue the rest for manual triage.
-export async function runAmazonCrawl(): Promise<CrawlSummary> {
+// full=true forces a 90-day lookback regardless of last sync date.
+export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
   const cookie = await getCookie();
   if (!cookie) throw new Error("Amazon Cookieが設定されていません");
   log("info", `Cookie長さ: ${cookie.length}文字`);
   log("info", `Cookie先頭: ${cookie.slice(0, 60)}...`);
 
   const lastSyncStr = await getSetting(LAST_SYNC_KEY);
-  const since = lastSyncStr
-    ? new Date(lastSyncStr)
-    : new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-  log("info", `差分取得基準日: ${since.toISOString()}`);
+  const since =
+    !full && lastSyncStr
+      ? new Date(lastSyncStr)
+      : new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  log("info", `差分取得基準日: ${since.toISOString()} (full=${full})`);
 
   const { items: orders, refreshedCookie } = await crawlOrders(cookie, { since, enrich: true });
 

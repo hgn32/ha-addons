@@ -59,9 +59,10 @@ router.delete("/amazon/logs", (_req, res) => {
 
 // --- Crawler: run + queue --------------------------------------------------
 
-router.post("/amazon/crawl", async (_req, res) => {
+router.post("/amazon/crawl", async (req, res) => {
+  const full = req.body?.full === true;
   try {
-    const summary = await runAmazonCrawl();
+    const summary = await runAmazonCrawl(full);
     res.json(summary);
   } catch (e) {
     res.status(400).json({ detail: (e as Error).message });

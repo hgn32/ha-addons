@@ -12,14 +12,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Paper,
+  Grid,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
@@ -67,7 +61,6 @@ function NextPurchaseChip({ date }: { date: Date }) {
 }
 
 // --- 履歴ダイアログ ---
-const TX_LABEL: Record<string, string> = { add: "入庫", use: "消費", adjust: "調整" };
 const TX_COLOR: Record<string, "success" | "error" | "default"> = { add: "success", use: "error", adjust: "default" };
 
 function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose: () => void }) {
@@ -105,12 +98,7 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
                 <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
                     <Stack direction="row" spacing={1} alignItems="center">
-                      <Chip
-                        label={TX_LABEL[t.type] ?? t.type}
-                        color={TX_COLOR[t.type] ?? "default"}
-                        size="small"
-                      />
-                      <Typography fontWeight={600}>
+                      <Typography fontWeight={600} color={TX_COLOR[t.type] === "success" ? "success.main" : TX_COLOR[t.type] === "error" ? "error.main" : "text.secondary"}>
                         {t.type === "use" ? "-" : "+"}{t.quantity}
                       </Typography>
                       {t.supplier_id && (
@@ -208,62 +196,46 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
     <Box>
       <Typography variant="h5" fontWeight={700} mb={3}>ダッシュボード</Typography>
 
-      <Paper>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>品目</TableCell>
-                <TableCell>カテゴリ</TableCell>
-                <TableCell align="center">在庫数</TableCell>
-                <TableCell>次回購入</TableCell>
-                <TableCell align="right" />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sorted.map((item) => {
-                const next = estimateNextPurchase(item.id, item.quantity, transactions);
-                const low = item.quantity <= 1;
-                return (
-                  <TableRow key={item.id} hover>
-                    <TableCell>
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }}>📦</Avatar>
-                        <Typography variant="body2" fontWeight={600}>{item.name}</Typography>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">{categoryName(item.category_id)}</Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Typography fontWeight={700} color={low ? "error.main" : "text.primary"}>{item.quantity}</Typography>
-                    </TableCell>
-                    <TableCell>{next ? <NextPurchaseChip date={next} /> : null}</TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
-                        <Button size="small" variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryItem(item)}>
-                          履歴
-                        </Button>
-                        <Button size="small" variant="outlined" color="success" startIcon={<AddIcon />} onClick={() => { setDialogItem(item); setDialogMode("add"); }}>
-                          追加
-                        </Button>
-                        <Button size="small" variant="outlined" color="error" startIcon={<RemoveIcon />} onClick={() => { setDialogItem(item); setDialogMode("use"); }}>
-                          消費
-                        </Button>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {sorted.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6, color: "text.secondary" }}>品目がありません</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+      {sorted.length === 0 ? (
+        <Typography color="text.secondary" sx={{ py: 6, textAlign: "center" }}>品目がありません</Typography>
+      ) : (
+        <Grid container spacing={2}>
+          {sorted.map((item) => {
+            const next = estimateNextPurchase(item.id, item.quantity, transactions);
+            const low = item.quantity <= 1;
+            return (
+              <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                <Card variant="outlined" sx={{ borderColor: low ? "error.main" : undefined }}>
+                  <CardContent sx={{ pb: "12px !important" }}>
+                    <Stack direction="row" spacing={1.5} alignItems="flex-start" mb={1}>
+                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 48, height: 48, flexShrink: 0 }}>📦</Avatar>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="body2" fontWeight={700} noWrap>{item.name}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>{categoryName(item.category_id)}</Typography>
+                      </Box>
+                      <Typography variant="h5" fontWeight={700} color={low ? "error.main" : "text.primary"} sx={{ flexShrink: 0 }}>
+                        {item.quantity}
+                      </Typography>
+                    </Stack>
+                    {next && <Box mb={1}><NextPurchaseChip date={next} /></Box>}
+                    <Stack direction="row" spacing={0.5}>
+                      <Button size="small" variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryItem(item)} sx={{ flex: 1 }}>
+                        履歴
+                      </Button>
+                      <Button size="small" variant="outlined" color="success" startIcon={<AddIcon />} onClick={() => { setDialogItem(item); setDialogMode("add"); }} sx={{ flex: 1 }}>
+                        追加
+                      </Button>
+                      <Button size="small" variant="outlined" color="error" startIcon={<RemoveIcon />} onClick={() => { setDialogItem(item); setDialogMode("use"); }} sx={{ flex: 1 }}>
+                        消費
+                      </Button>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
+      )}
 
       <QuickStockDialog item={dialogItem} mode={dialogMode} onClose={() => setDialogItem(null)} />
       <HistoryDialog item={historyItem} onClose={() => setHistoryItem(null)} />
