@@ -169,6 +169,13 @@ export async function manageQueueItemNew(id: string, overrides: ManageOverrides)
     ? await downloadImage(productId, item.image_url)
     : item.image_url;
 
+  // Auto-select Amazon.co.jp supplier if not specified
+  let supplierId = overrides.supplier_id ?? "";
+  if (!supplierId) {
+    const amazon = await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } });
+    if (amazon) supplierId = amazon.id;
+  }
+
   const product = await prisma.product.create({
     data: {
       id: productId,
@@ -179,7 +186,7 @@ export async function manageQueueItemNew(id: string, overrides: ManageOverrides)
       amazon_url: item.product_url,
       category_id: overrides.category_id ?? "",
       location_id: overrides.location_id ?? "",
-      supplier_id: overrides.supplier_id ?? "",
+      supplier_id: supplierId,
       note: overrides.note ?? "",
       photo,
       quantity: item.quantity,
