@@ -211,6 +211,9 @@ function cleanChromeCache(): void {
     "Default/GPUCache",
     "Default/Service Worker",
     "Default/CacheStorage",
+    "Default/Local Storage",
+    "Default/IndexedDB",
+    "Default/Session Storage",
     "ShaderCache",
     "GrShaderCache",
   ];
