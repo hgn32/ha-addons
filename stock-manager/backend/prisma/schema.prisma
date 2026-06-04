@@ -37,6 +37,7 @@ model Product {
   id          String        @id @default(uuid())
   name        String
   volume      String        @default("")
+  piece_count Int           @default(1)
   maker       String        @default("")
   jan_code    String        @default("")
   amazon_asin String        @default("")

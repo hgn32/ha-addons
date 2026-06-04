@@ -26,6 +26,7 @@ export interface Product {
   id: string;
   name: string;
   volume: string;
+  piece_count: number;
   maker: string;
   jan_code: string;
   amazon_asin: string;

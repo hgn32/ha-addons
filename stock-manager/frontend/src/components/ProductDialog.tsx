@@ -41,6 +41,7 @@ interface ProductAsin {
 const schema = yup.object({
   name: yup.string().required("アイテム名は必須です"),
   volume: yup.string().default(""),
+  piece_count: yup.number().integer().min(1).default(1),
   maker: yup.string().default(""),
   jan_code: yup.string().default(""),
   amazon_asin: yup.string().default(""),
@@ -72,7 +73,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", volume: "", maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
+    defaultValues: { name: "", volume: "", piece_count: 1, maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
   });
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       reset({
         name: product?.name ?? "",
         volume: product?.volume ?? "",
+        piece_count: product?.piece_count ?? 1,
         maker: product?.maker ?? "",
         jan_code: product?.jan_code ?? "",
         amazon_asin: product?.amazon_asin ?? "",
@@ -238,8 +240,13 @@ export default function ProductDialog({ open, product, onClose }: Props) {
               />
               <Stack direction="row" spacing={2}>
                 <TextField label="内容量" fullWidth placeholder="例: 500ml、1kg、100g×3" {...register("volume")} />
-                <TextField label="メーカー" fullWidth {...register("maker")} />
+                <TextField
+                  label="入り数" type="number" sx={{ width: 120, flexShrink: 0 }}
+                  slotProps={{ htmlInput: { min: 1 } }}
+                  {...register("piece_count", { valueAsNumber: true })}
+                />
               </Stack>
+              <TextField label="メーカー" fullWidth {...register("maker")} />
               <Stack direction="row" spacing={2}>
                 <TextField label="JANコード" fullWidth {...register("jan_code")} />
                 <TextField label="Amazon ASIN (メイン)" fullWidth {...register("amazon_asin")} />

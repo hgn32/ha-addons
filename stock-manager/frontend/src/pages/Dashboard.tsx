@@ -275,6 +275,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                           {item.volume && (
                             <Chip label={item.volume} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                           )}
+                          {item.piece_count > 1 && (
+                            <Chip label={`${item.piece_count}個入`} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                          )}
                           {categoryName(item.category_id) && (
                             <Chip label={categoryName(item.category_id)} size="small" color="primary" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                           )}

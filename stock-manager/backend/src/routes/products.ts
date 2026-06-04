@@ -12,6 +12,7 @@ const router = Router();
 const EDITABLE = [
   "name",
   "volume",
+  "piece_count",
   "maker",
   "jan_code",
   "amazon_asin",
@@ -47,11 +48,16 @@ router.put("/products/reorder", async (req, res) => {
   res.status(204).end();
 });
 
+function coerce(field: string, value: string): string | number {
+  if (field === "piece_count") return Math.max(1, parseInt(value, 10) || 1);
+  return value;
+}
+
 router.post("/products", upload.single("photo"), async (req, res) => {
   const id = newId();
   const count = await prisma.product.count();
   const data: Prisma.ProductUncheckedCreateInput = { id, name: req.body.name ?? "", sort_order: count };
-  for (const f of EDITABLE) data[f] = req.body[f] ?? "";
+  for (const f of EDITABLE) data[f] = coerce(f, req.body[f] ?? "");
   if (req.file) data.photo = savePhoto(id, req.file);
   res.status(201).json(await prisma.product.create({ data }));
 });
@@ -62,7 +68,7 @@ router.put("/products/:id", upload.single("photo"), async (req, res) => {
 
   const data: Prisma.ProductUncheckedUpdateInput = {};
   for (const f of EDITABLE) {
-    if (req.body[f] !== undefined) data[f] = req.body[f];
+    if (req.body[f] !== undefined) data[f] = coerce(f, req.body[f]);
   }
   if (req.file) {
     removePhoto(existing.photo);
