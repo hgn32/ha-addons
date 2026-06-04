@@ -57,7 +57,10 @@ export class CookieExpiredError extends Error {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+// 一覧ページ間のウェイト（ボット検知回避）
 const politeDelay = (): Promise<void> => sleep(1500 + Math.floor(Math.random() * 1500));
+// 詳細ページ間のウェイト（一覧より短くしてOK）
+const enrichDelay = (): Promise<void> => sleep(600 + Math.floor(Math.random() * 400));
 
 function asinFromUrl(href: string): string {
   const m = href.match(/\/(?:dp|gp\/product|product|gp\/aw\/d)\/([A-Z0-9]{10})/);
@@ -251,11 +254,11 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   return { html, finalUrl };
 }
 
-async function enrichItem(page: PuppeteerPage, item: CrawledItem): Promise<void> {
+async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
   try {
-    log("info", `詳細ページ取得: ${item.product_url}`);
+    log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
     await page.goto(item.product_url, { waitUntil: "networkidle2", timeout: 20000 });
-    await sleep(1000);
+    await sleep(800);
     const html = await page.content();
     const $ = cheerio.load(html);
     if (!item.maker) {
@@ -268,8 +271,10 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem): Promise<void>
     const bullets = $("#detailBullets_feature_div, #prodDetails").text();
     const jan = bullets.match(/\b(\d{13})\b/);
     if (jan) item.jan_code = jan[1];
+    const got = [item.maker && "maker", item.image_url && "image", item.jan_code && "JAN"].filter(Boolean).join(", ");
+    log("info", `  → ${got || "補完データなし"} (JAN=${item.jan_code || "-"}, maker=${item.maker || "-"})`);
   } catch (e) {
-    log("warn", `詳細ページ取得失敗 (${item.asin}): ${(e as Error).message}`);
+    log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${(e as Error).message}`);
   }
 }
 
@@ -310,11 +315,12 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
     }
 
     if (opts.enrich && collected.length > 0) {
-      log("info", "詳細ページ補完開始...");
-      for (const it of collected) {
-        await enrichItem(page, it);
-        await politeDelay();
+      log("info", `詳細補完開始: ${collected.length}件`);
+      for (let i = 0; i < collected.length; i++) {
+        await enrichItem(page, collected[i], i + 1, collected.length);
+        await enrichDelay();
       }
+      log("info", "詳細補完完了");
     }
   });
 
