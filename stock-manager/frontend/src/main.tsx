@@ -7,6 +7,7 @@ import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 import App from "./App";
+import ErrorBoundary from "./ErrorBoundary";
 import { StoreProvider } from "./store";
 
 const theme = createTheme({
@@ -21,9 +22,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <StoreProvider>
-        <App />
-      </StoreProvider>
+      <ErrorBoundary>
+        <StoreProvider>
+          <App />
+        </StoreProvider>
+      </ErrorBoundary>
     </ThemeProvider>
   </React.StrictMode>
 );
