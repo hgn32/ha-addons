@@ -52,7 +52,7 @@ export default function Transactions() {
     <Box>
       <Typography variant="h5" fontWeight={700} mb={3}>操作履歴</Typography>
 
-      <Stack direction="row" spacing={2} mb={3} flexWrap="wrap">
+      <Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap">
         <TextField
           select label="品目" size="small" sx={{ minWidth: 200 }}
           value={filterProduct}
