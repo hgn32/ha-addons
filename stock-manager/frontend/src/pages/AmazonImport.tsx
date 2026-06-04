@@ -120,8 +120,9 @@ export default function AmazonImport() {
         </Typography>
         <Alert severity="info" sx={{ mb: 2 }}>
           <strong>取得手順（cURLコマンドをそのまま貼るだけでOK）:</strong><br />
-          1. ブラウザで <strong>Amazon.co.jp</strong> にログインし、<a href="https://www.amazon.co.jp/gp/css/order-history?ref_=nav_orders_first" target="_blank" rel="noreferrer">注文履歴ページ</a>を開く<br />
+          1. ブラウザで <strong>Amazon.co.jp</strong> にログインし<br />
           2. <strong>F12</strong> → 「Network」タブを開く<br />
+          &nbsp;&nbsp;&nbsp;<a href="https://www.amazon.co.jp/gp/css/order-history?ref_=nav_orders_first" target="_blank" rel="noreferrer">注文履歴ページ</a>を開く<br />
           3. フィルター欄に <strong>order-history</strong> と入力して対象のリクエストを絞り込む<br />
           4. 表示されたリクエストを<strong>右クリック</strong><br />
           5. 「コピー」→ <strong>「cURL (bash) としてコピー」</strong> を選択<br />
