@@ -25,6 +25,7 @@ export interface Supplier {
 export interface Product {
   id: string;
   name: string;
+  volume: string;
   maker: string;
   jan_code: string;
   amazon_asin: string;

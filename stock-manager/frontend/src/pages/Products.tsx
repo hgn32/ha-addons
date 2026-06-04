@@ -78,6 +78,9 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
               </Box>
             </Stack>
             <Box sx={{ mt: 0.5, mb: 0.5, flexGrow: 1 }}>
+              {p.volume && (
+                <Chip label={p.volume} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+              )}
               {p.maker && (
                 <Chip label={p.maker} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
               )}
@@ -155,9 +158,9 @@ export default function Products() {
   }
 
   const exportCsv = () => {
-    const headers = ["名前", "メーカー", "JANコード", "カテゴリ", "メモ"];
+    const headers = ["名前", "内容量", "メーカー", "JANコード", "カテゴリ", "メモ"];
     const rows = localProducts.map((p) => [
-      p.name, p.maker, p.jan_code, categoryName(p.category_id), p.note,
+      p.name, p.volume, p.maker, p.jan_code, categoryName(p.category_id), p.note,
     ].map((v) => `"${(v ?? "").replace(/"/g, '""')}"`));
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });

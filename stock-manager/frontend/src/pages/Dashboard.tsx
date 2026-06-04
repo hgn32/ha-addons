@@ -272,6 +272,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                           </Typography>
                         </Stack>
                         <Box sx={{ mt: 0.5, mb: 0.5, flexGrow: 1 }}>
+                          {item.volume && (
+                            <Chip label={item.volume} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                          )}
                           {categoryName(item.category_id) && (
                             <Chip label={categoryName(item.category_id)} size="small" color="primary" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                           )}

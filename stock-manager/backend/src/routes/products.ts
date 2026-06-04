@@ -11,6 +11,7 @@ const router = Router();
 
 const EDITABLE = [
   "name",
+  "volume",
   "maker",
   "jan_code",
   "amazon_asin",

@@ -40,6 +40,7 @@ interface ProductAsin {
 
 const schema = yup.object({
   name: yup.string().required("アイテム名は必須です"),
+  volume: yup.string().default(""),
   maker: yup.string().default(""),
   jan_code: yup.string().default(""),
   amazon_asin: yup.string().default(""),
@@ -71,7 +72,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
+    defaultValues: { name: "", volume: "", maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
   });
 
   useEffect(() => {
@@ -79,6 +80,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       setTab(0);
       reset({
         name: product?.name ?? "",
+        volume: product?.volume ?? "",
         maker: product?.maker ?? "",
         jan_code: product?.jan_code ?? "",
         amazon_asin: product?.amazon_asin ?? "",
@@ -227,14 +229,17 @@ export default function ProductDialog({ open, product, onClose }: Props) {
                 </Button>
               </Stack>
               <TextField
-                label="アイテム名"
+                label="品目名"
                 required
                 fullWidth
                 {...register("name")}
                 error={!!errors.name}
                 helperText={errors.name?.message}
               />
-              <TextField label="メーカー" fullWidth {...register("maker")} />
+              <Stack direction="row" spacing={2}>
+                <TextField label="内容量" fullWidth placeholder="例: 500ml、1kg、100g×3" {...register("volume")} />
+                <TextField label="メーカー" fullWidth {...register("maker")} />
+              </Stack>
               <Stack direction="row" spacing={2}>
                 <TextField label="JANコード" fullWidth {...register("jan_code")} />
                 <TextField label="Amazon ASIN (メイン)" fullWidth {...register("amazon_asin")} />
