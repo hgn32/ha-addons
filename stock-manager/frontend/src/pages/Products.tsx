@@ -94,7 +94,7 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
                 <Chip label={`購入: ${lastPurchased}`} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
               )}
             </Box>
-            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+            <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
               <IconButton size="small" color="primary" onClick={onEdit}>
                 <EditIcon fontSize="small" />
               </IconButton>

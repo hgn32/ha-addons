@@ -227,7 +227,7 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
       await p.close();
       return _browser;
     } catch {
-      log("warn", "Chromiumが応答しないため再起動します");
+      log("warn", "Chromium再起動");
       _browser = null;
     }
   }
@@ -235,7 +235,6 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
   cleanChromeCache();
 
   const executablePath = findChromium();
-  log("info", `Chromium起動: ${executablePath} (プロファイル: ${CHROME_PROFILE_DIR})`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
   _browser = await puppeteer.launch({
@@ -259,7 +258,7 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
       "--no-first-run",
     ],
   });
-  log("info", "Chromium起動完了");
+  log("info", "Chromium起動完了 (プロファイル維持)");
   return _browser!;
 }
 
@@ -371,8 +370,8 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
     const bullets = $("#detailBullets_feature_div, #prodDetails").text();
     const jan = bullets.match(/\b(\d{13})\b/);
     if (jan) item.jan_code = jan[1];
-    const got = [item.maker && "maker", item.image_url && "image", item.jan_code && "JAN"].filter(Boolean).join(", ");
-    log("info", `  → ${got || "補完データなし"}`);
+    const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
+    if (got) log("info", `  補完: ${got}`);
   } catch (e) {
     log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${(e as Error).message}`);
   }
@@ -405,7 +404,7 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
   const collected: CrawledItem[] = [];
   const maxPages = opts.maxPages ?? 10;
   let refreshedCookie: string | null = null;
-  log("info", `クロール開始 (since=${opts.since.toISOString().slice(0, 10)}, maxPages=${maxPages})`);
+  log("info", `クロール開始 since=${opts.since.toISOString().slice(0, 10)}`);
 
   await withBrowser(async (browser) => {
     const page = await setupPage(browser, cookie, curlHeaders);
@@ -417,15 +416,15 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
       assertLoggedIn(finalUrl, html);
 
       const pageItems = parseOrderHistory(html);
-      log("info", `ページ ${p + 1}: ${pageItems.length} 件の品目を検出`);
-      if (pageItems.length === 0) { log("info", "品目なし — クロール終了"); break; }
+      if (pageItems.length === 0) { log("info", `p${p + 1}: 品目なし — 終了`); break; }
+      log("info", `p${p + 1}: ${pageItems.length}件`);
 
       let reachedOld = false;
       for (const it of pageItems) {
         if (it.purchased_at < opts.since) { reachedOld = true; continue; }
         collected.push(it);
       }
-      if (reachedOld) { log("info", "差分終端に到達 — 終了"); break; }
+      if (reachedOld) { log("info", "差分終端 — 終了"); break; }
       await politeDelay();
     }
 
@@ -434,14 +433,13 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
     await page.close();
   });
 
-  log("info", `クロール完了: 対象 ${collected.length} 件`);
-  if (refreshedCookie) log("info", "Cookieを自動更新しました");
+  log("info", `クロール完了: ${collected.length}件${refreshedCookie ? " / Cookie更新" : ""}`);
   return { items: collected, refreshedCookie };
 }
 
 export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<void> {
   if (items.length === 0) return;
-  log("info", `詳細補完開始: ${items.length}件`);
+  log("info", `詳細補完: ${items.length}件`);
   await withBrowser(async (browser) => {
     const page = await setupPage(browser, cookie, curlHeaders);
     for (let i = 0; i < items.length; i++) {

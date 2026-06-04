@@ -283,7 +283,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                           )}
                           {next && <NextPurchaseChip date={next} />}
                         </Box>
-                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
                           <IconButton size="small" onClick={() => setHistoryItem(item)}>
                             <HistoryIcon fontSize="small" />
                           </IconButton>
