@@ -120,11 +120,12 @@ export default function AmazonImport() {
         </Typography>
         <Alert severity="info" sx={{ mb: 2 }}>
           <strong>取得手順（cURLコマンドをそのまま貼るだけでOK）:</strong><br />
-          1. ブラウザで <strong>Amazon.co.jp</strong> にログイン<br />
+          1. ブラウザで <strong>Amazon.co.jp</strong> にログインし、<a href="https://www.amazon.co.jp/gp/css/order-history?ref_=nav_orders_first" target="_blank" rel="noreferrer">注文履歴ページ</a>を開く<br />
           2. <strong>F12</strong> → 「Network」タブを開く<br />
-          3. リスト内の任意のリクエストを<strong>右クリック</strong><br />
-          4. 「コピー」→ <strong>「cURL (bash) としてコピー」</strong> を選択<br />
-          5. コピーしたテキストを<strong>そのまま</strong>下のテキストボックスに貼り付けて「Cookieを保存」<br />
+          3. フィルター欄に <strong>order-history</strong> と入力して対象のリクエストを絞り込む<br />
+          4. 表示されたリクエストを<strong>右クリック</strong><br />
+          5. 「コピー」→ <strong>「cURL (bash) としてコピー」</strong> を選択<br />
+          6. コピーしたテキストを<strong>そのまま</strong>下のテキストボックスに貼り付けて「Cookieを保存」<br />
           <br />
           Cookie の値だけを貼り付けても構いません。セッション切れ時は同じ手順で差し替えてください。
         </Alert>
