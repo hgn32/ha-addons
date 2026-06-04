@@ -56,17 +56,17 @@ function coerce(field: string, value: string): string | number {
 router.post("/products", upload.single("photo"), async (req, res) => {
   const id = newId();
   const count = await prisma.product.count();
-  const data: Prisma.ProductUncheckedCreateInput = { id, name: req.body.name ?? "", sort_order: count };
+  const data: Record<string, unknown> = { id, name: req.body.name ?? "", sort_order: count };
   for (const f of EDITABLE) data[f] = coerce(f, req.body[f] ?? "");
   if (req.file) data.photo = savePhoto(id, req.file);
-  res.status(201).json(await prisma.product.create({ data }));
+  res.status(201).json(await prisma.product.create({ data: data as Prisma.ProductUncheckedCreateInput }));
 });
 
 router.put("/products/:id", upload.single("photo"), async (req, res) => {
   const existing = await prisma.product.findUnique({ where: { id: req.params.id as string } });
   if (!existing) return res.status(404).json({ detail: "Not found" });
 
-  const data: Prisma.ProductUncheckedUpdateInput = {};
+  const data: Record<string, unknown> = {};
   for (const f of EDITABLE) {
     if (req.body[f] !== undefined) data[f] = coerce(f, req.body[f]);
   }
@@ -74,7 +74,7 @@ router.put("/products/:id", upload.single("photo"), async (req, res) => {
     removePhoto(existing.photo);
     data.photo = savePhoto(existing.id, req.file);
   }
-  res.json(await prisma.product.update({ where: { id: req.params.id as string }, data }));
+  res.json(await prisma.product.update({ where: { id: req.params.id as string }, data: data as Prisma.ProductUncheckedUpdateInput }));
 });
 
 router.delete("/products/:id", async (req, res) => {
