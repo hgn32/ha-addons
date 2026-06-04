@@ -304,7 +304,13 @@ export async function setupPage(browser: PuppeteerBrowser, cookie: string): Prom
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
       "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
   );
-  await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (page as any).setViewport({ width: 1920, height: 1080 });
+  await page.setExtraHTTPHeaders({
+    "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Referer": "https://www.amazon.co.jp/",
+  });
   // Cookieを1件ずつセット（1件のエラーで全体が止まらないよう）
   const cookies = parseCookies(cookie);
   let set = 0;
