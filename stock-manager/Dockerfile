@@ -1,17 +1,15 @@
 # ---- Frontend build (Vite/React) ----
 FROM node:22-slim AS frontend
-# BUILD_REF is injected automatically by the HA addon builder (full git SHA).
-# GIT_HASH can be passed manually for local builds: --build-arg GIT_HASH=$(git rev-parse --short HEAD)
-ARG BUILD_REF=""
+# BUILD_VERSION is injected by the HA addon builder.
+# GIT_HASH can be passed manually: --build-arg GIT_HASH=$(git rev-parse --short HEAD)
+ARG BUILD_VERSION=""
 ARG GIT_HASH=""
 WORKDIR /frontend
 RUN npm install -g npm@11.16.0
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN EFFECTIVE_HASH=$(echo "${BUILD_REF}" | cut -c1-7) \
-  && [ -z "${EFFECTIVE_HASH}" ] && EFFECTIVE_HASH="${GIT_HASH}" || true \
-  && [ -z "${EFFECTIVE_HASH}" ] && EFFECTIVE_HASH="unknown" || true \
+RUN EFFECTIVE_HASH="${GIT_HASH:-${BUILD_VERSION:-unknown}}" \
   && echo "Building with GIT_HASH=${EFFECTIVE_HASH}" \
   && GIT_HASH=${EFFECTIVE_HASH} npm run build
 
