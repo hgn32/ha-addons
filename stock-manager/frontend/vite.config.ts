@@ -3,16 +3,12 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 function gitHash(): string {
-  if (process.env.GIT_HASH) {
-    console.log(`[vite] GIT_HASH from env: ${process.env.GIT_HASH}`);
-    return process.env.GIT_HASH;
-  }
+  // GIT_HASH env var is set by the Dockerfile (git rev-parse --short HEAD).
+  // Falls back to running git directly in local dev.
+  if (process.env.GIT_HASH) return process.env.GIT_HASH;
   try {
-    const hash = execSync("git rev-parse --short HEAD").toString().trim();
-    console.log(`[vite] GIT_HASH from git: ${hash}`);
-    return hash;
-  } catch (e) {
-    console.log(`[vite] GIT_HASH fallback to "unknown": ${(e as Error).message}`);
+    return execSync("git rev-parse --short HEAD").toString().trim();
+  } catch {
     return "unknown";
   }
 }

@@ -1,18 +1,14 @@
 # ---- Frontend build (Vite/React) ----
 FROM node:22-slim AS frontend
-ARG GIT_HASH=unknown
 WORKDIR /frontend
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 RUN npm install -g npm@11.16.0
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-COPY config.json /config.json
-# Use GIT_HASH build-arg if provided, otherwise fall back to addon version from config.json
-RUN apt-get update && apt-get install -y --no-install-recommends jq && rm -rf /var/lib/apt/lists/* \
-  && ADDON_VER=$(jq -r .version /config.json) \
-  && EFFECTIVE_HASH=$([ "${GIT_HASH}" = "unknown" ] && echo "v${ADDON_VER}" || echo "${GIT_HASH}") \
-  && echo "Building with EFFECTIVE_HASH=${EFFECTIVE_HASH}" \
-  && GIT_HASH=${EFFECTIVE_HASH} npm run build
+# Copy .git so git rev-parse works; git stays only in this build stage
+COPY .git /frontend/.git
+RUN GIT_HASH=$(git rev-parse --short HEAD) npm run build
 
 # ---- Backend build (Express/TypeScript + Prisma) ----
 FROM node:22-slim AS backend
