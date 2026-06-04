@@ -211,6 +211,9 @@ async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Pr
       "--disable-dev-shm-usage",
       "--disable-gpu",
       "--disable-software-rasterizer",
+      "--disable-blink-features=AutomationControlled",
+      "--window-size=1920,1080",
+      "--lang=ja-JP,ja",
     ],
   });
   try {
@@ -223,9 +226,17 @@ async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Pr
 
 async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<PuppeteerPage> {
   const page = await browser.newPage();
+  // Hide automation fingerprints before any script runs
+  await (page as unknown as { evaluateOnNewDocument: (fn: () => void) => Promise<void> }).evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, "languages", { get: () => ["ja-JP", "ja", "en"] });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).chrome = { runtime: {} };
+  });
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-      "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+      "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
   );
   await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
   // Cookieを1件ずつセット（1件のエラーで全体が止まらないよう）
