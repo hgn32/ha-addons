@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 function gitHash(): string {
+  if (process.env.GIT_HASH) return process.env.GIT_HASH;
   try {
     return execSync("git rev-parse --short HEAD").toString().trim();
   } catch {

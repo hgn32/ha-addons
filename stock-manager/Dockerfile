@@ -1,11 +1,12 @@
 # ---- Frontend build (Vite/React) ----
 FROM node:22-slim AS frontend
+ARG GIT_HASH=unknown
 WORKDIR /frontend
 RUN npm install -g npm@11.16.0
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN npm run build
+RUN GIT_HASH=${GIT_HASH} npm run build
 
 # ---- Backend build (Express/TypeScript + Prisma) ----
 FROM node:22-slim AS backend
