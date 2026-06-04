@@ -47,7 +47,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "ダッシュボード", icon: <DashboardIcon />, section: "メイン" },
-  { key: "transactions", label: "操作履歴", icon: <HistoryIcon />, section: "メイン" },
+  { key: "transactions", label: "在庫履歴", icon: <HistoryIcon />, section: "メイン" },
   { key: "products", label: "品目", icon: <SellIcon />, section: "マスタ" },
   { key: "categories", label: "カテゴリ", icon: <CategoryIcon />, section: "マスタ" },
   { key: "locations", label: "置き場", icon: <PlaceIcon />, section: "マスタ" },

@@ -47,7 +47,8 @@ model Product {
   quantity    Int           @default(0)
   sort_order  Int           @default(0)
   created_at  DateTime      @default(now())
-  asins       ProductAsin[]
+  asins        ProductAsin[]
+  transactions Transaction[]
 }
 
 // One product can be associated with multiple ASINs (e.g. same item re-listed or capacity variants)
@@ -70,6 +71,7 @@ model Transaction {
   supplier_id String   @default("")
   note        String   @default("")
   date        DateTime @default(now())
+  product     Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([product_id])
 }
