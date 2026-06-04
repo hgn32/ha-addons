@@ -206,7 +206,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
             const low = item.quantity <= 1;
             return (
               <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                <Card>
+                <Card sx={{ height: "100%" }}>
                   <CardContent>
                     <Stack direction="row" spacing={2}>
                       <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }}>📦</Avatar>
