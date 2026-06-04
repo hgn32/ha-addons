@@ -13,6 +13,8 @@
   "ingress": true,
   "ingress_port": 8099,
   "ingress_stream": false,
+  "panel_icon": "mdi:package-variant-closed",
+  "panel_title": "Stock Manager",
   "ports": {
     "8099/tcp": 8099
   },
