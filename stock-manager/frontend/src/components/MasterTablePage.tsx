@@ -1,12 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
+import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
 import {
   Box,
   IconButton,
   Link,
   Paper,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -15,7 +15,23 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { api } from "../api";
 import { useStore } from "../store";
 import AddFab from "./AddFab";
@@ -36,12 +52,84 @@ interface Props {
   reload: () => Promise<void>;
 }
 
+interface RowProps {
+  item: Record<string, string>;
+  columns: Column[];
+  onEdit: () => void;
+  onRemove: () => void;
+}
+
+function SortableRow({ item, columns, onEdit, onRemove }: RowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    backgroundColor: isDragging ? "#f0f4ff" : undefined,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style} hover>
+      <TableCell sx={{ p: 1, width: 36, cursor: "grab", color: "text.disabled" }} {...attributes} {...listeners}>
+        <DragIndicatorIcon fontSize="small" />
+      </TableCell>
+      {columns.map((c) => (
+        <TableCell key={c.key}>
+          {c.render ? c.render(item) : c.link && item[c.key] ? (
+            <Link href={item[c.key]} target="_blank" rel="noreferrer">
+              {item[c.key]}
+            </Link>
+          ) : (
+            item[c.key]
+          )}
+        </TableCell>
+      ))}
+      <TableCell align="right">
+        <IconButton color="primary" onClick={onEdit}>
+          <EditIcon />
+        </IconButton>
+        <IconButton color="error" onClick={onRemove}>
+          <DeleteIcon />
+        </IconButton>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export default function MasterTablePage({ title, entity, items, columns, reload }: Props) {
   const { toast } = useStore();
   const [dialog, setDialog] = useState<{ open: boolean; item: Record<string, string> | null }>({
     open: false,
     item: null,
   });
+  const [localItems, setLocalItems] = useState<Record<string, string>[]>([]);
+
+  // Sync localItems when items prop changes (after reload)
+  React.useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = localItems.findIndex((i) => i.id === active.id);
+    const newIndex = localItems.findIndex((i) => i.id === over.id);
+    const reordered = arrayMove(localItems, oldIndex, newIndex);
+    setLocalItems(reordered);
+
+    try {
+      await api.put(`/api/${entity}/reorder`, { ids: reordered.map((i) => i.id) });
+    } catch (e) {
+      toast((e as Error).message, "error");
+      setLocalItems(items); // rollback
+    }
+  };
 
   const remove = async (item: Record<string, string>) => {
     if (!confirm(`「${item.name}」を削除しますか？`)) return;
@@ -62,48 +150,39 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
 
       <Paper sx={{ p: 2 }}>
         <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                {columns.map((c) => (
-                  <TableCell key={c.key}>{c.label}</TableCell>
-                ))}
-                <TableCell align="right" />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id} hover>
-                  {columns.map((c) => (
-                    <TableCell key={c.key}>
-                      {c.render ? c.render(item) : c.link && item[c.key] ? (
-                        <Link href={item[c.key]} target="_blank" rel="noreferrer">
-                          {item[c.key]}
-                        </Link>
-                      ) : (
-                        item[c.key]
-                      )}
-                    </TableCell>
-                  ))}
-                  <TableCell align="right">
-                    <IconButton color="primary" onClick={() => setDialog({ open: true, item })}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton color="error" onClick={() => remove(item)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {items.length === 0 && (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={columns.length + 1} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                    データがありません
-                  </TableCell>
+                  <TableCell sx={{ width: 36 }} />
+                  {columns.map((c) => (
+                    <TableCell key={c.key}>{c.label}</TableCell>
+                  ))}
+                  <TableCell align="right" />
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                <SortableContext items={localItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                  {localItems.map((item) => (
+                    <SortableRow
+                      key={item.id}
+                      item={item}
+                      columns={columns}
+                      onEdit={() => setDialog({ open: true, item })}
+                      onRemove={() => remove(item)}
+                    />
+                  ))}
+                </SortableContext>
+                {localItems.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={columns.length + 2} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                      データがありません
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </DndContext>
         </TableContainer>
       </Paper>
 
@@ -113,7 +192,10 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
         open={dialog.open}
         entity={entity}
         item={dialog.item}
-        onClose={() => setDialog({ ...dialog, open: false })}
+        onClose={() => {
+          setDialog({ ...dialog, open: false });
+          reload();
+        }}
       />
     </Box>
   );

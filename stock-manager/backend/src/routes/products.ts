@@ -35,12 +35,22 @@ function removePhoto(filename: string): void {
 }
 
 router.get("/products", async (_req, res) => {
-  res.json(await prisma.product.findMany({ orderBy: { created_at: "asc" } }));
+  res.json(await prisma.product.findMany({ orderBy: [{ sort_order: "asc" }, { created_at: "asc" }] }));
+});
+
+router.put("/products/reorder", async (req, res) => {
+  const { ids } = req.body as { ids: string[] };
+  if (!Array.isArray(ids)) return res.status(400).json({ detail: "ids must be array" });
+  await Promise.all(
+    ids.map((id, index) => prisma.product.update({ where: { id }, data: { sort_order: index } }))
+  );
+  res.status(204).end();
 });
 
 router.post("/products", upload.single("photo"), async (req, res) => {
   const id = newId();
-  const data: Prisma.ProductUncheckedCreateInput = { id, name: req.body.name ?? "" };
+  const count = await prisma.product.count();
+  const data: Prisma.ProductUncheckedCreateInput = { id, name: req.body.name ?? "", sort_order: count };
   for (const f of EDITABLE) data[f] = req.body[f] ?? "";
   if (req.file) data.photo = savePhoto(id, req.file);
   res.status(201).json(await prisma.product.create({ data }));
