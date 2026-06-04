@@ -93,6 +93,7 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
 
     const product = await matchProduct(item.asin, item.jan_code);
     if (product) {
+      // 既存マスタに一致 → 在庫加算のみ
       log("info", `  自動加算: "${product.name}" +${item.quantity} (ASIN=${item.asin})`);
       await prisma.product.update({
         where: { id: product.id },
@@ -110,9 +111,35 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
       await prisma.amazonQueue.create({ data: queueData(item, "auto") });
       auto++;
     } else {
-      log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
-      await prisma.amazonQueue.create({ data: queueData(item, "pending") });
-      queued++;
+      // マスタ未登録 → 商品マスタを自動作成して在庫加算
+      const productId = newId();
+      const photo = await downloadImage(productId, item.image_url);
+      const newProduct = await prisma.product.create({
+        data: {
+          id: productId,
+          name: item.product_name || item.asin || "不明",
+          jan_code: item.jan_code,
+          amazon_asin: item.asin,
+          category_id: "",
+          location_id: "",
+          supplier_id: "",
+          note: item.maker ? `メーカー: ${item.maker}` : "",
+          photo,
+          quantity: item.quantity,
+        },
+      });
+      await prisma.transaction.create({
+        data: {
+          type: "add",
+          product_id: newProduct.id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          note: `Amazon自動取込(新規) 注文:${item.order_id}`,
+        },
+      });
+      await prisma.amazonQueue.create({ data: queueData(item, "auto") });
+      log("info", `  商品マスタ自動作成: "${newProduct.name}" +${item.quantity} (ASIN=${item.asin})`);
+      auto++;
     }
   }
 

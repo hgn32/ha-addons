@@ -75,7 +75,7 @@ export default function AmazonImport() {
     setCrawling(true);
     try {
       const s = await api.post<AmazonCrawlSummary>("/api/amazon/crawl");
-      toast(`取得 ${s.fetched}件（自動 ${s.auto} / 要確認 ${s.queued} / スキップ ${s.skipped}）`);
+      toast(`取得 ${s.fetched}件（自動登録 ${s.auto} / スキップ ${s.skipped}）`);
       await Promise.all([loadQueue(), loadSettings(), loadLogs(), reloadProducts(), reloadInventory(), reloadTransactions()]);
     } catch (e) {
       toast((e as Error).message, "error");
