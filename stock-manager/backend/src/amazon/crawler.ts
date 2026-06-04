@@ -11,10 +11,6 @@ interface PuppeteerCookie {
   httpOnly?: boolean;
   expires?: number;
 }
-interface PuppeteerResponse {
-  url(): string;
-  headers(): Record<string, string>;
-}
 interface PuppeteerPage {
   setUserAgent(ua: string): Promise<void>;
   setViewport(v: { width: number; height: number }): Promise<void>;
@@ -26,7 +22,6 @@ interface PuppeteerPage {
   close(): Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   evaluateOnNewDocument(fn: string | ((...args: any[]) => any), ...args: any[]): Promise<void>;
-  on(event: "response", handler: (res: PuppeteerResponse) => void): void;
 }
 interface PuppeteerBrowser {
   newPage(): Promise<PuppeteerPage>;
@@ -111,18 +106,6 @@ function parseCookies(cookieStr: string): Array<{ name: string; value: string; d
     .filter(Boolean) as Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }>;
 }
 
-// Set-Cookie ヘッダーをcookie mapにマージ
-function mergeSetCookie(cookieMap: Map<string, string>, setCookieHeader: string): void {
-  const parts = setCookieHeader.split(/,(?=[^;]+=)/);
-  for (const part of parts) {
-    const segment = part.trim().split(";")[0].trim();
-    const eqIdx = segment.indexOf("=");
-    if (eqIdx === -1) continue;
-    const name = segment.slice(0, eqIdx).trim();
-    const value = segment.slice(eqIdx + 1).trim();
-    if (name) cookieMap.set(name, value);
-  }
-}
 
 function assertLoggedIn(url: string, html: string): void {
   const challenges = [/\/ap\/signin/, /\/ax\/claim/, /\/errors\/validateCaptcha/, /\/gp\/aw\/c\b/];
@@ -213,14 +196,33 @@ export function parseOrderHistory(html: string): CrawledItem[] {
   return items;
 }
 
-async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Promise<T> {
+// Chromiumをシングルトンで保持（Cookie永続化 + 起動コスト削減）
+// Cookieは --user-data-dir 内のSQLiteファイルにChromiumが自動保存する
+let _browser: PuppeteerBrowser | null = null;
+
+const CHROME_PROFILE_DIR = "/config/stock_manager_3a30c8ec/chrome-profile";
+
+async function getBrowser(): Promise<PuppeteerBrowser> {
+  if (_browser) {
+    // 生存確認: ページを開けるか試す
+    try {
+      const p = await _browser.newPage();
+      await p.close();
+      return _browser;
+    } catch {
+      log("warn", "Chromiumが応答しないため再起動します");
+      _browser = null;
+    }
+  }
+
   const executablePath = findChromium();
-  log("info", `Chromium起動: ${executablePath}`);
+  log("info", `Chromium起動: ${executablePath} (プロファイル: ${CHROME_PROFILE_DIR})`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
-  const browser: PuppeteerBrowser = await puppeteer.launch({
+  _browser = await puppeteer.launch({
     executablePath,
     headless: true,
+    userDataDir: CHROME_PROFILE_DIR,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -230,22 +232,24 @@ async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Pr
       "--disable-blink-features=AutomationControlled",
       "--window-size=1920,1080",
       "--lang=ja-JP,ja",
+      "--disk-cache-size=1",       // ページキャッシュを無効化
+      "--media-cache-size=1",      // メディアキャッシュを無効化
     ],
   });
-  try {
-    return await fn(browser);
-  } finally {
-    await browser.close();
-    log("info", "Chromium終了");
-  }
+  log("info", "Chromium起動完了");
+  return _browser!;
 }
 
-// ページセットアップ + レスポンスCookie監視
+async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Promise<T> {
+  const browser = await getBrowser();
+  return fn(browser);
+}
+
 async function setupPage(
   browser: PuppeteerBrowser,
   cookie: string,
   curlHeaders: Record<string, string> = {}
-): Promise<{ page: PuppeteerPage; getLatestCookie: () => string }> {
+): Promise<PuppeteerPage> {
   const page = await browser.newPage();
 
   await page.evaluateOnNewDocument(() => {
@@ -304,13 +308,7 @@ async function setupPage(
   }
   await page.setExtraHTTPHeaders(extraHeaders);
 
-  // Cookieをmapで管理（Set-Cookie更新を追跡）
-  const cookieMap = new Map<string, string>();
-  for (const c of parseCookies(cookie)) {
-    cookieMap.set(c.name, c.value);
-  }
-
-  // Cookieを1件ずつセット
+  // Cookieを1件ずつセット（userDataDirがあるため初回のみ必要、以降はChromiumが自動管理）
   const cookies = parseCookies(cookie);
   let set = 0;
   for (const c of cookies) {
@@ -323,20 +321,7 @@ async function setupPage(
   }
   log("info", `Cookie ${set}/${cookies.length} 件をセット`);
 
-  // レスポンスのSet-Cookieを毎リクエスト監視
-  page.on("response", (res: PuppeteerResponse) => {
-    if (!res.url().includes("amazon.co.jp")) return;
-    const setCookie = res.headers()["set-cookie"];
-    if (setCookie) {
-      mergeSetCookie(cookieMap, setCookie);
-      log("info", `[Set-Cookie] ${res.url().slice(0, 80)} (合計${cookieMap.size}件)`);
-    }
-  });
-
-  const getLatestCookie = () =>
-    Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
-
-  return { page, getLatestCookie };
+  return page;
 }
 
 async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: string; finalUrl: string }> {
@@ -387,6 +372,21 @@ export interface CrawlResult {
   refreshedCookie: string | null;
 }
 
+// Chromiumが保持しているAmazon Cookieを "name=value; ..." 形式で返す
+async function readBrowserCookies(page: PuppeteerPage): Promise<string | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const liveCookies: PuppeteerCookie[] = await (page as any).cookies("https://www.amazon.co.jp");
+    if (!liveCookies.length) return null;
+    const str = liveCookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    log("info", `ブラウザからCookie読取: ${liveCookies.length}件 (${str.length}文字)`);
+    return str;
+  } catch (e) {
+    log("warn", `Cookie読取スキップ: ${(e as Error).message}`);
+    return null;
+  }
+}
+
 export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeaders: Record<string, string> = {}): Promise<CrawlResult> {
   const collected: CrawledItem[] = [];
   const maxPages = opts.maxPages ?? 10;
@@ -395,15 +395,11 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
   log("info", `Cookie長さ: ${cookie.length}文字`);
 
   await withBrowser(async (browser) => {
-    const { page, getLatestCookie } = await setupPage(browser, cookie, curlHeaders);
+    const page = await setupPage(browser, cookie, curlHeaders);
 
     for (let p = 0; p < maxPages; p++) {
       const url = `${BASE}/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
       const { html, finalUrl } = await fetchPageHtml(page, url);
-
-      // assertLoggedIn前にCookieを保存（ブロック時もセッション更新を次回に引き継ぐ）
-      const latest = getLatestCookie();
-      if (latest) refreshedCookie = latest;
 
       assertLoggedIn(finalUrl, html);
 
@@ -423,6 +419,10 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
       if (reachedOld) { log("info", "差分終端に到達 — 終了"); break; }
       await politeDelay();
     }
+
+    // クロール完了後にChromiumが保持している最新Cookieを取得
+    refreshedCookie = await readBrowserCookies(page);
+    await page.close();
   });
 
   log("info", `クロール完了: 対象 ${collected.length} 件`);
@@ -434,11 +434,12 @@ export async function enrichItems(cookie: string, items: CrawledItem[], curlHead
   if (items.length === 0) return;
   log("info", `詳細補完開始: ${items.length}件`);
   await withBrowser(async (browser) => {
-    const { page } = await setupPage(browser, cookie, curlHeaders);
+    const page = await setupPage(browser, cookie, curlHeaders);
     for (let i = 0; i < items.length; i++) {
       await enrichItem(page, items[i], i + 1, items.length);
       await enrichDelay();
     }
+    await page.close();
   });
   log("info", "詳細補完完了");
 }
