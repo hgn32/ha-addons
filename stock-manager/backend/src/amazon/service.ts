@@ -63,9 +63,14 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
 
   const orders = await crawlOrders(cookie, { since, enrich: true });
 
-  const ignored = new Set(
-    (await prisma.amazonIgnoredAsin.findMany()).map((a) => a.asin)
-  );
+  log("info", `★ crawlOrders完了: ${orders.length}件取得`);
+
+  const ignoredRows = await prisma.amazonIgnoredAsin.findMany();
+  const ignored = new Set(ignoredRows.map((a) => a.asin));
+  log("info", `無視リスト: ${ignored.size}件`);
+
+  const existingQueue = await prisma.amazonQueue.count();
+  log("info", `キュー既存件数: ${existingQueue}件`);
 
   let auto = 0;
   let queued = 0;
@@ -76,12 +81,11 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
     if (item.purchased_at > maxDate) maxDate = item.purchased_at;
 
     if (item.asin && ignored.has(item.asin)) {
+      log("info", `  スキップ(無視リスト): [${item.order_id}] ${item.product_name}`);
       skipped++;
       continue;
     }
 
-    // Dedup: skip if already processed (auto/managed/ignored).
-    // Re-queue if a previous pending entry somehow disappeared but don't double-insert.
     const dup = await prisma.amazonQueue.findFirst({
       where: { order_id: item.order_id, asin: item.asin },
     });
@@ -119,7 +123,7 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
   }
 
   await setSetting(LAST_SYNC_KEY, maxDate.toISOString());
-  log("info", `完了: fetched=${orders.length} auto=${auto} queued=${queued} skipped=${skipped}`);
+  log("info", `★ 完了: fetched=${orders.length} auto=${auto} queued=${queued} skipped=${skipped} (キュー合計: ${await prisma.amazonQueue.count()}件)`);
 
   return { fetched: orders.length, auto, queued, skipped, last_sync: maxDate.toISOString() };
 }
