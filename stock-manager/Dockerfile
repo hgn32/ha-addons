@@ -1,17 +1,11 @@
 # ---- Frontend build (Vite/React) ----
 FROM node:22-slim AS frontend
-# BUILD_VERSION is injected by the HA addon builder.
-# GIT_HASH can be passed manually: --build-arg GIT_HASH=$(git rev-parse --short HEAD)
-ARG BUILD_VERSION=""
-ARG GIT_HASH=""
 WORKDIR /frontend
 RUN npm install -g npm@11.16.0
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN EFFECTIVE_HASH="${GIT_HASH:-${BUILD_VERSION:-unknown}}" \
-  && echo "Building with GIT_HASH=${EFFECTIVE_HASH}" \
-  && GIT_HASH=${EFFECTIVE_HASH} npm run build
+RUN GIT_HASH=$(date -u +%m%d-%H%M) npm run build
 
 # ---- Backend build (Express/TypeScript + Prisma) ----
 FROM node:22-slim AS backend
