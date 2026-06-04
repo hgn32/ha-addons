@@ -3,11 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="{{INGRESS_PATH}}/icon.png" />
     <title>Stock Manager</title>
     <script>
       // Replaced at serve time by the backend with the HA Ingress base path.
       window.__INGRESS_PATH__ = "{{INGRESS_PATH}}";
+      var _fl = document.createElement("link");
+      _fl.rel = "icon"; _fl.type = "image/png";
+      _fl.href = (window.__INGRESS_PATH__ || "") + "/icon.png";
+      document.head.appendChild(_fl);
     </script>
   </head>
   <body>
