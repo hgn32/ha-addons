@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogTitle,
   Grid,
+  IconButton,
   Stack,
   TextField,
   Typography,
@@ -205,29 +206,35 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
             const low = item.quantity <= 1;
             return (
               <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                <Card variant="outlined" sx={{ borderColor: low ? "error.main" : undefined }}>
-                  <CardContent sx={{ pb: "12px !important" }}>
-                    <Stack direction="row" spacing={1.5} alignItems="flex-start" mb={1}>
-                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 48, height: 48, flexShrink: 0 }}>📦</Avatar>
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography variant="body2" fontWeight={700} noWrap>{item.name}</Typography>
-                        <Typography variant="caption" color="text.secondary" noWrap>{categoryName(item.category_id)}</Typography>
+                <Card>
+                  <CardContent>
+                    <Stack direction="row" spacing={2}>
+                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }}>📦</Avatar>
+                      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                        <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
+                          <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>{item.name}</Typography>
+                          <Typography fontWeight={700} color={low ? "error.main" : "text.primary"} sx={{ flexShrink: 0 }}>
+                            {item.quantity}
+                          </Typography>
+                        </Stack>
+                        <Stack direction="row" flexWrap="wrap" gap={0.5} mt={0.5}>
+                          {categoryName(item.category_id) && (
+                            <Chip label={categoryName(item.category_id)} size="small" color="primary" variant="outlined" />
+                          )}
+                          {next && <NextPurchaseChip date={next} />}
+                        </Stack>
+                        <Stack direction="row" spacing={0.5} mt={0.5}>
+                          <IconButton size="small" onClick={() => setHistoryItem(item)}>
+                            <HistoryIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" color="success" onClick={() => { setDialogItem(item); setDialogMode("add"); }}>
+                            <AddIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" color="error" onClick={() => { setDialogItem(item); setDialogMode("use"); }}>
+                            <RemoveIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
                       </Box>
-                      <Typography variant="h5" fontWeight={700} color={low ? "error.main" : "text.primary"} sx={{ flexShrink: 0 }}>
-                        {item.quantity}
-                      </Typography>
-                    </Stack>
-                    {next && <Box mb={1}><NextPurchaseChip date={next} /></Box>}
-                    <Stack direction="row" spacing={0.5}>
-                      <Button size="small" variant="outlined" onClick={() => setHistoryItem(item)} sx={{ flex: 1, minWidth: 0 }}>
-                        <HistoryIcon fontSize="small" />
-                      </Button>
-                      <Button size="small" variant="outlined" color="success" onClick={() => { setDialogItem(item); setDialogMode("add"); }} sx={{ flex: 1, minWidth: 0 }}>
-                        <AddIcon fontSize="small" />
-                      </Button>
-                      <Button size="small" variant="outlined" color="error" onClick={() => { setDialogItem(item); setDialogMode("use"); }} sx={{ flex: 1, minWidth: 0 }}>
-                        <RemoveIcon fontSize="small" />
-                      </Button>
                     </Stack>
                   </CardContent>
                 </Card>

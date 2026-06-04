@@ -19,7 +19,7 @@ import { useStore } from "../store";
 import { TransactionType } from "../types";
 
 const TYPE_META: Record<TransactionType, { label: string; color: "success" | "error" | "warning" }> = {
-  add: { label: "入庫", color: "success" },
+  add: { label: "購入", color: "success" },
   use: { label: "消費", color: "error" },
   adjust: { label: "調整", color: "warning" },
 };
@@ -52,7 +52,7 @@ export default function Transactions() {
     <Box>
       <Typography variant="h5" fontWeight={700} mb={3}>操作履歴</Typography>
 
-      <Stack direction="row" spacing={2} mb={2} flexWrap="wrap">
+      <Stack direction="row" spacing={2} mb={3} flexWrap="wrap">
         <TextField
           select label="品目" size="small" sx={{ minWidth: 200 }}
           value={filterProduct}
@@ -69,7 +69,7 @@ export default function Transactions() {
           onChange={(e) => { setFilterType(e.target.value); handleFilterChange(); }}
         >
           <MenuItem value="">すべて</MenuItem>
-          <MenuItem value="add">入庫</MenuItem>
+          <MenuItem value="add">購入</MenuItem>
           <MenuItem value="use">消費</MenuItem>
           <MenuItem value="adjust">調整</MenuItem>
         </TextField>
