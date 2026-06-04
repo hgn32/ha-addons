@@ -227,7 +227,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
         <Typography variant="h5" fontWeight={700}>ダッシュボード</Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ ml: "auto" }}>
           <TextField
-            select label="カテゴリ" size="small" sx={{ minWidth: 160 }}
+            select label="品目カテゴリ" size="small" sx={{ minWidth: 160 }}
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
           >

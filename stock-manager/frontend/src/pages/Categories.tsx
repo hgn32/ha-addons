@@ -7,14 +7,14 @@ export default function Categories() {
   const { categories, reloadCategories } = useStore();
   return (
     <MasterTablePage
-      title="カテゴリマスタ"
+      title="品目カテゴリマスタ"
       entity="categories"
       items={categories as unknown as Record<string, string>[]}
       reload={reloadCategories}
       columns={[
         {
           key: "name",
-          label: "カテゴリ名",
+          label: "品目カテゴリ名",
           render: (item) => (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               {item.icon && <DynamicIcon name={item.icon} fontSize="small" />}

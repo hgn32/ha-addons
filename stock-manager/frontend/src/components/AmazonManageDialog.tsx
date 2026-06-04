@@ -113,7 +113,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
               <TextField label="メーカー" value={form.maker} onChange={set("maker")} fullWidth />
               <TextField label="JANコード" value={form.jan_code} onChange={set("jan_code")} fullWidth />
               <Stack direction="row" spacing={2}>
-                <TextField select label="カテゴリ" value={form.category_id} onChange={set("category_id")} fullWidth>
+                <TextField select label="品目カテゴリ" value={form.category_id} onChange={set("category_id")} fullWidth>
                   <MenuItem value="">-- 選択 --</MenuItem>
                   {categories.map((c) => (
                     <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>

@@ -26,7 +26,7 @@ interface Props {
 }
 
 const LABELS: Record<MasterEntity, string> = {
-  categories: "カテゴリ",
+  categories: "品目カテゴリ",
   locations: "置き場",
   suppliers: "購入先",
 };

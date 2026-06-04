@@ -250,7 +250,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
                   name="category_id"
                   control={control}
                   render={({ field }) => (
-                    <TextField select label="カテゴリ" fullWidth {...field}>
+                    <TextField select label="品目カテゴリ" fullWidth {...field}>
                       <MenuItem value="">-- 選択 --</MenuItem>
                       {categories.map((c) => (
                         <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
