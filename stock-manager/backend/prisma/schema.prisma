@@ -41,7 +41,6 @@ model Product {
   amazon_asin String        @default("")
   amazon_url  String        @default("")
   category_id String        @default("")
-  supplier_id String        @default("")
   location_id String        @default("")
   note        String        @default("")
   photo       String        @default("")

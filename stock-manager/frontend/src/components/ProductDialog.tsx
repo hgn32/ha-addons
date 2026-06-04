@@ -44,7 +44,6 @@ const schema = yup.object({
   amazon_asin: yup.string().default(""),
   amazon_url: yup.string().default(""),
   category_id: yup.string().default(""),
-  supplier_id: yup.string().default(""),
   location_id: yup.string().default(""),
   note: yup.string().default(""),
 });
@@ -52,7 +51,7 @@ const schema = yup.object({
 type FormValues = yup.InferType<typeof schema>;
 
 export default function ProductDialog({ open, product, onClose }: Props) {
-  const { categories, locations, suppliers, reloadProducts, reloadInventory, toast } = useStore();
+  const { categories, locations, reloadProducts, reloadInventory, toast } = useStore();
   const [file, setFile] = useState<File | null>(null);
   const [fetchUrl, setFetchUrl] = useState("");
   const [fetching, setFetching] = useState(false);
@@ -69,7 +68,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", supplier_id: "", location_id: "", note: "" },
+    defaultValues: { name: "", maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
   });
 
   useEffect(() => {
@@ -82,7 +81,6 @@ export default function ProductDialog({ open, product, onClose }: Props) {
         amazon_asin: product?.amazon_asin ?? "",
         amazon_url: product?.amazon_url ?? "",
         category_id: product?.category_id ?? "",
-        supplier_id: product?.supplier_id ?? "",
         location_id: product?.location_id ?? "",
         note: product?.note ?? "",
       });
@@ -233,18 +231,6 @@ export default function ProductDialog({ open, product, onClose }: Props) {
                   )}
                 />
               </Stack>
-              <Controller
-                name="supplier_id"
-                control={control}
-                render={({ field }) => (
-                  <TextField select label="購入先" fullWidth {...field}>
-                    <MenuItem value="">-- 選択 --</MenuItem>
-                    {suppliers.map((s) => (
-                      <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                    ))}
-                  </TextField>
-                )}
-              />
               <TextField label="メモ" fullWidth multiline minRows={2} {...register("note")} />
               <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                 <Avatar src={preview} variant="rounded" sx={{ width: 64, height: 64 }}>

@@ -30,7 +30,6 @@ export interface Product {
   amazon_asin: string;
   amazon_url: string;
   category_id: string;
-  supplier_id: string;
   location_id: string;
   note: string;
   photo: string;

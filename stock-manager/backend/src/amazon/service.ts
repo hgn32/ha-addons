@@ -75,6 +75,8 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
 
   log("info", `★ crawlOrders完了: ${orders.length}件取得`);
 
+  const amazonSupplier = await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } });
+
   const ignoredRows = await prisma.amazonIgnoredAsin.findMany();
   const ignored = new Set(ignoredRows.map((a) => a.asin));
   log("info", `無視リスト: ${ignored.size}件`);
@@ -117,7 +119,7 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
           type: "add",
           product_id: product.id,
           quantity: item.quantity,
-          unit_price: item.unit_price,
+          supplier_id: amazonSupplier?.id ?? "",
           note: `Amazon自動取込 注文:${item.order_id}`,
         },
       });
@@ -155,7 +157,6 @@ export interface ManageOverrides {
   jan_code?: string;
   category_id?: string;
   location_id?: string;
-  supplier_id?: string;
   note?: string;
 }
 
@@ -169,12 +170,8 @@ export async function manageQueueItemNew(id: string, overrides: ManageOverrides)
     ? await downloadImage(productId, item.image_url)
     : item.image_url;
 
-  // Auto-select Amazon.co.jp supplier if not specified
-  let supplierId = overrides.supplier_id ?? "";
-  if (!supplierId) {
-    const amazon = await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } });
-    if (amazon) supplierId = amazon.id;
-  }
+  // Auto-select Amazon.co.jp supplier for the transaction
+  const amazonSupplier = await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } });
 
   const product = await prisma.product.create({
     data: {
@@ -186,7 +183,6 @@ export async function manageQueueItemNew(id: string, overrides: ManageOverrides)
       amazon_url: item.product_url,
       category_id: overrides.category_id ?? "",
       location_id: overrides.location_id ?? "",
-      supplier_id: supplierId,
       note: overrides.note ?? "",
       photo,
       quantity: item.quantity,
@@ -207,7 +203,7 @@ export async function manageQueueItemNew(id: string, overrides: ManageOverrides)
       type: "add",
       product_id: product.id,
       quantity: item.quantity,
-      unit_price: item.unit_price,
+      supplier_id: amazonSupplier?.id ?? "",
       note: `Amazon取込(新規登録) 注文:${item.order_id}`,
     },
   });
@@ -243,6 +239,7 @@ export async function manageQueueItemMerge(id: string, productId: string) {
       product_id: productId,
       quantity: item.quantity,
       unit_price: item.unit_price,
+      supplier_id: (await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } }))?.id ?? "",
       note: `Amazon取込(マージ) 注文:${item.order_id}`,
     },
   });

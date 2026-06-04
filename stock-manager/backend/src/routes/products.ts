@@ -16,7 +16,6 @@ const EDITABLE = [
   "amazon_asin",
   "amazon_url",
   "category_id",
-  "supplier_id",
   "location_id",
   "note",
 ] as const;

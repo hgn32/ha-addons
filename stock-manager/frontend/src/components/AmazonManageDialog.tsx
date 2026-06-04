@@ -26,7 +26,7 @@ interface Props {
 }
 
 export default function AmazonManageDialog({ open, item, onClose, onDone }: Props) {
-  const { categories, locations, suppliers, products, reloadProducts, reloadInventory, toast } = useStore();
+  const { categories, locations, products, reloadProducts, reloadInventory, toast } = useStore();
   const [tab, setTab] = useState(0); // 0=新規登録, 1=既存にマージ
   const [form, setForm] = useState({
     name: "",
@@ -34,7 +34,6 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
     jan_code: "",
     category_id: "",
     location_id: "",
-    supplier_id: "",
   });
   const [mergeTarget, setMergeTarget] = useState<Product | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,8 +47,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
         jan_code: item.jan_code,
         category_id: "",
         location_id: "",
-        supplier_id: "",
-      });
+          });
       setMergeTarget(null);
     }
   }, [open, item]);
@@ -128,12 +126,6 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
                   ))}
                 </TextField>
               </Stack>
-              <TextField select label="購入先" value={form.supplier_id} onChange={set("supplier_id")} fullWidth>
-                <MenuItem value="">-- 選択 --</MenuItem>
-                {suppliers.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-                ))}
-              </TextField>
             </Stack>
           )}
 
