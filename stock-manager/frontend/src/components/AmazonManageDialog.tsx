@@ -30,6 +30,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
   const [tab, setTab] = useState(0); // 0=新規登録, 1=既存にマージ
   const [form, setForm] = useState({
     name: "",
+    maker: "",
     jan_code: "",
     category_id: "",
     location_id: "",
@@ -43,6 +44,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
       setTab(0);
       setForm({
         name: item.product_name,
+        maker: item.maker,
         jan_code: item.jan_code,
         category_id: "",
         location_id: "",
@@ -110,6 +112,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
           {tab === 0 && (
             <Stack spacing={2}>
               <TextField label="アイテム名" required value={form.name} onChange={set("name")} fullWidth />
+              <TextField label="メーカー" value={form.maker} onChange={set("maker")} fullWidth />
               <TextField label="JANコード" value={form.jan_code} onChange={set("jan_code")} fullWidth />
               <Stack direction="row" spacing={2}>
                 <TextField select label="カテゴリ" value={form.category_id} onChange={set("category_id")} fullWidth>
