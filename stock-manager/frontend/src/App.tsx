@@ -5,7 +5,6 @@ import HistoryIcon from "@mui/icons-material/History";
 import PlaceIcon from "@mui/icons-material/Place";
 import SellIcon from "@mui/icons-material/Sell";
 import StorefrontIcon from "@mui/icons-material/Storefront";
-import WidgetsIcon from "@mui/icons-material/Widgets";
 import {
   AppBar,
   Box,
@@ -65,7 +64,11 @@ export default function App() {
     <Box sx={{ display: "flex" }}>
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
-          <WidgetsIcon sx={{ mr: 1.5 }} />
+          <Box component="img"
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            src={`${(window as any).__INGRESS_PATH__ || ""}/icon.png`}
+            sx={{ width: 28, height: 28, mr: 1.5 }}
+          />
           <Typography variant="h6" noWrap fontWeight={700}>
             Stock Manager
           </Typography>

@@ -128,19 +128,15 @@ export function parseOrderHistory(html: string): CrawledItem[] {
   let cards = $();
   for (const sel of CARD_SELECTORS) {
     cards = $(sel);
-    if (cards.length > 0) {
-      log("info", `注文カードセレクタ "${sel}" で ${cards.length} 件ヒット`);
-      break;
-    }
+    if (cards.length > 0) break;
   }
 
   if (cards.length === 0) {
-    const snippet = $.html().slice(0, 600).replace(/\s+/g, " ");
-    log("warn", `注文カードが見つかりません。HTML先頭: ${snippet}`);
+    log("warn", "注文カードが見つかりません");
     return items;
   }
 
-  cards.each((idx, card) => {
+  cards.each((_idx, card) => {
     const $card = $(card);
     const cardText = $card.text();
 
@@ -151,15 +147,9 @@ export function parseOrderHistory(html: string): CrawledItem[] {
       $card.find(".a-color-price, .order-total, .yohtmlc-order-total").first().text()
     );
 
-    const allLinks = $card.find("a[href]");
-    const productLinks = allLinks.filter(
+    const productLinks = $card.find("a[href]").filter(
       (_, a) => /\/(?:dp|gp\/product|product)\/[A-Z0-9]{10}/.test($(a).attr("href") || "")
     );
-
-    if (idx === 0) {
-      log("info", `[診断] orderId=${orderId} 購入日=${purchased?.toLocaleDateString("ja-JP") ?? "不明"}`);
-      log("info", `[診断] 全リンク=${allLinks.length} 品目リンク候補=${productLinks.length}`);
-    }
 
     const seen = new Set<string>();
     productLinks.each((__, a) => {
@@ -189,7 +179,6 @@ export function parseOrderHistory(html: string): CrawledItem[] {
         quantity,
         unit_price: orderPrice,
       });
-      log("info", `  品目検出: [${orderId}] ${name} (ASIN=${asin})`);
     });
   });
 
@@ -344,16 +333,9 @@ async function setupPage(
 
   // Cookieを1件ずつセット（userDataDirがあるため初回のみ必要、以降はChromiumが自動管理）
   const cookies = parseCookies(cookie);
-  let set = 0;
   for (const c of cookies) {
-    try {
-      await page.setCookie(c);
-      set++;
-    } catch (e) {
-      log("warn", `Cookie "${c.name}" のセットをスキップ: ${(e as Error).message}`);
-    }
+    try { await page.setCookie(c); } catch { /* 無効なCookieはスキップ */ }
   }
-  log("info", `Cookie ${set}/${cookies.length} 件をセット`);
 
   return page;
 }
@@ -365,7 +347,7 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   await sleep(1500);
   const finalUrl = page.url();
   const html = await page.content();
-  log("info", `finalUrl: ${finalUrl} / HTML長さ: ${html.length}`);
+  if (finalUrl !== url) log("info", `リダイレクト → ${finalUrl}`);
   return { html, finalUrl };
 }
 
@@ -412,9 +394,7 @@ async function readBrowserCookies(page: PuppeteerPage): Promise<string | null> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const liveCookies: PuppeteerCookie[] = await (page as any).cookies("https://www.amazon.co.jp");
     if (!liveCookies.length) return null;
-    const str = liveCookies.map((c) => `${c.name}=${c.value}`).join("; ");
-    log("info", `ブラウザからCookie読取: ${liveCookies.length}件 (${str.length}文字)`);
-    return str;
+    return liveCookies.map((c) => `${c.name}=${c.value}`).join("; ");
   } catch (e) {
     log("warn", `Cookie読取スキップ: ${(e as Error).message}`);
     return null;
@@ -425,8 +405,7 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
   const collected: CrawledItem[] = [];
   const maxPages = opts.maxPages ?? 10;
   let refreshedCookie: string | null = null;
-  log("info", `クロール開始 (since=${opts.since.toISOString()}, maxPages=${maxPages})`);
-  log("info", `Cookie長さ: ${cookie.length}文字`);
+  log("info", `クロール開始 (since=${opts.since.toISOString().slice(0, 10)}, maxPages=${maxPages})`);
 
   await withBrowser(async (browser) => {
     const page = await setupPage(browser, cookie, curlHeaders);
@@ -443,11 +422,7 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
 
       let reachedOld = false;
       for (const it of pageItems) {
-        if (it.purchased_at < opts.since) {
-          log("info", `  スキップ(古): [${it.order_id}] ${it.product_name}`);
-          reachedOld = true;
-          continue;
-        }
+        if (it.purchased_at < opts.since) { reachedOld = true; continue; }
         collected.push(it);
       }
       if (reachedOld) { log("info", "差分終端に到達 — 終了"); break; }
@@ -460,7 +435,7 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
   });
 
   log("info", `クロール完了: 対象 ${collected.length} 件`);
-  if (refreshedCookie) log("info", "Cookieを更新しました");
+  if (refreshedCookie) log("info", "Cookieを自動更新しました");
   return { items: collected, refreshedCookie };
 }
 
