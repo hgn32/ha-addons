@@ -111,37 +111,10 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
       await prisma.amazonQueue.create({ data: queueData(item, "auto") });
       auto++;
     } else {
-      // マスタ未登録 → 商品マスタを自動作成して在庫加算
-      const productId = newId();
-      const photo = await downloadImage(productId, item.image_url);
-      const newProduct = await prisma.product.create({
-        data: {
-          id: productId,
-          name: item.product_name || item.asin || "不明",
-          maker: item.maker,
-          jan_code: item.jan_code,
-          amazon_asin: item.asin,
-          amazon_url: item.product_url,
-          category_id: "",
-          location_id: "",
-          supplier_id: "",
-          note: "",
-          photo,
-          quantity: item.quantity,
-        },
-      });
-      await prisma.transaction.create({
-        data: {
-          type: "add",
-          product_id: newProduct.id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          note: `Amazon自動取込(新規) 注文:${item.order_id}`,
-        },
-      });
-      await prisma.amazonQueue.create({ data: queueData(item, "auto") });
-      log("info", `  商品マスタ自動作成: "${newProduct.name}" +${item.quantity} (ASIN=${item.asin})`);
-      auto++;
+      // マスタ未登録 → 取込待ちキューに追加（ユーザーが手動で振り分け）
+      log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
+      await prisma.amazonQueue.create({ data: queueData(item, "pending") });
+      queued++;
     }
   }
 
