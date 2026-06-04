@@ -264,20 +264,20 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                   <CardContent>
                     <Stack direction="row" spacing={2}>
                       <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }}>📦</Avatar>
-                      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                      <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
                           <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>{item.name}</Typography>
                           <Typography fontWeight={700} color={low ? "error.main" : "text.primary"} sx={{ flexShrink: 0 }}>
                             {item.quantity}
                           </Typography>
                         </Stack>
-                        <Box sx={{ mt: 0.5, mb: 0.5 }}>
+                        <Box sx={{ mt: 0.5, mb: 0.5, flexGrow: 1 }}>
                           {categoryName(item.category_id) && (
                             <Chip label={categoryName(item.category_id)} size="small" color="primary" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                           )}
                           {next && <NextPurchaseChip date={next} />}
                         </Box>
-                        <Stack direction="row" spacing={0.5}>
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                           <IconButton size="small" onClick={() => setHistoryItem(item)}>
                             <HistoryIcon fontSize="small" />
                           </IconButton>

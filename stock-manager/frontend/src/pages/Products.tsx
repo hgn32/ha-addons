@@ -64,7 +64,7 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
           >
             📦
           </Avatar>
-          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
             <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
               <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>
                 {p.name}
@@ -77,18 +77,18 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
                 <DragIndicatorIcon fontSize="small" />
               </Box>
             </Stack>
-            <Stack direction="row" flexWrap="wrap" gap={0.5} mt={0.5}>
+            <Box sx={{ mt: 0.5, mb: 0.5, flexGrow: 1 }}>
               {p.maker && (
-                <Chip label={p.maker} size="small" variant="outlined" />
+                <Chip label={p.maker} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
               )}
               {categoryLabel && (
-                <Chip label={categoryLabel} size="small" color="primary" variant="outlined" />
+                <Chip label={categoryLabel} size="small" color="primary" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
               )}
               {lastPurchased && (
-                <Chip label={`購入: ${lastPurchased}`} size="small" />
+                <Chip label={`購入: ${lastPurchased}`} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
               )}
-            </Stack>
-            <Stack direction="row" spacing={0.5} mt={0.5}>
+            </Box>
+            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
               <IconButton size="small" color="primary" onClick={onEdit}>
                 <EditIcon fontSize="small" />
               </IconButton>
