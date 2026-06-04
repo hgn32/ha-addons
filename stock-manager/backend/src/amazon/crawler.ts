@@ -317,7 +317,10 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
     const $ = cheerio.load(html);
     if (!item.maker) {
       const brand = $("#bylineInfo, #brand").first().text().trim();
-      item.maker = brand.replace(/^(ブランド:|Brand:|Visit the|のストアを表示)/i, "").trim();
+      item.maker = brand
+        .replace(/ブランド:|Brand:|Visit the/gi, "")
+        .replace(/のストアを表示/g, "")
+        .trim();
     }
     if (!item.image_url) {
       item.image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";

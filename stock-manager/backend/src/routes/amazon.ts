@@ -226,7 +226,10 @@ router.post("/amazon/fetch-product", async (req, res) => {
       const $ = cheerio.load(html);
       const name = $("#productTitle").text().trim();
       const makerRaw = $("#bylineInfo, #brand").first().text().trim();
-      const maker = makerRaw.replace(/^(ブランド:|Brand:|Visit the|のストアを表示)/i, "").trim();
+      const maker = makerRaw
+        .replace(/ブランド:|Brand:|Visit the/gi, "")
+        .replace(/のストアを表示/g, "")
+        .trim();
       const image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
       const bullets = $("#detailBullets_feature_div, #prodDetails").text();
       const janMatch = bullets.match(/\b(\d{13})\b/);
