@@ -219,14 +219,14 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
                     </Stack>
                     {next && <Box mb={1}><NextPurchaseChip date={next} /></Box>}
                     <Stack direction="row" spacing={0.5}>
-                      <Button size="small" variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryItem(item)} sx={{ flex: 1 }}>
-                        履歴
+                      <Button size="small" variant="outlined" onClick={() => setHistoryItem(item)} sx={{ flex: 1, minWidth: 0 }}>
+                        <HistoryIcon fontSize="small" />
                       </Button>
-                      <Button size="small" variant="outlined" color="success" startIcon={<AddIcon />} onClick={() => { setDialogItem(item); setDialogMode("add"); }} sx={{ flex: 1 }}>
-                        追加
+                      <Button size="small" variant="outlined" color="success" onClick={() => { setDialogItem(item); setDialogMode("add"); }} sx={{ flex: 1, minWidth: 0 }}>
+                        <AddIcon fontSize="small" />
                       </Button>
-                      <Button size="small" variant="outlined" color="error" startIcon={<RemoveIcon />} onClick={() => { setDialogItem(item); setDialogMode("use"); }} sx={{ flex: 1 }}>
-                        消費
+                      <Button size="small" variant="outlined" color="error" onClick={() => { setDialogItem(item); setDialogMode("use"); }} sx={{ flex: 1, minWidth: 0 }}>
+                        <RemoveIcon fontSize="small" />
                       </Button>
                     </Stack>
                   </CardContent>
