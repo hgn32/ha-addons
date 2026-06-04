@@ -58,8 +58,12 @@ class StockManagerCoordinator(DataUpdateCoordinator):
                 async with session.get(f"{self.url}/api/categories", timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     resp.raise_for_status()
                     categories = await resp.json()
+                async with session.get(f"{self.url}/api/locations", timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    resp.raise_for_status()
+                    locations = await resp.json()
             cat_map = {c["id"]: c["name"] for c in categories}
-            return {"products": products, "cat_map": cat_map}
+            loc_map = {l["id"]: l["name"] for l in locations}
+            return {"products": products, "cat_map": cat_map, "loc_map": loc_map}
         except Exception as err:
             raise UpdateFailed(f"Stock Manager API error: {err}") from err
 

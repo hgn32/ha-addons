@@ -12,53 +12,69 @@ from .const import DOMAIN
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: StockManagerCoordinator = hass.data[DOMAIN][entry.entry_id]
+    known: set[str] = set()
 
-    def _build_entities():
-        products = coordinator.data["products"]
-        entities = []
-        for p in products:
-            entities.append(StockUseButton(coordinator, p))
-            entities.append(StockAddButton(coordinator, p))
-        return entities
-
-    entities = _build_entities()
-    async_add_entities(entities)
-
-    def _handle_coordinator_update() -> None:
-        existing_ids = {e.unique_id for e in entities}
+    def _add_new() -> None:
         new = []
         for p in coordinator.data["products"]:
-            if f"stock_manager_use_{p['id']}" not in existing_ids:
-                new.append(StockUseButton(coordinator, p))
-                new.append(StockAddButton(coordinator, p))
+            pid = p["id"]
+            if pid not in known:
+                known.add(pid)
+                new.append(StockUseButton(coordinator, pid))
+                new.append(StockAddButton(coordinator, pid))
         if new:
             async_add_entities(new)
-            entities.extend(new)
 
-    entry.async_on_unload(coordinator.async_add_listener(_handle_coordinator_update))
+    _add_new()
+    entry.async_on_unload(coordinator.async_add_listener(_add_new))
+
+
+def _name(coordinator: StockManagerCoordinator, product_id: str) -> str:
+    for p in coordinator.data["products"]:
+        if p["id"] == product_id:
+            return p["name"]
+    return product_id
 
 
 class StockUseButton(CoordinatorEntity, ButtonEntity):
+    """在庫消費ボタン。button.stock_use_<product_id>"""
+
     _attr_icon = "mdi:minus-circle-outline"
 
-    def __init__(self, coordinator: StockManagerCoordinator, product: dict) -> None:
+    def __init__(self, coordinator: StockManagerCoordinator, product_id: str) -> None:
         super().__init__(coordinator)
-        self._product_id = product["id"]
-        self._attr_unique_id = f"stock_manager_use_{product['id']}"
-        self._attr_name = f"在庫消費 {product['name']}"
+        self._product_id = product_id
+        self._attr_unique_id = f"stock_manager_use_{product_id}"
+
+    @property
+    def name(self) -> str:
+        return f"在庫消費 {_name(self.coordinator, self._product_id)}"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"product_id": self._product_id}
 
     async def async_press(self) -> None:
         await self.coordinator.async_use(self._product_id, 1)
 
 
 class StockAddButton(CoordinatorEntity, ButtonEntity):
+    """在庫追加ボタン。button.stock_add_<product_id>"""
+
     _attr_icon = "mdi:plus-circle-outline"
 
-    def __init__(self, coordinator: StockManagerCoordinator, product: dict) -> None:
+    def __init__(self, coordinator: StockManagerCoordinator, product_id: str) -> None:
         super().__init__(coordinator)
-        self._product_id = product["id"]
-        self._attr_unique_id = f"stock_manager_add_{product['id']}"
-        self._attr_name = f"在庫追加 {product['name']}"
+        self._product_id = product_id
+        self._attr_unique_id = f"stock_manager_add_{product_id}"
+
+    @property
+    def name(self) -> str:
+        return f"在庫追加 {_name(self.coordinator, self._product_id)}"
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"product_id": self._product_id}
 
     async def async_press(self) -> None:
         await self.coordinator.async_add(self._product_id, 1)
