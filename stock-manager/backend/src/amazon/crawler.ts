@@ -200,8 +200,6 @@ export function parseOrderHistory(html: string): CrawledItem[] {
 // Cookieは --user-data-dir 内のSQLiteファイルにChromiumが自動保存する
 let _browser: PuppeteerBrowser | null = null;
 
-const CHROME_PROFILE_DIR = "/config/stock_manager_3a30c8ec/chrome-profile";
-
 async function getBrowser(): Promise<PuppeteerBrowser> {
   if (_browser) {
     // 生存確認: ページを開けるか試す
@@ -216,13 +214,12 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
   }
 
   const executablePath = findChromium();
-  log("info", `Chromium起動: ${executablePath} (プロファイル: ${CHROME_PROFILE_DIR})`);
+  log("info", `Chromium起動: ${executablePath}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
   _browser = await puppeteer.launch({
     executablePath,
     headless: true,
-    userDataDir: CHROME_PROFILE_DIR,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -232,8 +229,12 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
       "--disable-blink-features=AutomationControlled",
       "--window-size=1920,1080",
       "--lang=ja-JP,ja",
-      "--disk-cache-size=1",       // ページキャッシュを無効化
-      "--media-cache-size=1",      // メディアキャッシュを無効化
+      "--disk-cache-size=1",
+      "--media-cache-size=1",
+      "--disable-gpu-shader-disk-cache",
+      "--disable-background-networking",
+      "--disable-sync",
+      "--no-first-run",
     ],
   });
   log("info", "Chromium起動完了");
