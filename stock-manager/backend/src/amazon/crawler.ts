@@ -196,11 +196,36 @@ export function parseOrderHistory(html: string): CrawledItem[] {
   return items;
 }
 
-// Chromiumをシングルトンで保持（Cookie永続化 + 起動コスト削減）
-// Cookieは --user-data-dir 内のSQLiteファイルにChromiumが自動保存する
+// Chromiumをシングルトンで保持（フィンガープリント一貫性 + 起動コスト削減）
 let _browser: PuppeteerBrowser | null = null;
 
 const CHROME_PROFILE_DIR = "/config/stock_manager_3a30c8ec/chrome-profile";
+
+// フィンガープリントに不要なキャッシュ系ディレクトリを起動前に削除
+function cleanChromeCache(): void {
+  const { rmSync, existsSync } = require("fs") as typeof import("fs");
+  const { join } = require("path") as typeof import("path");
+  const targets = [
+    "Default/Cache",
+    "Default/Code Cache",
+    "Default/GPUCache",
+    "Default/Service Worker",
+    "Default/CacheStorage",
+    "ShaderCache",
+    "GrShaderCache",
+  ];
+  for (const rel of targets) {
+    const full = join(CHROME_PROFILE_DIR, rel);
+    if (existsSync(full)) {
+      try {
+        rmSync(full, { recursive: true, force: true });
+      } catch {
+        // 削除失敗は無視
+      }
+    }
+  }
+  log("info", "Chromeキャッシュを削除しました");
+}
 
 async function getBrowser(): Promise<PuppeteerBrowser> {
   if (_browser) {
@@ -214,6 +239,8 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
       _browser = null;
     }
   }
+
+  cleanChromeCache();
 
   const executablePath = findChromium();
   log("info", `Chromium起動: ${executablePath} (プロファイル: ${CHROME_PROFILE_DIR})`);
@@ -234,6 +261,10 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
       "--lang=ja-JP,ja",
       "--disk-cache-size=1",
       "--media-cache-size=1",
+      "--disable-gpu-shader-disk-cache",
+      "--disable-background-networking",
+      "--disable-sync",
+      "--no-first-run",
     ],
   });
   log("info", "Chromium起動完了");
