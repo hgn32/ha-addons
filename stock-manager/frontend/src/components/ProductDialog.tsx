@@ -117,6 +117,16 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       for (const [field, value] of fields) {
         if (value) setValue(field, value);
       }
+      if (data.image_url) {
+        try {
+          const res = await fetch(data.image_url);
+          const blob = await res.blob();
+          const ext = data.image_url.split(".").pop()?.split("?")[0] ?? "jpg";
+          setFile(new File([blob], `amazon_photo.${ext}`, { type: blob.type }));
+        } catch {
+          // 写真取込失敗は無視
+        }
+      }
       toast("アイテム情報を取込みました");
     } catch (e) {
       toast((e as Error).message || "取込に失敗しました", "error");
