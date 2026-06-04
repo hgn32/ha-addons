@@ -50,7 +50,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} mb={3}>
+      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>
         在庫一覧
       </Typography>
 

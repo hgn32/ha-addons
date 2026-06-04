@@ -109,7 +109,7 @@ export default function AmazonImport() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} mb={3}>
+      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>
         Amazon購入履歴取込
       </Typography>
 

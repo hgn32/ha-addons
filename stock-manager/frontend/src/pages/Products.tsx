@@ -154,7 +154,7 @@ export default function Products() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} mb={3}>
+      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>
         品目マスタ
       </Typography>
 

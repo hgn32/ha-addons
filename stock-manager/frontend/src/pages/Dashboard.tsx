@@ -195,7 +195,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} mb={3}>ダッシュボード</Typography>
+      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>ダッシュボード</Typography>
 
       {sorted.length === 0 ? (
         <Typography color="text.secondary" sx={{ py: 6, textAlign: "center" }}>品目がありません</Typography>
