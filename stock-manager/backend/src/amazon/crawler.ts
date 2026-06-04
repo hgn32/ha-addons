@@ -11,6 +11,10 @@ interface PuppeteerCookie {
   httpOnly?: boolean;
   expires?: number;
 }
+interface PuppeteerResponse {
+  url(): string;
+  headers(): Record<string, string>;
+}
 interface PuppeteerPage {
   setUserAgent(ua: string): Promise<void>;
   setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
@@ -21,6 +25,7 @@ interface PuppeteerPage {
   content(): Promise<string>;
   close(): Promise<void>;
   evaluateOnNewDocument?: (fn: string | ((...args: unknown[]) => unknown), ...args: unknown[]) => Promise<void>;
+  on(event: "response", handler: (res: PuppeteerResponse) => void): void;
 }
 interface PuppeteerBrowser {
   newPage(): Promise<PuppeteerPage>;
@@ -235,7 +240,25 @@ async function withBrowser<T>(fn: (browser: PuppeteerBrowser) => Promise<T>): Pr
   }
 }
 
-async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<PuppeteerPage> {
+// Parse Set-Cookie header string into name=value pairs and merge into a cookie map
+function mergeSetCookie(cookieMap: Map<string, string>, setCookieHeader: string): void {
+  // Set-Cookie header may be comma-separated (though technically each header is one cookie)
+  // Each cookie is: name=value; attr1; attr2=...
+  const parts = setCookieHeader.split(/,(?=[^;]+=)/);
+  for (const part of parts) {
+    const segment = part.trim().split(";")[0].trim();
+    const eqIdx = segment.indexOf("=");
+    if (eqIdx === -1) continue;
+    const name = segment.slice(0, eqIdx).trim();
+    const value = segment.slice(eqIdx + 1).trim();
+    if (name) {
+      cookieMap.set(name, value);
+    }
+  }
+}
+
+// Sets up page with cookie monitoring — returns page and a getter for the latest cookie string
+export async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<{ page: PuppeteerPage; getLatestCookie: () => string }> {
   const page = await browser.newPage();
   // Inject stealth overrides before any page script runs
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -295,7 +318,30 @@ async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<Pup
   }
   log("info", `Cookie ${set}/${cookies.length} 件をセット`);
   log("info", `セット済みCookie名: ${cookies.map((c) => c.name).join(", ")}`);
-  return page;
+
+  // レスポンスのSet-Cookieヘッダを毎リクエスト監視してcookieMapに反映
+  const cookieMap = new Map<string, string>();
+  // 初期値としてセット済みクッキーをcookieMapに登録
+  for (const c of cookies) {
+    cookieMap.set(c.name, c.value);
+  }
+  page.on("response", (res: PuppeteerResponse) => {
+    const url = res.url();
+    if (!url.includes("amazon.co.jp")) return;
+    const headers = res.headers();
+    const setCookie = headers["set-cookie"];
+    if (setCookie) {
+      const before = cookieMap.size;
+      mergeSetCookie(cookieMap, setCookie);
+      const after = cookieMap.size;
+      log("info", `[Set-Cookie] ${url.slice(0, 80)} → ${setCookie.slice(0, 120)} (合計${after}件${after > before ? ` +${after - before}` : ""})`);
+    }
+  });
+
+  const getLatestCookie = () =>
+    Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
+
+  return { page, getLatestCookie };
 }
 
 async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: string; finalUrl: string }> {
@@ -306,22 +352,6 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   const finalUrl = page.url();
   const html = await page.content();
   log("info", `finalUrl: ${finalUrl} / HTML長さ: ${html.length}`);
-
-  // ページ応答後のCookie状況をログ
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const liveCookies = await (page as any).cookies("https://www.amazon.co.jp");
-    if (Array.isArray(liveCookies)) {
-      const names = liveCookies.map((c: PuppeteerCookie) => c.name).join(", ");
-      log("info", `応答後Cookie: ${liveCookies.length}件 [${names}]`);
-      const sessionId = liveCookies.find((c: PuppeteerCookie) => c.name === "session-id");
-      const ubid = liveCookies.find((c: PuppeteerCookie) => c.name === "ubid-acbjp");
-      log("info", `  session-id=${sessionId?.value?.slice(0, 20) ?? "(なし)"} ubid=${ubid?.value?.slice(0, 20) ?? "(なし)"}`);
-    }
-  } catch (e) {
-    log("warn", `応答後Cookie取得スキップ: ${(e as Error).message}`);
-  }
-
   return { html, finalUrl };
 }
 
@@ -364,13 +394,6 @@ export interface CrawlResult {
   refreshedCookie: string | null;
 }
 
-// Serialize Puppeteer cookie objects back to "name=value; name2=value2" format
-function serializeCookies(cookies: PuppeteerCookie[]): string {
-  return cookies
-    .filter((c) => c.domain && c.domain.includes("amazon"))
-    .map((c) => `${c.name}=${c.value}`)
-    .join("; ");
-}
 
 export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<CrawlResult> {
   const collected: CrawledItem[] = [];
@@ -379,26 +402,15 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
   log("info", `クロール開始 (since=${opts.since.toISOString()}, maxPages=${maxPages})`);
 
   await withBrowser(async (browser) => {
-    const page = await setupPage(browser, cookie);
+    const { page, getLatestCookie } = await setupPage(browser, cookie);
 
     for (let p = 0; p < maxPages; p++) {
       const url = `${BASE}/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
       const { html, finalUrl } = await fetchPageHtml(page, url);
 
-      // ブロック検知前にCookieを保存（ブロック後もセッション更新を反映できるよう）
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const liveCookies = await (page as any).cookies("https://www.amazon.co.jp");
-        if (Array.isArray(liveCookies) && liveCookies.length > 0) {
-          const serialized = serializeCookies(liveCookies);
-          if (serialized) {
-            refreshedCookie = serialized;
-            log("info", `Cookieスナップショット保存: ${liveCookies.length}件 (${serialized.length}文字)`);
-          }
-        }
-      } catch (e) {
-        log("warn", `Cookieスナップショット取得スキップ: ${(e as Error).message}`);
-      }
+      // レスポンス監視で随時更新されているcookieMapから最新を取得
+      const latest = getLatestCookie();
+      if (latest) refreshedCookie = latest;
 
       assertLoggedIn(finalUrl, html);
 
