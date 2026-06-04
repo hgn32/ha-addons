@@ -2,7 +2,6 @@ import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import CategoryIcon from "@mui/icons-material/Category";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import HistoryIcon from "@mui/icons-material/History";
-import Inventory2Icon from "@mui/icons-material/Inventory2";
 import PlaceIcon from "@mui/icons-material/Place";
 import SellIcon from "@mui/icons-material/Sell";
 import StorefrontIcon from "@mui/icons-material/Storefront";
@@ -24,7 +23,6 @@ import { useState } from "react";
 import AmazonImport from "./pages/AmazonImport";
 import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
-import Inventory from "./pages/Inventory";
 import Locations from "./pages/Locations";
 import Products from "./pages/Products";
 import Suppliers from "./pages/Suppliers";
@@ -34,7 +32,6 @@ const DRAWER_WIDTH = 240;
 
 export type Page =
   | "dashboard"
-  | "inventory"
   | "transactions"
   | "products"
   | "categories"
@@ -51,7 +48,6 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "ダッシュボード", icon: <DashboardIcon />, section: "メイン" },
-  { key: "inventory", label: "在庫一覧", icon: <Inventory2Icon />, section: "メイン" },
   { key: "transactions", label: "操作履歴", icon: <HistoryIcon />, section: "メイン" },
   { key: "products", label: "品目", icon: <SellIcon />, section: "マスタ" },
   { key: "categories", label: "カテゴリ", icon: <CategoryIcon />, section: "マスタ" },
@@ -135,7 +131,6 @@ export default function App() {
       <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: "100vh" }}>
         <Toolbar />
         {page === "dashboard" && <Dashboard onNavigate={setPage} />}
-        {page === "inventory" && <Inventory onNavigate={setPage} />}
         {page === "transactions" && <Transactions />}
         {page === "products" && <Products />}
         {page === "categories" && <Categories />}
