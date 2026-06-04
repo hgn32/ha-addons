@@ -2,11 +2,14 @@ import React, { useState } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
+import DownloadIcon from "@mui/icons-material/Download";
 import {
   Box,
+  Button,
   IconButton,
   Link,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -142,11 +145,23 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
     }
   };
 
+  const exportCsv = () => {
+    const headers = columns.map((c) => c.label);
+    const rows = localItems.map((item) => columns.map((c) => `"${(item[c.key] ?? "").replace(/"/g, '""')}"`));
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${title}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>
-        {title}
-      </Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>{title}</Typography>
+        <Button size="small" startIcon={<DownloadIcon />} onClick={exportCsv}>CSV出力</Button>
+      </Stack>
 
       <Paper sx={{ p: 2 }}>
         <TableContainer>

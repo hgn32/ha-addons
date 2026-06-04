@@ -1,9 +1,11 @@
 import DeleteIcon from "@mui/icons-material/Delete";
+import DownloadIcon from "@mui/icons-material/Download";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
 import {
   Avatar,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -152,11 +154,25 @@ export default function Products() {
     if (!prev || t.date > prev) lastPurchasedMap.set(t.product_id, t.date);
   }
 
+  const exportCsv = () => {
+    const headers = ["名前", "メーカー", "JANコード", "カテゴリ", "メモ"];
+    const rows = localProducts.map((p) => [
+      p.name, p.maker, p.jan_code, categoryName(p.category_id), p.note,
+    ].map((v) => `"${(v ?? "").replace(/"/g, '""')}"`));
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "品目マスタ.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>
-        品目マスタ
-      </Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>品目マスタ</Typography>
+        <Button size="small" startIcon={<DownloadIcon />} onClick={exportCsv}>CSV出力</Button>
+      </Stack>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={localProducts.map((p) => p.id)} strategy={rectSortingStrategy}>
