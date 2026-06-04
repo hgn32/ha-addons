@@ -294,6 +294,7 @@ async function setupPage(browser: PuppeteerBrowser, cookie: string): Promise<Pup
     }
   }
   log("info", `Cookie ${set}/${cookies.length} 件をセット`);
+  log("info", `セット済みCookie名: ${cookies.map((c) => c.name).join(", ")}`);
   return page;
 }
 
@@ -305,6 +306,22 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   const finalUrl = page.url();
   const html = await page.content();
   log("info", `finalUrl: ${finalUrl} / HTML長さ: ${html.length}`);
+
+  // ページ応答後のCookie状況をログ
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const liveCookies = await (page as any).cookies("https://www.amazon.co.jp");
+    if (Array.isArray(liveCookies)) {
+      const names = liveCookies.map((c: PuppeteerCookie) => c.name).join(", ");
+      log("info", `応答後Cookie: ${liveCookies.length}件 [${names}]`);
+      const sessionId = liveCookies.find((c: PuppeteerCookie) => c.name === "session-id");
+      const ubid = liveCookies.find((c: PuppeteerCookie) => c.name === "ubid-acbjp");
+      log("info", `  session-id=${sessionId?.value?.slice(0, 20) ?? "(なし)"} ubid=${ubid?.value?.slice(0, 20) ?? "(なし)"}`);
+    }
+  } catch (e) {
+    log("warn", `応答後Cookie取得スキップ: ${(e as Error).message}`);
+  }
+
   return { html, finalUrl };
 }
 
@@ -367,21 +384,23 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
     for (let p = 0; p < maxPages; p++) {
       const url = `${BASE}/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
       const { html, finalUrl } = await fetchPageHtml(page, url);
-      assertLoggedIn(finalUrl, html);
 
-      // After first successful page load, save refreshed cookies
-      if (p === 0) {
-        try {
-          const liveCookies = await page.cookies("https://www.amazon.co.jp");
+      // ブロック検知前にCookieを保存（ブロック後もセッション更新を反映できるよう）
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const liveCookies = await (page as any).cookies("https://www.amazon.co.jp");
+        if (Array.isArray(liveCookies) && liveCookies.length > 0) {
           const serialized = serializeCookies(liveCookies);
           if (serialized) {
             refreshedCookie = serialized;
-            log("info", `Cookieを更新: ${liveCookies.length}件 (${serialized.length}文字)`);
+            log("info", `Cookieスナップショット保存: ${liveCookies.length}件 (${serialized.length}文字)`);
           }
-        } catch (e) {
-          log("warn", `Cookie更新スキップ: ${(e as Error).message}`);
         }
+      } catch (e) {
+        log("warn", `Cookieスナップショット取得スキップ: ${(e as Error).message}`);
       }
+
+      assertLoggedIn(finalUrl, html);
 
       const pageItems = parseOrderHistory(html);
       log("info", `ページ ${p + 1}: ${pageItems.length} 件の品目を検出`);
