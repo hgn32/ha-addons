@@ -26,10 +26,12 @@
   ],
   "options": {
     "amazon_cron": "0 6 * * *",
-    "amazon_cookie": ""
+    "amazon_cookie": "",
+    "notify_service": "persistent_notification"
   },
   "schema": {
     "amazon_cron": "str",
-    "amazon_cookie": "str?"
+    "amazon_cookie": "str?",
+    "notify_service": "str?"
   }
 }

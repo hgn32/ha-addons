@@ -4,6 +4,7 @@ import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
 import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, runAmazonCrawl } from "../amazon/service";
+import { notifyHA } from "../amazon/notify";
 
 const router = Router();
 
@@ -80,6 +81,12 @@ router.post("/amazon/crawl", async (req, res) => {
   const full = req.body?.full === true;
   try {
     const summary = await runAmazonCrawl(full);
+    if (summary.auto > 0 || summary.queued > 0) {
+      const lines: string[] = [];
+      if (summary.auto > 0) lines.push(`・自動追加: ${summary.auto}件`);
+      if (summary.queued > 0) lines.push(`・確認待ち: ${summary.queued}件`);
+      await notifyHA("Stock Manager: Amazon取込完了", lines.join("\n"));
+    }
     res.json(summary);
   } catch (e) {
     res.status(400).json({ detail: (e as Error).message });
