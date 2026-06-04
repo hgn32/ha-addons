@@ -1,4 +1,6 @@
+import { Box } from "@mui/material";
 import MasterTablePage from "../components/MasterTablePage";
+import { DynamicIcon } from "../components/IconPicker";
 import { useStore } from "../store";
 
 export default function Categories() {
@@ -10,7 +12,16 @@ export default function Categories() {
       items={categories as unknown as Record<string, string>[]}
       reload={reloadCategories}
       columns={[
-        { key: "name", label: "カテゴリ名" },
+        {
+          key: "name",
+          label: "カテゴリ名",
+          render: (item) => (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              {item.icon && <DynamicIcon name={item.icon} fontSize="small" />}
+              {item.name}
+            </Box>
+          ),
+        },
         { key: "note", label: "メモ" },
       ]}
     />

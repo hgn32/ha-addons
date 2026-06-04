@@ -6,6 +6,7 @@ import {
   DialogTitle,
   Stack,
   TextField,
+  Typography,
 } from "@mui/material";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
@@ -13,6 +14,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { api } from "../api";
 import { useStore } from "../store";
+import IconPicker from "./IconPicker";
 
 export type MasterEntity = "categories" | "locations" | "suppliers";
 
@@ -34,6 +36,7 @@ const schema = yup.object({
   note: yup.string().default(""),
   description: yup.string().default(""),
   url: yup.string().default(""),
+  icon: yup.string().default(""),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -45,11 +48,15 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", note: "", description: "", url: "" },
+    defaultValues: { name: "", note: "", description: "", url: "", icon: "" },
   });
+
+  const watchedIcon = watch("icon");
 
   useEffect(() => {
     if (open) {
@@ -58,6 +65,7 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
         note: item?.note ?? "",
         description: item?.description ?? "",
         url: item?.url ?? "",
+        icon: item?.icon ?? "",
       });
     }
   }, [open, item, reset]);
@@ -123,6 +131,12 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
                 error={!!errors.url}
                 helperText={errors.url?.message}
               />
+            )}
+            {(entity === "categories" || entity === "locations") && (
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Typography variant="body2">アイコン:</Typography>
+                <IconPicker value={watchedIcon} onChange={(v) => setValue("icon", v)} />
+              </Stack>
             )}
           </Stack>
         </DialogContent>

@@ -1,3 +1,4 @@
+import React from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import {
@@ -24,6 +25,7 @@ interface Column {
   key: string;
   label: string;
   link?: boolean;
+  render?: (item: Record<string, string>) => React.ReactNode;
 }
 
 interface Props {
@@ -74,7 +76,7 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
                 <TableRow key={item.id} hover>
                   {columns.map((c) => (
                     <TableCell key={c.key}>
-                      {c.link && item[c.key] ? (
+                      {c.render ? c.render(item) : c.link && item[c.key] ? (
                         <Link href={item[c.key]} target="_blank" rel="noreferrer">
                           {item[c.key]}
                         </Link>

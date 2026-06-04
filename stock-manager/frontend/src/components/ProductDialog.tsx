@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import { useEffect, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type FieldPath } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { api, imageUrl } from "../api";
@@ -43,11 +43,15 @@ export default function ProductDialog({ open, product, onClose }: Props) {
   const { categories, locations, suppliers, reloadProducts, reloadInventory, toast } = useStore();
   const [file, setFile] = useState<File | null>(null);
 
+  const [fetchUrl, setFetchUrl] = useState("");
+  const [fetching, setFetching] = useState(false);
+
   const {
     register,
     handleSubmit,
     control,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -68,10 +72,34 @@ export default function ProductDialog({ open, product, onClose }: Props) {
         note: product?.note ?? "",
       });
       setFile(null);
+      setFetchUrl("");
     }
   }, [open, product, reset]);
 
   const preview = file ? URL.createObjectURL(file) : product?.photo ? imageUrl(product.photo) : "";
+
+  const handleFetchProduct = async () => {
+    if (!fetchUrl.trim()) return;
+    setFetching(true);
+    try {
+      const data = await api.post<{ name: string; maker: string; jan_code: string; asin: string; product_url: string; image_url: string }>("/api/amazon/fetch-product", { url: fetchUrl });
+      const fields: [FieldPath<FormValues>, string][] = [
+        ["name", data.name],
+        ["maker", data.maker],
+        ["jan_code", data.jan_code],
+        ["amazon_asin", data.asin],
+        ["amazon_url", data.product_url],
+      ];
+      for (const [field, value] of fields) {
+        if (value) setValue(field, value);
+      }
+      toast("商品情報を取込みました");
+    } catch (e) {
+      toast((e as Error).message || "取込に失敗しました", "error");
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const onSubmit = async (data: FormValues) => {
     const fd = new FormData();
@@ -98,6 +126,24 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            <Stack direction="row" spacing={1} alignItems="flex-start">
+              <TextField
+                label="Amazon URLから取込"
+                placeholder="https://www.amazon.co.jp/dp/..."
+                fullWidth
+                value={fetchUrl}
+                onChange={(e) => setFetchUrl(e.target.value)}
+                size="small"
+              />
+              <Button
+                variant="outlined"
+                onClick={handleFetchProduct}
+                disabled={fetching || !fetchUrl.trim()}
+                sx={{ whiteSpace: "nowrap", minWidth: 120 }}
+              >
+                {fetching ? "取込中..." : "商品情報を取込"}
+              </Button>
+            </Stack>
             <TextField
               label="商品名"
               required
