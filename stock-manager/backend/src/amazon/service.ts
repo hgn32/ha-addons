@@ -115,9 +115,16 @@ export async function runAmazonCrawl(): Promise<CrawlSummary> {
       await prisma.amazonQueue.create({ data: queueData(item, "auto") });
       auto++;
     } else {
-      // マスタ未登録 → 取込待ちキューに追加（ユーザーが手動で振り分け）
-      log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
-      await prisma.amazonQueue.create({ data: queueData(item, "pending") });
+      // マスタ未登録 → 画像をローカル保存してから取込待ちキューに追加
+      const queueId = newId();
+      const localImage = await downloadImage(queueId, item.image_url);
+      if (localImage) {
+        item.image_url = localImage;
+        log("info", `  取込待ち追加(画像保存済): "${item.product_name}" (ASIN=${item.asin})`);
+      } else {
+        log("info", `  取込待ち追加(画像なし): "${item.product_name}" (ASIN=${item.asin})`);
+      }
+      await prisma.amazonQueue.create({ data: { id: queueId, ...queueData(item, "pending") } });
       queued++;
     }
   }
@@ -157,7 +164,10 @@ export async function manageQueueItem(id: string, overrides: ManageOverrides) {
   if (!item) throw new Error("取込データが見つかりません");
 
   const productId = newId();
-  const photo = await downloadImage(productId, item.image_url);
+  // image_url がローカルファイル名（http非始まり）なら既にダウンロード済み
+  const photo = item.image_url.startsWith("http")
+    ? await downloadImage(productId, item.image_url)
+    : item.image_url;
 
   const product = await prisma.product.create({
     data: {
