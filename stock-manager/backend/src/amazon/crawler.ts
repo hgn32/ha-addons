@@ -45,31 +45,43 @@ function parsePrice(text: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-// axiosインスタンス: 本物ブラウザと同じヘッダを付与して直接HTTPリクエスト
-function makeClient(cookie: string) {
+// axiosインスタンス: cURLから取得した実ブラウザのヘッダーをそのまま使用
+// curlHeaders が空の場合はデフォルトヘッダーにフォールバック
+function makeClient(cookie: string, curlHeaders: Record<string, string> = {}) {
+  const defaultHeaders: Record<string, string> = {
+    "user-agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    "accept":
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "accept-language": "ja-JP,ja;q=0.9,en;q=0.8",
+    "accept-encoding": "gzip, deflate, br",
+    "referer": "https://www.amazon.co.jp/",
+    "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+  };
+
+  // cURLヘッダーを優先（:authority, :method 等の疑似ヘッダーは除外）
+  const merged: Record<string, string> = { ...defaultHeaders };
+  for (const [k, v] of Object.entries(curlHeaders)) {
+    if (!k.startsWith(":")) merged[k] = v;
+  }
+  // Cookieは常に最新値を使う
+  merged["cookie"] = cookie;
+
+  const usingCurl = Object.keys(curlHeaders).length > 0;
+  log("info", `HTTPクライアント初期化: ${usingCurl ? "cURLヘッダー使用" : "デフォルトヘッダー使用"} (${Object.keys(merged).length}件)`);
+
   const client = axios.create({
     baseURL: BASE,
     timeout: 30000,
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-      "Accept":
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Cookie": cookie,
-      "Referer": "https://www.amazon.co.jp/",
-      "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": '"Windows"',
-      "sec-fetch-dest": "document",
-      "sec-fetch-mode": "navigate",
-      "sec-fetch-site": "same-origin",
-      "sec-fetch-user": "?1",
-      "upgrade-insecure-requests": "1",
-    },
-    // Cookieの自動リダイレクト追跡
+    headers: merged,
     maxRedirects: 5,
   });
   return client;
@@ -259,14 +271,14 @@ export interface CrawlResult {
   refreshedCookie: string | null;
 }
 
-export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<CrawlResult> {
+export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeaders: Record<string, string> = {}): Promise<CrawlResult> {
   const collected: CrawledItem[] = [];
   const maxPages = opts.maxPages ?? 10;
   let currentCookie = cookie;
   log("info", `クロール開始 (since=${opts.since.toISOString()}, maxPages=${maxPages})`);
   log("info", `Cookie長さ: ${cookie.length}文字`);
 
-  const client = makeClient(currentCookie);
+  const client = makeClient(currentCookie, curlHeaders);
 
   for (let p = 0; p < maxPages; p++) {
     const url = `/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
@@ -307,11 +319,11 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
 }
 
 // 品目詳細補完 — マスタ未登録アイテムのみ対象にして呼ぶこと
-export async function enrichItems(cookie: string, items: CrawledItem[]): Promise<void> {
+export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<void> {
   if (items.length === 0) return;
   log("info", `詳細補完開始: ${items.length}件`);
   let currentCookie = cookie;
-  const client = makeClient(currentCookie);
+  const client = makeClient(currentCookie, curlHeaders);
 
   for (let i = 0; i < items.length; i++) {
     currentCookie = await enrichItem(client, items[i], i + 1, items.length, currentCookie);

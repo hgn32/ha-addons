@@ -35,6 +35,17 @@ export async function getCookie(): Promise<string> {
   return (await getSetting("amazon_cookie")).trim();
 }
 
+// cURLから抽出した全ヘッダー（保存済みの場合）を返す。なければ空オブジェクト。
+export async function getCurlHeaders(): Promise<Record<string, string>> {
+  const raw = (await getSetting("amazon_curl_headers")).trim();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
 export function getCronSchedule(): string {
   return (
     process.env.AMAZON_CRON?.trim() ||

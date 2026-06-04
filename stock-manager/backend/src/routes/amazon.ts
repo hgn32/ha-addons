@@ -23,27 +23,44 @@ router.get("/amazon/settings", async (_req, res) => {
 
 router.post("/amazon/settings", async (req, res) => {
   const raw = String(req.body.cookie ?? "").trim();
-  // cURLコマンドをそのまま貼った場合は -b '...' または -H 'Cookie: ...' から値を抽出する。
-  const cookie = extractCookieFromInput(raw);
-  await setSetting("amazon_cookie", cookie);
-  res.json({ cookie_set: Boolean(cookie) });
+  // cURLコマンドなら全ヘッダーを抽出してJSONで保存、生Cookieならそのまま保存
+  if (raw.startsWith("curl ")) {
+    const headers = extractHeadersFromCurl(raw);
+    await setSetting("amazon_cookie", headers.cookie ?? "");
+    await setSetting("amazon_curl_headers", JSON.stringify(headers.all));
+    res.json({ cookie_set: Boolean(headers.cookie) });
+  } else {
+    const cookie = raw;
+    await setSetting("amazon_cookie", cookie);
+    await setSetting("amazon_curl_headers", "");
+    res.json({ cookie_set: Boolean(cookie) });
+  }
 });
 
-function extractCookieFromInput(input: string): string {
-  // -b 'value' : cURLのbashコピーはシングルクォートで囲む。
-  // Cookieの値自体にダブルクォートが含まれるため ['"] で閉じると途中で切れてしまう。
-  // シングルクォート → シングルクォートまで、ダブルクォート → ダブルクォートまでで個別に処理する。
+// cURLコマンドから全ヘッダーとCookieを抽出する
+function extractHeadersFromCurl(input: string): { cookie: string; all: Record<string, string> } {
+  const headers: Record<string, string> = {};
+
+  // -H 'Name: Value' を全件抽出（シングル・ダブルクォート両対応）
+  const hPattern = /-H\s+(?:'([^']+)'|"([^"]+)")/g;
+  let m: RegExpExecArray | null;
+  while ((m = hPattern.exec(input)) !== null) {
+    const raw = (m[1] ?? m[2]).trim();
+    const idx = raw.indexOf(":");
+    if (idx === -1) continue;
+    const name = raw.slice(0, idx).trim().toLowerCase();
+    const value = raw.slice(idx + 1).trim();
+    headers[name] = value;
+  }
+
+  // -b 'cookie' 形式
   const bSingle = input.match(/(?:^|\s)-b\s+'([^']+)'/)?.[1];
-  if (bSingle) return bSingle.trim();
   const bDouble = input.match(/(?:^|\s)-b\s+"([^"]+)"/)?.[1];
-  if (bDouble) return bDouble.trim();
-  // -H 'Cookie: value'
-  const hSingle = input.match(/(?:^|\s)-H\s+'Cookie:\s*([^']+)'/i)?.[1];
-  if (hSingle) return hSingle.trim();
-  const hDouble = input.match(/(?:^|\s)-H\s+"Cookie:\s*([^"]+)"/i)?.[1];
-  if (hDouble) return hDouble.trim();
-  // そのまま（生Cookieとして扱う）
-  return input;
+  if (bSingle) headers["cookie"] = bSingle.trim();
+  else if (bDouble) headers["cookie"] = bDouble.trim();
+
+  const cookie = headers["cookie"] ?? "";
+  return { cookie, all: headers };
 }
 
 // --- Logs ------------------------------------------------------------------

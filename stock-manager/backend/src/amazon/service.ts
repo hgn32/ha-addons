@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "../db";
 import { IMAGES_DIR, newId } from "../paths";
-import { getCookie, getSetting, setSetting } from "./config";
+import { getCookie, getCurlHeaders, getSetting, setSetting } from "./config";
 import { crawlOrders, enrichItems, CrawledItem } from "./crawler";
 import { log } from "./logger";
 
@@ -67,7 +67,8 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
       : new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   log("info", `差分取得基準日: ${since.toISOString()} (full=${full})`);
 
-  const { items: orders, refreshedCookie } = await crawlOrders(cookie, { since });
+  const curlHeaders = await getCurlHeaders();
+  const { items: orders, refreshedCookie } = await crawlOrders(cookie, { since }, curlHeaders);
 
   // Save refreshed cookies so the next crawl uses the latest session tokens
   if (refreshedCookie) {
@@ -123,7 +124,7 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
     .map(({ item }) => item);
   if (needEnrich.length > 0) {
     log("info", `詳細補完対象: ${needEnrich.length}件（マスタ未登録のみ）`);
-    await enrichItems(cookie, needEnrich);
+    await enrichItems(cookie, needEnrich, curlHeaders);
   }
 
   // DB登録
