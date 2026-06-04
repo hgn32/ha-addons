@@ -4,7 +4,7 @@ import path from "path";
 import { prisma } from "../db";
 import { IMAGES_DIR, newId } from "../paths";
 import { getCookie, getSetting, setSetting } from "./config";
-import { crawlOrders, CrawledItem } from "./crawler";
+import { crawlOrders, enrichItems, CrawledItem } from "./crawler";
 import { log } from "./logger";
 
 const LAST_SYNC_KEY = "amazon_last_sync";
@@ -67,7 +67,7 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
       : new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   log("info", `差分取得基準日: ${since.toISOString()} (full=${full})`);
 
-  const { items: orders, refreshedCookie } = await crawlOrders(cookie, { since, enrich: true });
+  const { items: orders, refreshedCookie } = await crawlOrders(cookie, { since });
 
   // Save refreshed cookies so the next crawl uses the latest session tokens
   if (refreshedCookie) {
@@ -91,6 +91,10 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
   let skipped = 0;
   let maxDate = since;
 
+  // マッチング判定（enrich前に実施）
+  type MatchedItem = { item: CrawledItem; product: Awaited<ReturnType<typeof matchProduct>> };
+  const toProcess: MatchedItem[] = [];
+
   for (const item of orders) {
     if (item.purchased_at > maxDate) maxDate = item.purchased_at;
 
@@ -110,6 +114,20 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
     }
 
     const product = await matchProduct(item.asin, item.jan_code);
+    toProcess.push({ item, product });
+  }
+
+  // マスタ未マッチのアイテムのみ詳細補完（Chromium再起動で取得）
+  const needEnrich = toProcess
+    .filter(({ product }) => !product)
+    .map(({ item }) => item);
+  if (needEnrich.length > 0) {
+    log("info", `詳細補完対象: ${needEnrich.length}件（マスタ未登録のみ）`);
+    await enrichItems(cookie, needEnrich);
+  }
+
+  // DB登録
+  for (const { item, product } of toProcess) {
     if (product) {
       log("info", `  自動加算: "${product.name}" +${item.quantity} (ASIN=${item.asin})`);
       await prisma.product.update({

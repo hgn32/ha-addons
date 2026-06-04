@@ -352,9 +352,8 @@ export async function setupPage(browser: PuppeteerBrowser, cookie: string): Prom
 
 async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: string; finalUrl: string }> {
   log("info", `ページ取得: ${url}`);
-  await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-  // JavaScriptの復号が完了するまで少し待つ
-  await sleep(2000);
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await sleep(1500);
   const finalUrl = page.url();
   const html = await page.content();
   log("info", `finalUrl: ${finalUrl} / HTML長さ: ${html.length}`);
@@ -364,7 +363,7 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
 async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
   try {
     log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
-    await page.goto(item.product_url, { waitUntil: "networkidle2", timeout: 20000 });
+    await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: 20000 });
     await sleep(800);
     const html = await page.content();
     const $ = cheerio.load(html);
@@ -390,16 +389,13 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
 
 export interface CrawlOptions {
   since: Date;
-  enrich?: boolean;
   maxPages?: number;
 }
 
 export interface CrawlResult {
   items: CrawledItem[];
-  // Refreshed cookie string from Puppeteer (Amazon updates session cookies on each request)
   refreshedCookie: string | null;
 }
-
 
 export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<CrawlResult> {
   const collected: CrawledItem[] = [];
@@ -414,7 +410,6 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
       const url = `${BASE}/your-orders/orders?startIndex=${p * 10}&unifiedOrders=1`;
       const { html, finalUrl } = await fetchPageHtml(page, url);
 
-      // レスポンス監視で随時更新されているcookieMapから最新を取得
       const latest = getLatestCookie();
       if (latest) refreshedCookie = latest;
 
@@ -436,17 +431,22 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions): Promise<C
       if (reachedOld) { log("info", "差分終端に到達 — 終了"); break; }
       await politeDelay();
     }
-
-    if (opts.enrich && collected.length > 0) {
-      log("info", `詳細補完開始: ${collected.length}件`);
-      for (let i = 0; i < collected.length; i++) {
-        await enrichItem(page, collected[i], i + 1, collected.length);
-        await enrichDelay();
-      }
-      log("info", "詳細補完完了");
-    }
   });
 
   log("info", `クロール完了: 対象 ${collected.length} 件`);
   return { items: collected, refreshedCookie };
+}
+
+// 品目詳細補完 — マスタ未登録アイテムのみ対象にして呼ぶこと
+export async function enrichItems(cookie: string, items: CrawledItem[]): Promise<void> {
+  if (items.length === 0) return;
+  log("info", `詳細補完開始: ${items.length}件`);
+  await withBrowser(async (browser) => {
+    const { page } = await setupPage(browser, cookie);
+    for (let i = 0; i < items.length; i++) {
+      await enrichItem(page, items[i], i + 1, items.length);
+      await enrichDelay();
+    }
+  });
+  log("info", "詳細補完完了");
 }
