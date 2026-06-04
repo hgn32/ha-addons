@@ -129,9 +129,6 @@ export default function App() {
           >
             全データ削除
           </Button>
-          <Typography variant="caption" color="text.disabled" fontFamily="monospace">
-            {__COMMIT_HASH__}
-          </Typography>
         </Box>
       </Drawer>
 

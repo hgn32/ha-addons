@@ -5,7 +5,7 @@ RUN npm install -g npm@11.16.0
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN GIT_HASH=$(date -u +%m%d-%H%M) npm run build
+RUN npm run build
 
 # ---- Backend build (Express/TypeScript + Prisma) ----
 FROM node:22-slim AS backend
