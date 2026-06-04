@@ -50,29 +50,30 @@ export default function Transactions() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>操作履歴</Typography>
-
-      <Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap">
-        <TextField
-          select label="品目" size="small" sx={{ minWidth: 200 }}
-          value={filterProduct}
-          onChange={(e) => { setFilterProduct(e.target.value); handleFilterChange(); }}
-        >
-          <MenuItem value="">すべて</MenuItem>
-          {products.map((p) => (
-            <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select label="種別" size="small" sx={{ minWidth: 120 }}
-          value={filterType}
-          onChange={(e) => { setFilterType(e.target.value); handleFilterChange(); }}
-        >
-          <MenuItem value="">すべて</MenuItem>
-          <MenuItem value="add">購入</MenuItem>
-          <MenuItem value="use">消費</MenuItem>
-          <MenuItem value="adjust">調整</MenuItem>
-        </TextField>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>操作履歴</Typography>
+        <Stack direction="row" spacing={2} flexWrap="wrap">
+          <TextField
+            select label="品目" size="small" sx={{ minWidth: 200 }}
+            value={filterProduct}
+            onChange={(e) => { setFilterProduct(e.target.value); handleFilterChange(); }}
+          >
+            <MenuItem value="">すべて</MenuItem>
+            {products.map((p) => (
+              <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select label="種別" size="small" sx={{ minWidth: 120 }}
+            value={filterType}
+            onChange={(e) => { setFilterType(e.target.value); handleFilterChange(); }}
+          >
+            <MenuItem value="">すべて</MenuItem>
+            <MenuItem value="add">購入</MenuItem>
+            <MenuItem value="use">消費</MenuItem>
+            <MenuItem value="adjust">調整</MenuItem>
+          </TextField>
+        </Stack>
       </Stack>
 
       <Paper>
