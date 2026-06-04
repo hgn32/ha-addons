@@ -1,9 +1,12 @@
 import AddIcon from "@mui/icons-material/Add";
+import HistoryIcon from "@mui/icons-material/History";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {
   Avatar,
   Box,
   Button,
+  Card,
+  CardContent,
   Chip,
   Dialog,
   DialogActions,
@@ -21,7 +24,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useMemo, useState } from "react";
-import { imageUrl } from "../api";
+import { api as apiObj, imageUrl } from "../api";
 import { useStore } from "../store";
 import { InventoryItem, Transaction } from "../types";
 import type { Page } from "../App";
@@ -36,7 +39,6 @@ function estimateNextPurchase(productId: string, stock: number, txs: Transaction
 
   if (adds.length < 2) return null;
 
-  // 平均購入インターバル（ミリ秒）
   let totalInterval = 0;
   let totalQty = 0;
   for (let i = 1; i < adds.length; i++) {
@@ -46,7 +48,6 @@ function estimateNextPurchase(productId: string, stock: number, txs: Transaction
   const avgIntervalMs = totalInterval / (adds.length - 1);
   const avgQtyPerPurchase = totalQty / (adds.length - 1) || 1;
 
-  // 最終購入日 + (現在在庫 / 平均消費量) * 平均インターバル
   const last = adds[adds.length - 1].date;
   const daysUntilEmpty = (stock / avgQtyPerPurchase) * (avgIntervalMs / 86400000);
   return new Date(last.getTime() + daysUntilEmpty * 86400000);
@@ -65,14 +66,85 @@ function NextPurchaseChip({ date }: { date: Date }) {
   return <Chip label={`次回購入: ${label}`} color={color} size="small" />;
 }
 
-// --- クイック在庫操作ダイアログ ---
-interface QuickStockDialogProps {
-  item: InventoryItem | null;
-  mode: "add" | "use";
-  onClose: () => void;
+// --- 履歴ダイアログ ---
+const TX_LABEL: Record<string, string> = { add: "入庫", use: "消費", adjust: "調整" };
+const TX_COLOR: Record<string, "success" | "error" | "default"> = { add: "success", use: "error", adjust: "default" };
+
+function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose: () => void }) {
+  const { transactions, suppliers } = useStore();
+  const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "";
+
+  const txs = useMemo(
+    () =>
+      transactions
+        .filter((t) => t.product_id === item?.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [transactions, item]
+  );
+
+  return (
+    <Dialog open={Boolean(item)} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          {item?.photo && (
+            <Avatar src={imageUrl(item.photo)} variant="rounded" sx={{ width: 36, height: 36 }}>📦</Avatar>
+          )}
+          <Box>
+            <Typography fontWeight={700}>{item?.name}</Typography>
+            <Typography variant="caption" color="text.secondary">履歴 {txs.length}件</Typography>
+          </Box>
+        </Stack>
+      </DialogTitle>
+      <DialogContent dividers>
+        {txs.length === 0 ? (
+          <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>履歴がありません</Typography>
+        ) : (
+          <Stack spacing={1}>
+            {txs.map((t) => (
+              <Card key={t.id} variant="outlined">
+                <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip
+                        label={TX_LABEL[t.type] ?? t.type}
+                        color={TX_COLOR[t.type] ?? "default"}
+                        size="small"
+                      />
+                      <Typography fontWeight={600}>
+                        {t.type === "use" ? "-" : "+"}{t.quantity}
+                      </Typography>
+                      {t.supplier_id && (
+                        <Typography variant="caption" color="text.secondary">
+                          {supplierName(t.supplier_id)}
+                        </Typography>
+                      )}
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(t.date).toLocaleDateString("ja-JP")}
+                    </Typography>
+                  </Stack>
+                  {t.note && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                      {t.note}
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>閉じる</Button>
+      </DialogActions>
+    </Dialog>
+  );
 }
 
-function QuickStockDialog({ item, mode, onClose }: QuickStockDialogProps) {
+// --- クイック在庫操作ダイアログ ---
+function useStoreApi() { return { api: apiObj }; }
+
+function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null; mode: "add" | "use"; onClose: () => void }) {
   const { reloadInventory, reloadTransactions, toast } = useStore();
   const [qty, setQty] = useState("1");
   const [busy, setBusy] = useState(false);
@@ -99,31 +171,20 @@ function QuickStockDialog({ item, mode, onClose }: QuickStockDialogProps) {
     <Dialog open={Boolean(item)} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>
         {item?.name} — {mode === "add" ? "在庫追加" : "在庫消費"}
-        <Typography variant="body2" color="text.secondary">
-          現在の在庫: {item?.quantity ?? 0}
-        </Typography>
+        <Typography variant="body2" color="text.secondary">現在の在庫: {item?.quantity ?? 0}</Typography>
       </DialogTitle>
       <DialogContent>
         <TextField
-          autoFocus
-          type="number"
-          label="数量"
-          value={qty}
+          autoFocus type="number" label="数量" value={qty}
           onChange={(e) => setQty(e.target.value)}
           slotProps={{ htmlInput: { min: 1 } }}
-          fullWidth
-          sx={{ mt: 1 }}
+          fullWidth sx={{ mt: 1 }}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>キャンセル</Button>
-        <Button
-          variant="contained"
-          color={mode === "add" ? "success" : "error"}
-          disabled={busy}
-          onClick={submit}
-        >
+        <Button variant="contained" color={mode === "add" ? "success" : "error"} disabled={busy} onClick={submit}>
           {mode === "add" ? "追加" : "消費"}
         </Button>
       </DialogActions>
@@ -131,33 +192,21 @@ function QuickStockDialog({ item, mode, onClose }: QuickStockDialogProps) {
   );
 }
 
-// Hook to get `api` object from the api module (avoids circular dep with store).
-import { api as apiObj } from "../api";
-function useStoreApi() {
-  return { api: apiObj };
-}
-
 // --- Dashboard ---
 export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { inventory, transactions, categoryName } = useStore();
   const [dialogItem, setDialogItem] = useState<InventoryItem | null>(null);
   const [dialogMode, setDialogMode] = useState<"add" | "use">("add");
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
 
   const sorted = useMemo(
     () => [...inventory].sort((a, b) => a.quantity - b.quantity),
     [inventory]
   );
 
-  const openDialog = (item: InventoryItem, mode: "add" | "use") => {
-    setDialogItem(item);
-    setDialogMode(mode);
-  };
-
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} mb={3}>
-        ダッシュボード
-      </Typography>
+      <Typography variant="h5" fontWeight={700} mb={3}>ダッシュボード</Typography>
 
       <Paper>
         <TableContainer>
@@ -179,52 +228,26 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
                   <TableRow key={item.id} hover>
                     <TableCell>
                       <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar
-                          src={item.photo ? imageUrl(item.photo) : undefined}
-                          variant="rounded"
-                          sx={{ width: 40, height: 40 }}
-                        >
-                          📦
-                        </Avatar>
-                        <Typography variant="body2" fontWeight={600}>
-                          {item.name}
-                        </Typography>
+                        <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }}>📦</Avatar>
+                        <Typography variant="body2" fontWeight={600}>{item.name}</Typography>
                       </Stack>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {categoryName(item.category_id)}
-                      </Typography>
+                      <Typography variant="body2" color="text.secondary">{categoryName(item.category_id)}</Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Typography
-                        fontWeight={700}
-                        color={low ? "error.main" : "text.primary"}
-                      >
-                        {item.quantity}
-                      </Typography>
+                      <Typography fontWeight={700} color={low ? "error.main" : "text.primary"}>{item.quantity}</Typography>
                     </TableCell>
-                    <TableCell>
-                      {next ? <NextPurchaseChip date={next} /> : null}
-                    </TableCell>
+                    <TableCell>{next ? <NextPurchaseChip date={next} /> : null}</TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="success"
-                          startIcon={<AddIcon />}
-                          onClick={() => openDialog(item, "add")}
-                        >
+                        <Button size="small" variant="outlined" startIcon={<HistoryIcon />} onClick={() => setHistoryItem(item)}>
+                          履歴
+                        </Button>
+                        <Button size="small" variant="outlined" color="success" startIcon={<AddIcon />} onClick={() => { setDialogItem(item); setDialogMode("add"); }}>
                           追加
                         </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          startIcon={<RemoveIcon />}
-                          onClick={() => openDialog(item, "use")}
-                        >
+                        <Button size="small" variant="outlined" color="error" startIcon={<RemoveIcon />} onClick={() => { setDialogItem(item); setDialogMode("use"); }}>
                           消費
                         </Button>
                       </Stack>
@@ -234,9 +257,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
               })}
               {sorted.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6, color: "text.secondary" }}>
-                    品目がありません
-                  </TableCell>
+                  <TableCell colSpan={5} align="center" sx={{ py: 6, color: "text.secondary" }}>品目がありません</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -244,11 +265,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
         </TableContainer>
       </Paper>
 
-      <QuickStockDialog
-        item={dialogItem}
-        mode={dialogMode}
-        onClose={() => setDialogItem(null)}
-      />
+      <QuickStockDialog item={dialogItem} mode={dialogMode} onClose={() => setDialogItem(null)} />
+      <HistoryDialog item={historyItem} onClose={() => setHistoryItem(null)} />
     </Box>
   );
 }
