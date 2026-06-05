@@ -26,8 +26,14 @@ import { useForm, Controller, type FieldPath } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { api, imageUrl } from "../api";
+import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { Product } from "../types";
+
+// 値が入っているときはラベルを上に固定（shrink）する。
+// react-hook-form の setValue で自動入力した値は MUI が検知できず、
+// ラベルが入力文字と重なるため、watch した値で明示的に shrink させる。
+const shrinkLabel = (value: unknown) => ({ inputLabel: { shrink: Boolean(value) || undefined } });
 
 interface Props {
   open: boolean;
@@ -64,6 +70,7 @@ type FormValues = yup.InferType<typeof schema>;
 
 export default function ProductDialog({ open, product, onClose, initialJan, onCreated }: Props) {
   const { categories, locations, reloadProducts, reloadInventory, toast } = useStore();
+  const fullScreen = useIsMobile();
   const [file, setFile] = useState<File | null>(null);
   const [fetchUrl, setFetchUrl] = useState("");
   const [fetching, setFetching] = useState(false);
@@ -120,6 +127,9 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
 
   const watchedAmazonUrl = watch("amazon_url");
   const watchedJan = watch("jan_code");
+  const watchedName = watch("name");
+  const watchedMaker = watch("maker");
+  const watchedAsin = watch("amazon_asin");
 
   const preview = file ? URL.createObjectURL(file) : product?.photo ? imageUrl(product.photo) : "";
 
@@ -293,7 +303,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle>{product ? "アイテムを編集" : "アイテムを追加"}</DialogTitle>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 3, borderBottom: 1, borderColor: "divider" }}>
         <Tab label="基本情報" />
@@ -336,6 +346,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     required
                     fullWidth
                     {...register("name")}
+                    slotProps={shrinkLabel(watchedName)}
                     error={!!errors.name}
                     helperText={errors.name?.message}
                   />
@@ -347,9 +358,9 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                       {...register("piece_count", { valueAsNumber: true })}
                     />
                   </Stack>
-                  <TextField label="メーカー" fullWidth {...register("maker")} />
+                  <TextField label="メーカー" fullWidth {...register("maker")} slotProps={shrinkLabel(watchedMaker)} />
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <TextField label="JANコード（主）" fullWidth {...register("jan_code")} />
+                    <TextField label="JANコード（主）" fullWidth {...register("jan_code")} slotProps={shrinkLabel(watchedJan)} />
                     <IconButton
                       color="primary"
                       aria-label="JANコードでAmazon検索して取込"
@@ -359,13 +370,13 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                       <SearchIcon />
                     </IconButton>
                   </Stack>
-                  <TextField label="Amazon ASIN (メイン)" fullWidth {...register("amazon_asin")} />
+                  <TextField label="Amazon ASIN (メイン)" fullWidth {...register("amazon_asin")} slotProps={shrinkLabel(watchedAsin)} />
                 </Stack>
 
                 {/* 右カラム */}
                 <Stack spacing={2} sx={{ flex: 1, width: "100%" }}>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <TextField label="Amazon URL" fullWidth {...register("amazon_url")} />
+                    <TextField label="Amazon URL" fullWidth {...register("amazon_url")} slotProps={shrinkLabel(watchedAmazonUrl)} />
                     <IconButton
                       color="info"
                       aria-label="Amazon URLを別タブで開く"

@@ -27,6 +27,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, imageUrl } from "../api";
 import ProductDialog from "../components/ProductDialog";
+import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { InventoryItem, Product } from "../types";
 
@@ -63,7 +64,8 @@ function beep(ok: boolean): void {
 }
 
 export default function Stocktake() {
-  const { inventory, stockOf, reloadInventory, reloadTransactions, toast } = useStore();
+  const { inventory, stockOf, reloadProducts, reloadInventory, reloadTransactions, toast } = useStore();
+  const fullScreen = useIsMobile();
 
   const [mode, setMode] = useState<Mode>("adjust");
   const [cameraOn, setCameraOn] = useState(false);
@@ -372,7 +374,7 @@ export default function Stocktake() {
       )}
 
       {/* 既存品目と紐づけるダイアログ */}
-      <Dialog open={linkOpen} onClose={() => setLinkOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={linkOpen} onClose={() => setLinkOpen(false)} fullWidth maxWidth="sm" fullScreen={fullScreen}>
         <DialogTitle>既存の品目と紐づける</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

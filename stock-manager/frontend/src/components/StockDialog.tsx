@@ -16,6 +16,7 @@ import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { api } from "../api";
+import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 
 export type StockMode = "add" | "use" | "adjust";
@@ -50,6 +51,7 @@ type FormValues = yup.InferType<typeof schema>;
 
 export default function StockDialog({ open, mode, initialProductId, onClose }: Props) {
   const { products, suppliers, stockOf, reloadInventory, reloadTransactions, toast } = useStore();
+  const fullScreen = useIsMobile();
   const cfg = CONFIG[mode];
 
   // 在庫追加時の数量の解釈: true=入り数で換算 / false=実数量をそのまま加算
@@ -99,7 +101,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth fullScreen={fullScreen}>
       <DialogTitle>{cfg.title}</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>

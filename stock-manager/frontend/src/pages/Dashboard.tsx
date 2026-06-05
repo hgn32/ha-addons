@@ -26,6 +26,7 @@ import {
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { api as apiObj, imageUrl } from "../api";
+import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { InventoryItem, Transaction } from "../types";
 import type { Page } from "../App";
@@ -71,6 +72,7 @@ const TX_COLOR: Record<string, "success" | "error" | "default"> = { add: "succes
 
 function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose: () => void }) {
   const { transactions, suppliers, stockOf, reloadInventory, reloadTransactions, toast } = useStore();
+  const fullScreen = useIsMobile();
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "";
 
   const currentStock = item ? stockOf(item.id) : 0;
@@ -107,7 +109,7 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
   };
 
   return (
-    <Dialog open={Boolean(item)} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={Boolean(item)} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle>
         <Stack direction="row" spacing={1.5} alignItems="center">
           {item?.photo && (
@@ -200,6 +202,7 @@ function useStoreApi() { return { api: apiObj }; }
 
 function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null; mode: "add" | "use"; onClose: () => void }) {
   const { reloadInventory, reloadTransactions, toast } = useStore();
+  const fullScreen = useIsMobile();
   const [qty, setQty] = useState("1");
   const [busy, setBusy] = useState(false);
   // 在庫追加時の数量の解釈: true=入り数で換算 / false=実数量をそのまま加算
@@ -247,7 +250,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   const showPieceToggle = mode === "add" && pieceCount > 1;
 
   return (
-    <Dialog open={Boolean(item)} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={Boolean(item)} onClose={onClose} maxWidth="xs" fullWidth fullScreen={fullScreen}>
       <DialogTitle>
         {item?.name} — {mode === "add" ? "在庫追加" : "在庫消費"}
         <Typography variant="body2" color="text.secondary">現在の在庫: {item?.quantity ?? 0}</Typography>

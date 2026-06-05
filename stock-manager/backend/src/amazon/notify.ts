@@ -1,15 +1,24 @@
 import { log } from "./logger";
 import { getNotifyService } from "./config";
 
+export interface NotifyResult {
+  ok: boolean;
+  skipped?: boolean;
+  status?: number;
+  detail?: string;
+  service?: string;
+}
+
 // HA Core API経由でネイティブ通知を送る。
 // SUPERVISOR_TOKEN は HA がコンテナに自動注入する。
 // http://supervisor/core/api プロキシを使うため、config.json で
 // homeassistant_api: true が必要（無いと 401 Unauthorized になる）。
-export async function notifyHA(title: string, message: string): Promise<void> {
+// 戻り値で成否を返すので、通知テストボタン等から結果を表示できる。
+export async function notifyHA(title: string, message: string): Promise<NotifyResult> {
   const token = process.env.SUPERVISOR_TOKEN;
   if (!token) {
     log("warn", "SUPERVISOR_TOKEN未設定 — HA通知をスキップ");
-    return;
+    return { ok: false, skipped: true, detail: "SUPERVISOR_TOKENが未設定です（Home Assistant外で実行中の可能性があります）" };
   }
 
   const service = getNotifyService();
@@ -26,11 +35,15 @@ export async function notifyHA(title: string, message: string): Promise<void> {
       body: JSON.stringify({ title, message }),
     });
     if (!res.ok) {
-      log("warn", `HA通知失敗 (${res.status}): ${await res.text()}`);
-    } else {
-      log("info", `HA通知送信: [${service}] ${title}`);
+      const detail = await res.text();
+      log("warn", `HA通知失敗 (${res.status}): ${detail}`);
+      return { ok: false, status: res.status, detail, service };
     }
+    log("info", `HA通知送信: [${service}] ${title}`);
+    return { ok: true, status: res.status, service };
   } catch (e) {
-    log("warn", `HA通知エラー: ${(e as Error).message}`);
+    const detail = (e as Error).message;
+    log("warn", `HA通知エラー: ${detail}`);
+    return { ok: false, detail, service };
   }
 }

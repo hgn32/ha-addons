@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
-import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, runAmazonCrawl } from "../amazon/service";
+import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
 import { notifyHA } from "../amazon/notify";
 
 const router = Router();
@@ -76,10 +76,27 @@ router.delete("/amazon/logs", (_req, res) => {
   res.status(204).end();
 });
 
+// クロール実行状態。UIが定期ポーリングして実行中表示・ログ更新に使う。
+router.get("/amazon/status", (_req, res) => {
+  res.json({ running: isCrawlRunning() });
+});
+
+// HA通知のテスト送信。設定済みのnotifyサービスへ1件送り、成否を返す。
+router.post("/amazon/notify-test", async (_req, res) => {
+  const result = await notifyHA(
+    "Stock Manager 通知テスト",
+    `これはテスト通知です（${new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}）`
+  );
+  res.json(result);
+});
+
 // --- Crawler: run + queue --------------------------------------------------
 
 router.post("/amazon/crawl", async (req, res) => {
   const full = req.body?.full === true;
+  if (isCrawlRunning()) {
+    return res.status(409).json({ detail: "既にクロールを実行中です。完了までお待ちください。" });
+  }
   try {
     const summary = await runAmazonCrawl(full);
     if (summary.auto > 0 || summary.queued > 0) {

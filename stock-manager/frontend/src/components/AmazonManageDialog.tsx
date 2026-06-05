@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { api, imageUrl } from "../api";
+import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { AmazonQueueItem, Product } from "../types";
 
@@ -27,6 +28,7 @@ interface Props {
 
 export default function AmazonManageDialog({ open, item, onClose, onDone }: Props) {
   const { categories, locations, products, reloadProducts, reloadInventory, toast } = useStore();
+  const fullScreen = useIsMobile();
   const [tab, setTab] = useState(0); // 0=新規登録, 1=既存にマージ
   const [form, setForm] = useState({
     name: "",
@@ -79,7 +81,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle>在庫管理する</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>

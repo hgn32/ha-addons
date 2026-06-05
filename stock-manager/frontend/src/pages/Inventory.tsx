@@ -121,7 +121,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
       <SpeedDial
         ariaLabel="在庫操作"
         icon={<SpeedDialIcon icon={<Inventory2Icon />} />}
-        sx={{ position: "fixed", right: 32, bottom: 32 }}
+        sx={{ position: "fixed", right: { xs: 16, sm: 32 }, bottom: { xs: 16, sm: 32 } }}
       >
         <SpeedDialAction
           icon={<AddIcon color="success" />}

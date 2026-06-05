@@ -13,6 +13,7 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { api } from "../api";
+import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import IconPicker from "./IconPicker";
 
@@ -42,6 +43,7 @@ type FormValues = yup.InferType<typeof schema>;
 
 export default function SimpleMasterDialog({ open, entity, item, onClose }: Props) {
   const { reloadCategories, reloadLocations, reloadSuppliers, toast } = useStore();
+  const fullScreen = useIsMobile();
 
   const {
     register,
@@ -87,7 +89,7 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth fullScreen={fullScreen}>
       <DialogTitle>
         {item?.id ? "編集" : "追加"}: {LABELS[entity]}
       </DialogTitle>

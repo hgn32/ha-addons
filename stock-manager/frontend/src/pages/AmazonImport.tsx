@@ -1,6 +1,7 @@
 import BlockIcon from "@mui/icons-material/Block";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import InventoryIcon from "@mui/icons-material/Inventory";
+import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SyncIcon from "@mui/icons-material/Sync";
 import {
@@ -9,7 +10,9 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   FormControlLabel,
+  LinearProgress,
   Paper,
   Stack,
   Switch,
@@ -36,10 +39,16 @@ export default function AmazonImport() {
   const [queue, setQueue] = useState<AmazonQueueItem[]>([]);
   const [logs, setLogs] = useState<AmazonLogEntry[]>([]);
   const [crawling, setCrawling] = useState(false);
+  const [serverRunning, setServerRunning] = useState(false);
   const [savingCookie, setSavingCookie] = useState(false);
+  const [notifyTesting, setNotifyTesting] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
   const [showAll, setShowAll] = useState(false);
   const logBoxRef = useRef<HTMLDivElement>(null);
+
+  // クロール実行中か（UI操作 or バックグラウンド/定期実行のどちらでも）
+  const running = crawling || serverRunning;
+  const prevRunningRef = useRef(false);
 
   const loadSettings = useCallback(async () => {
     setSettings(await api.get<AmazonSettings>("/api/amazon/settings"));
@@ -57,6 +66,44 @@ export default function AmazonImport() {
     loadQueue().catch(() => undefined);
     loadLogs().catch(() => undefined);
   }, [loadSettings, loadQueue, loadLogs, toast]);
+
+  // 実行ログ・実行状態を定期ポーリングして随時更新する。
+  // これにより、クロール完了前でも進捗ログがリアルタイムに見える。
+  useEffect(() => {
+    let active = true;
+    const tick = async () => {
+      if (document.hidden) return;
+      try {
+        const [logsData, status] = await Promise.all([
+          api.get<AmazonLogEntry[]>("/api/amazon/logs"),
+          api.get<{ running: boolean }>("/api/amazon/status"),
+        ]);
+        if (!active) return;
+        setLogs(logsData);
+        setServerRunning(status.running);
+      } catch {
+        // ポーリング失敗は無視（次回再試行）
+      }
+    };
+    const id = window.setInterval(tick, 2500);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  // クロールが完了した瞬間（実行中→停止）に一覧・設定を自動リフレッシュする。
+  // 定期実行(cron)で取り込まれた分も、画面を開いたままで反映される。
+  useEffect(() => {
+    if (prevRunningRef.current && !running) {
+      loadQueue().catch(() => undefined);
+      loadSettings().catch(() => undefined);
+      reloadProducts().catch(() => undefined);
+      reloadInventory().catch(() => undefined);
+      reloadTransactions().catch(() => undefined);
+    }
+    prevRunningRef.current = running;
+  }, [running, loadQueue, loadSettings, reloadProducts, reloadInventory, reloadTransactions]);
 
   const saveCookie = async () => {
     setSavingCookie(true);
@@ -91,6 +138,26 @@ export default function AmazonImport() {
     setLogs([]);
   };
 
+  // HA通知のテスト送信。設定済みのnotifyサービスへ1件送り、結果を表示する。
+  const notifyTest = async () => {
+    setNotifyTesting(true);
+    try {
+      const r = await api.post<{ ok: boolean; skipped?: boolean; status?: number; detail?: string; service?: string }>(
+        "/api/amazon/notify-test"
+      );
+      if (r.ok) {
+        toast(`通知を送信しました（notify.${r.service}）。Home Assistantで通知を確認してください。`);
+      } else {
+        toast(`通知失敗${r.status ? ` (${r.status})` : ""}: ${r.detail || "不明なエラー"}`, "error");
+      }
+      await loadLogs();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setNotifyTesting(false);
+    }
+  };
+
   const ignore = async (item: AmazonQueueItem) => {
     try {
       await api.post(`/api/amazon/queue/${item.id}/ignore`);
@@ -114,7 +181,7 @@ export default function AmazonImport() {
       </Typography>
 
       {/* --- 1. Cookie設定 --- */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
         <Typography variant="h6" mb={1}>
           1. ログインCookie設定
         </Typography>
@@ -159,26 +226,35 @@ export default function AmazonImport() {
       </Paper>
 
       {/* --- 2. クロール実行 --- */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
         <Typography variant="h6" mb={1}>
           2. 購入履歴を取得
         </Typography>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
           <Button
             variant="contained"
-            startIcon={<SyncIcon />}
-            disabled={!settings?.cookie_set || crawling}
+            startIcon={running ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
+            disabled={!settings?.cookie_set || running}
             onClick={() => crawl(false)}
           >
-            {crawling ? "取得中..." : "差分取得"}
+            {running ? "取得中..." : "差分取得"}
           </Button>
           <Button
             variant="outlined"
             startIcon={<SyncIcon />}
-            disabled={!settings?.cookie_set || crawling}
+            disabled={!settings?.cookie_set || running}
             onClick={() => crawl(true)}
           >
             90日分取込
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={notifyTesting ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveIcon />}
+            disabled={notifyTesting}
+            onClick={notifyTest}
+          >
+            通知テスト
           </Button>
           <Typography variant="body2" color="text.secondary">
             前回同期: {settings?.last_sync ? new Date(settings.last_sync).toLocaleString("ja-JP") : "未実行"}
@@ -188,14 +264,18 @@ export default function AmazonImport() {
       </Paper>
 
       {/* --- 3. 実行ログ --- */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
-          <Typography variant="h6">3. 実行ログ</Typography>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1} flexWrap="wrap" gap={1}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h6">3. 実行ログ</Typography>
+            {running && <Chip size="small" color="primary" label="実行中…" />}
+          </Stack>
           <Stack direction="row" spacing={1}>
             <Button size="small" startIcon={<RefreshIcon />} onClick={loadLogs}>更新</Button>
             <Button size="small" color="inherit" startIcon={<DeleteSweepIcon />} onClick={clearLogs}>クリア</Button>
           </Stack>
         </Stack>
+        {running && <LinearProgress sx={{ mb: 1 }} />}
         <Box
           ref={logBoxRef}
           sx={{
@@ -212,7 +292,7 @@ export default function AmazonImport() {
           }}
         >
           {logs.length === 0 ? (
-            <span style={{ color: "#888" }}>ログなし — 「今すぐ取得」を実行するとここに表示されます</span>
+            <span style={{ color: "#888" }}>ログなし — 「差分取得」を実行すると進捗がここにリアルタイム表示されます</span>
           ) : (
             logs.map((e, i) => (
               <div key={i} style={{ color: levelColor[e.level] }}>
@@ -231,7 +311,7 @@ export default function AmazonImport() {
       </Paper>
 
       {/* --- 4. 取込待ちリスト --- */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
           <Typography variant="h6">
             4. 取込待ちリスト（{queue.length}件）
