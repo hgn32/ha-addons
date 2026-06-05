@@ -2,6 +2,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import DownloadIcon from "@mui/icons-material/Download";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditIcon from "@mui/icons-material/Edit";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
   Avatar,
   Box,
@@ -95,6 +96,16 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
               )}
             </Box>
             <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
+              {p.amazon_url && (
+                <IconButton
+                  size="small"
+                  color="info"
+                  aria-label="Amazonを別タブで開く"
+                  onClick={() => window.open(p.amazon_url, "_blank", "noopener,noreferrer")}
+                >
+                  <OpenInNewIcon fontSize="small" />
+                </IconButton>
+              )}
               <IconButton size="small" color="primary" onClick={onEdit}>
                 <EditIcon fontSize="small" />
               </IconButton>
