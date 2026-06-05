@@ -356,7 +356,6 @@ export default function AmazonImport() {
                 <TableCell>ASIN</TableCell>
                 <TableCell>購入日</TableCell>
                 <TableCell align="right">数量</TableCell>
-                <TableCell align="right">単価</TableCell>
                 <TableCell>状態</TableCell>
                 <TableCell align="right" />
               </TableRow>
@@ -377,7 +376,6 @@ export default function AmazonImport() {
                   <TableCell>{q.asin}</TableCell>
                   <TableCell>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
                   <TableCell align="right">{q.quantity}</TableCell>
-                  <TableCell align="right">¥{q.unit_price.toLocaleString()}</TableCell>
                   <TableCell>
                     <Chip
                       size="small"
@@ -394,7 +392,7 @@ export default function AmazonImport() {
                           startIcon={<InventoryIcon />}
                           onClick={() => setManageItem(q)}
                         >
-                          在庫管理する
+                          在庫登録
                         </Button>
                         <Button
                           size="small"
@@ -402,7 +400,6 @@ export default function AmazonImport() {
                           startIcon={<BlockIcon />}
                           onClick={() => ignore(q)}
                         >
-                          管理しない
                         </Button>
                       </Stack>
                     )}
