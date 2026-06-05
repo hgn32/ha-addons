@@ -3,6 +3,7 @@ import CategoryIcon from "@mui/icons-material/Category";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import HistoryIcon from "@mui/icons-material/History";
 import PlaceIcon from "@mui/icons-material/Place";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import SellIcon from "@mui/icons-material/Sell";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import {
@@ -24,6 +25,7 @@ import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
 import Locations from "./pages/Locations";
 import Products from "./pages/Products";
+import Stocktake from "./pages/Stocktake";
 import Suppliers from "./pages/Suppliers";
 import Transactions from "./pages/Transactions";
 
@@ -31,6 +33,7 @@ const DRAWER_WIDTH = 240;
 
 export type Page =
   | "dashboard"
+  | "stocktake"
   | "transactions"
   | "products"
   | "categories"
@@ -47,6 +50,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "ダッシュボード", icon: <DashboardIcon />, section: "メイン" },
+  { key: "stocktake", label: "簡単棚卸し", icon: <QrCodeScannerIcon />, section: "メイン" },
   { key: "transactions", label: "在庫履歴", icon: <HistoryIcon />, section: "メイン" },
   { key: "products", label: "品目", icon: <SellIcon />, section: "マスタ" },
   { key: "categories", label: "品目カテゴリ", icon: <CategoryIcon />, section: "マスタ" },
@@ -134,6 +138,7 @@ export default function App() {
       <Box component="main" sx={{ flexGrow: 1, p: 3, minHeight: "100vh" }}>
         <Toolbar />
         {page === "dashboard" && <Dashboard onNavigate={setPage} />}
+        {page === "stocktake" && <Stocktake />}
         {page === "transactions" && <Transactions />}
         {page === "products" && <Products />}
         {page === "categories" && <Categories />}

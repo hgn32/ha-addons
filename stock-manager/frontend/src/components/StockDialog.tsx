@@ -7,9 +7,11 @@ import {
   MenuItem,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -50,6 +52,9 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
   const { products, suppliers, stockOf, reloadInventory, reloadTransactions, toast } = useStore();
   const cfg = CONFIG[mode];
 
+  // 在庫追加時の数量の解釈: true=入り数で換算 / false=実数量をそのまま加算
+  const [byPiece, setByPiece] = useState(true);
+
   const {
     register,
     handleSubmit,
@@ -64,6 +69,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
 
   useEffect(() => {
     if (open) {
+      setByPiece(true);
       reset({
         product_id: initialProductId ?? "",
         quantity: mode === "adjust" ? 0 : 1,
@@ -78,11 +84,12 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
   const watchedQty = watch("quantity");
   const selectedProduct = products.find((p) => p.id === watchedProductId);
   const pieceCount = selectedProduct?.piece_count ?? 1;
-  const actualAdd = (watchedQty > 0 && pieceCount > 1) ? watchedQty * pieceCount : null;
+  const showPieceToggle = mode === "add" && pieceCount > 1;
+  const actualAdd = (watchedQty > 0 && byPiece && pieceCount > 1) ? watchedQty * pieceCount : null;
 
   const onSubmit = async (data: FormValues) => {
     try {
-      await api.post(`/api/inventory/${mode}`, data);
+      await api.post(`/api/inventory/${mode}`, { ...data, by_piece: mode === "add" ? byPiece : undefined });
       toast(`${cfg.title}しました`);
       await Promise.all([reloadInventory(), reloadTransactions()]);
       onClose();
@@ -119,9 +126,30 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
                 </TextField>
               )}
             />
+            {showPieceToggle && (
+              <ToggleButtonGroup
+                exclusive
+                fullWidth
+                size="small"
+                color="success"
+                value={byPiece ? "piece" : "actual"}
+                onChange={(_, v) => v && setByPiece(v === "piece")}
+              >
+                <ToggleButton value="piece">入り数で指定（×{pieceCount}）</ToggleButton>
+                <ToggleButton value="actual">実数量で指定</ToggleButton>
+              </ToggleButtonGroup>
+            )}
             <TextField
               type="number"
-              label={mode === "adjust" ? "新しい在庫数" : mode === "add" ? "購入数量（箱・パック数）" : "数量"}
+              label={
+                mode === "adjust"
+                  ? "新しい在庫数"
+                  : mode === "add"
+                  ? byPiece && pieceCount > 1
+                    ? "購入数量（箱・パック数）"
+                    : "実数量（個数）"
+                  : "数量"
+              }
               required
               fullWidth
               inputProps={{ min: 0 }}

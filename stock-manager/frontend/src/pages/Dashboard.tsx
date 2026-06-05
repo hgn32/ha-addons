@@ -1,6 +1,7 @@
 import AddIcon from "@mui/icons-material/Add";
 import HistoryIcon from "@mui/icons-material/History";
 import RemoveIcon from "@mui/icons-material/Remove";
+import TuneIcon from "@mui/icons-material/Tune";
 import {
   Avatar,
   Box,
@@ -12,14 +13,17 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   Grid,
   IconButton,
   MenuItem,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api as apiObj, imageUrl } from "../api";
 import { useStore } from "../store";
 import { InventoryItem, Transaction } from "../types";
@@ -65,8 +69,17 @@ function NextPurchaseChip({ date }: { date: Date }) {
 const TX_COLOR: Record<string, "success" | "error" | "default"> = { add: "success", use: "error", adjust: "default" };
 
 function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose: () => void }) {
-  const { transactions, suppliers } = useStore();
+  const { transactions, suppliers, stockOf, reloadInventory, reloadTransactions, toast } = useStore();
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "";
+
+  const currentStock = item ? stockOf(item.id) : 0;
+  const [adjustQty, setAdjustQty] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
+
+  // ダイアログを開く / 在庫が変わるたびに、入力欄を現在在庫で初期化
+  useEffect(() => {
+    setAdjustQty(item ? String(currentStock) : "");
+  }, [item, currentStock]);
 
   const txs = useMemo(
     () =>
@@ -75,6 +88,22 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [transactions, item]
   );
+
+  const submitAdjust = async () => {
+    if (!item) return;
+    const n = parseInt(adjustQty, 10);
+    if (!(n >= 0)) return toast("0以上の在庫数を入力してください", "error");
+    setAdjusting(true);
+    try {
+      await apiObj.post("/api/inventory/adjust", { product_id: item.id, quantity: n });
+      toast(`在庫を ${currentStock} → ${n} に調整しました`);
+      await Promise.all([reloadInventory(), reloadTransactions()]);
+    } catch (e) {
+      toast((e as Error).message || "エラーが発生しました", "error");
+    } finally {
+      setAdjusting(false);
+    }
+  };
 
   return (
     <Dialog open={Boolean(item)} onClose={onClose} maxWidth="sm" fullWidth>
@@ -90,6 +119,38 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
         </Stack>
       </DialogTitle>
       <DialogContent dividers>
+        {/* 強制メンテ（棚卸し）: 履歴は書き換えず、指定した数量に合わせる調整を1件登録する */}
+        <Box sx={{ mb: 2, p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+            <TuneIcon fontSize="small" color="warning" />
+            <Typography variant="subtitle2" fontWeight={700}>強制メンテ（棚卸し）</Typography>
+          </Stack>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+            実際に数えた在庫数を入力すると、その数に合わせる調整履歴が登録されます（現在: {currentStock}）。
+          </Typography>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <TextField
+              type="number"
+              label="実在庫数"
+              size="small"
+              value={adjustQty}
+              onChange={(e) => setAdjustQty(e.target.value)}
+              slotProps={{ htmlInput: { min: 0 } }}
+              sx={{ width: 140 }}
+              onKeyDown={(e) => e.key === "Enter" && submitAdjust()}
+            />
+            <Button
+              variant="contained"
+              color="warning"
+              disabled={adjusting || adjustQty === "" || parseInt(adjustQty, 10) === currentStock}
+              onClick={submitAdjust}
+              sx={{ whiteSpace: "nowrap" }}
+            >
+              この数に調整
+            </Button>
+          </Stack>
+        </Box>
+        <Divider sx={{ mb: 2 }} />
         {txs.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>履歴がありません</Typography>
         ) : (
@@ -140,7 +201,19 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   const { reloadInventory, reloadTransactions, toast } = useStore();
   const [qty, setQty] = useState("1");
   const [busy, setBusy] = useState(false);
+  // 在庫追加時の数量の解釈: true=入り数で換算 / false=実数量をそのまま加算
+  const [byPiece, setByPiece] = useState(true);
   const { api } = useStoreApi();
+
+  useEffect(() => {
+    if (item) {
+      setQty("1");
+      setByPiece(true);
+    }
+  }, [item]);
+
+  const pieceCount = item?.piece_count ?? 1;
+  const usePieceConv = mode === "add" && byPiece && pieceCount > 1;
 
   const submit = async () => {
     if (!item) return;
@@ -148,10 +221,17 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
     if (!(n > 0)) return toast("1以上の数量を入力してください", "error");
     setBusy(true);
     try {
-      await api.post(`/api/inventory/${mode}`, { product_id: item.id, quantity: n });
-      const pc = item?.piece_count ?? 1;
-      const actual = mode === "add" ? n * pc : n;
-      toast(mode === "add" ? `在庫を${actual}追加しました${pc > 1 ? ` (${n}×${pc})` : ""}` : `在庫を${actual}消費しました`);
+      await api.post(`/api/inventory/${mode}`, {
+        product_id: item.id,
+        quantity: n,
+        by_piece: mode === "add" ? byPiece : undefined,
+      });
+      const actual = usePieceConv ? n * pieceCount : n;
+      toast(
+        mode === "add"
+          ? `在庫を${actual}追加しました${usePieceConv ? ` (${n}×${pieceCount})` : ""}`
+          : `在庫を${actual}消費しました`
+      );
       await Promise.all([reloadInventory(), reloadTransactions()]);
       onClose();
     } catch (e) {
@@ -161,9 +241,9 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
     }
   };
 
-  const pieceCount = item?.piece_count ?? 1;
   const qtyNum = parseInt(qty, 10);
-  const actualAdd = mode === "add" && qtyNum > 0 && pieceCount > 1 ? qtyNum * pieceCount : null;
+  const actualAdd = usePieceConv && qtyNum > 0 ? qtyNum * pieceCount : null;
+  const showPieceToggle = mode === "add" && pieceCount > 1;
 
   return (
     <Dialog open={Boolean(item)} onClose={onClose} maxWidth="xs" fullWidth>
@@ -172,11 +252,27 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
         <Typography variant="body2" color="text.secondary">現在の在庫: {item?.quantity ?? 0}</Typography>
       </DialogTitle>
       <DialogContent>
+        {showPieceToggle && (
+          <ToggleButtonGroup
+            exclusive
+            fullWidth
+            size="small"
+            color="success"
+            value={byPiece ? "piece" : "actual"}
+            onChange={(_, v) => v && setByPiece(v === "piece")}
+            sx={{ mt: 1 }}
+          >
+            <ToggleButton value="piece">入り数で指定（×{pieceCount}）</ToggleButton>
+            <ToggleButton value="actual">実数量で指定</ToggleButton>
+          </ToggleButtonGroup>
+        )}
         <TextField
-          autoFocus type="number" label={mode === "add" ? "購入数量（箱・パック数）" : "数量"} value={qty}
+          autoFocus type="number"
+          label={mode === "add" ? (usePieceConv ? "購入数量（箱・パック数）" : "実数量（個数）") : "数量"}
+          value={qty}
           onChange={(e) => setQty(e.target.value)}
           slotProps={{ htmlInput: { min: 1 } }}
-          fullWidth sx={{ mt: 1 }}
+          fullWidth sx={{ mt: showPieceToggle ? 2 : 1 }}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
         {actualAdd && (

@@ -55,8 +55,10 @@ function queueData(item: CrawledItem, status: string) {
 // queue the rest for manual triage.
 // full=true forces a 90-day lookback regardless of last sync date.
 export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
+  const startedAt = Date.now();
   const cookie = await getCookie();
   if (!cookie) throw new Error("Amazon Cookieが設定されていません");
+  log("info", `=== クロール開始 ${new Date(startedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", hour12: false })} ===`);
   log("info", `Cookie長さ: ${cookie.length}文字`);
   log("info", `Cookie先頭: ${cookie.slice(0, 60)}...`);
 
@@ -155,7 +157,8 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
   }
 
   await setSetting(LAST_SYNC_KEY, maxDate.toISOString());
-  log("info", `★ 完了: fetched=${orders.length} auto=${auto} queued=${queued} skipped=${skipped} (キュー合計: ${await prisma.amazonQueue.count()}件)`);
+  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+  log("info", `★ 完了: fetched=${orders.length} auto=${auto} queued=${queued} skipped=${skipped} (キュー合計: ${await prisma.amazonQueue.count()}件) / 所要時間 ${elapsedSec}秒`);
 
   return { fetched: orders.length, auto, queued, skipped, last_sync: maxDate.toISOString() };
 }

@@ -39,6 +39,15 @@ router.get("/products", async (_req, res) => {
   res.json(await prisma.product.findMany({ orderBy: [{ sort_order: "asc" }, { created_at: "asc" }] }));
 });
 
+// バーコード(JANコード)で品目を検索。簡単棚卸し画面のスキャンから利用する。
+router.get("/products/by-barcode/:code", async (req, res) => {
+  const code = String(req.params.code ?? "").trim();
+  if (!code) return res.status(400).json({ detail: "コードが空です" });
+  const product = await prisma.product.findFirst({ where: { jan_code: code } });
+  if (!product) return res.status(404).json({ detail: "該当する品目がありません" });
+  res.json(product);
+});
+
 router.put("/products/reorder", async (req, res) => {
   const { ids } = req.body as { ids: string[] };
   if (!Array.isArray(ids)) return res.status(400).json({ detail: "ids must be array" });

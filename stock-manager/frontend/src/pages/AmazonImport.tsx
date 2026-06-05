@@ -216,7 +216,14 @@ export default function AmazonImport() {
           ) : (
             logs.map((e, i) => (
               <div key={i} style={{ color: levelColor[e.level] }}>
-                {new Date(e.ts).toLocaleTimeString("ja-JP")} [{e.level.toUpperCase()}] {e.msg}
+                {new Date(e.ts).toLocaleString("ja-JP", {
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}{" "}
+                [{e.level.toUpperCase()}] {e.msg}
               </div>
             ))
           )}

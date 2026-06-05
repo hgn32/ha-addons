@@ -32,16 +32,25 @@ router.post("/inventory/add", async (req, res) => {
   const { product_id, note, supplier_id } = req.body;
   const qty = parseInt(req.body.quantity, 10);
   const unit_price = parseFloat(req.body.unit_price) || 0;
+  // by_piece=true（既定・後方互換）: 数量を入り数で換算して加算（セット買い）
+  // by_piece=false: 入力値をそのまま実数量として加算（バラ買い・使用後の登録など）
+  const byPiece = req.body.by_piece !== false;
   if (!(qty > 0)) return res.status(400).json({ detail: "数量は1以上で指定してください" });
   try {
     const product = await prisma.product.findUnique({ where: { id: product_id } });
     if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
-    const actualQty = qty * (product.piece_count || 1);
+    const pieceCount = product.piece_count || 1;
+    const actualQty = byPiece ? qty * pieceCount : qty;
     const updated = await prisma.product.update({
       where: { id: product_id },
       data: { quantity: { increment: actualQty } },
     });
-    await recordTx("add", product_id, actualQty, { unit_price, supplier_id, note });
+    const autoNote = byPiece && pieceCount > 1 ? `入り数換算: ${qty}×${pieceCount}=${actualQty}` : "";
+    await recordTx("add", product_id, actualQty, {
+      unit_price,
+      supplier_id,
+      note: note || autoNote,
+    });
     res.json({ product_id, quantity: updated.quantity });
   } catch {
     res.status(404).json({ detail: "品目が見つかりません" });
