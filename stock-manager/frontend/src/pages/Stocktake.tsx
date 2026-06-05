@@ -1,5 +1,6 @@
 import AddIcon from "@mui/icons-material/Add";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import LinkIcon from "@mui/icons-material/Link";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import RemoveIcon from "@mui/icons-material/Remove";
 import {
@@ -10,6 +11,10 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Paper,
   Stack,
@@ -18,7 +23,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, imageUrl } from "../api";
 import { useStore } from "../store";
 import { InventoryItem } from "../types";
@@ -56,7 +61,7 @@ function beep(ok: boolean): void {
 }
 
 export default function Stocktake() {
-  const { stockOf, reloadInventory, reloadTransactions, toast } = useStore();
+  const { inventory, stockOf, reloadProducts, reloadInventory, reloadTransactions, toast } = useStore();
 
   const [mode, setMode] = useState<Mode>("adjust");
   const [cameraOn, setCameraOn] = useState(false);
@@ -66,6 +71,11 @@ export default function Stocktake() {
   const [notFound, setNotFound] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [logs, setLogs] = useState<CommitLog[]>([]);
+
+  // 「既存品目と紐づける」ダイアログ
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkFilter, setLinkFilter] = useState("");
+  const [linking, setLinking] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const lastScanRef = useRef<{ code: string; t: number }>({ code: "", t: 0 });
@@ -145,6 +155,40 @@ export default function Stocktake() {
     }
   };
 
+  // 未登録バーコードを既存品目に紐づける。紐づけ後はスキャン成功と同じ状態（カウント1）にする。
+  const linkToProduct = async (item: InventoryItem) => {
+    const code = notFound;
+    if (!code) return;
+    setLinking(true);
+    try {
+      await api.post(`/api/products/${item.id}/barcodes`, { code });
+      await Promise.all([reloadProducts(), reloadInventory()]);
+      toast(`「${item.name}」にバーコード ${code} を紐づけました`);
+      setLinkOpen(false);
+      setNotFound(null);
+      beep(true);
+      setCurrent(item);
+      setCount(1);
+      lastScanRef.current = { code, t: Date.now() };
+    } catch (e) {
+      toast((e as Error).message || "紐づけに失敗しました", "error");
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const filteredForLink = useMemo(() => {
+    const q = linkFilter.trim().toLowerCase();
+    if (!q) return inventory;
+    return inventory.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) ||
+        i.maker.toLowerCase().includes(q) ||
+        i.volume.toLowerCase().includes(q) ||
+        i.jan_code.toLowerCase().includes(q)
+    );
+  }, [inventory, linkFilter]);
+
   const currentStock = current ? stockOf(current.id) : 0;
 
   return (
@@ -210,7 +254,18 @@ export default function Stocktake() {
 
       {notFound && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setNotFound(null)}>
-          未登録のバーコードです（{notFound}）。品目マスタにJANコードを登録してください。
+          <Stack spacing={1} alignItems="flex-start">
+            <span>未登録のバーコードです（{notFound}）。既存の品目に紐づけるか、品目マスタにJANコードを登録してください。</span>
+            <Button
+              color="inherit"
+              size="small"
+              variant="outlined"
+              startIcon={<LinkIcon />}
+              onClick={() => { setLinkFilter(""); setLinkOpen(true); }}
+            >
+              既存品目と紐づける
+            </Button>
+          </Stack>
         </Alert>
       )}
 
@@ -290,6 +345,57 @@ export default function Stocktake() {
           </Stack>
         </Paper>
       )}
+
+      {/* 既存品目と紐づけるダイアログ */}
+      <Dialog open={linkOpen} onClose={() => setLinkOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>既存の品目と紐づける</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            バーコード <strong>{notFound}</strong> を選択した品目に登録します。次回からはスキャンだけで認識されます。
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            placeholder="品目名・メーカー・JANで絞り込み"
+            value={linkFilter}
+            onChange={(e) => setLinkFilter(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <Stack spacing={1} sx={{ maxHeight: 360, overflowY: "auto" }}>
+            {filteredForLink.map((item) => (
+              <Card
+                key={item.id}
+                variant="outlined"
+                sx={{ cursor: linking ? "default" : "pointer", "&:hover": { borderColor: "primary.main" } }}
+                onClick={() => !linking && linkToProduct(item)}
+              >
+                <CardContent sx={{ py: 1, "&:last-child": { pb: 1 } }}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }}>📦</Avatar>
+                    <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                      <Typography fontWeight={600} noWrap>{item.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap component="div">
+                        在庫: {item.quantity}
+                        {item.jan_code ? ` / JAN: ${item.jan_code}` : ""}
+                        {item.maker ? ` / ${item.maker}` : ""}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
+            {filteredForLink.length === 0 && (
+              <Typography color="text.secondary" sx={{ textAlign: "center", py: 3 }}>
+                該当する品目がありません
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLinkOpen(false)}>キャンセル</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

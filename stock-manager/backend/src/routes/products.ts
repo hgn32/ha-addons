@@ -40,11 +40,45 @@ router.get("/products", async (_req, res) => {
 });
 
 // バーコード(JANコード)で品目を検索。簡単棚卸し画面のスキャンから利用する。
+// 主JANコード → 追加バーコード(ProductBarcode) の順でフォールバックする。
 router.get("/products/by-barcode/:code", async (req, res) => {
   const code = String(req.params.code ?? "").trim();
   if (!code) return res.status(400).json({ detail: "コードが空です" });
-  const product = await prisma.product.findFirst({ where: { jan_code: code } });
+  let product = await prisma.product.findFirst({ where: { jan_code: code } });
+  if (!product) {
+    const bc = await prisma.productBarcode.findUnique({ where: { code }, include: { product: true } });
+    product = bc?.product ?? null;
+  }
   if (!product) return res.status(404).json({ detail: "該当する品目がありません" });
+  res.json(product);
+});
+
+// スキャンしたバーコードを既存品目に紐づける（簡単棚卸しで未登録コードを検出した時に使用）。
+// 主JANが空ならそこに、埋まっていれば追加バーコードとして登録し（既存JANは上書きしない）。
+router.post("/products/:id/barcodes", async (req, res) => {
+  const code = String(req.body.code ?? "").trim();
+  if (!code) return res.status(400).json({ detail: "コードが空です" });
+  const product = await prisma.product.findUnique({ where: { id: req.params.id as string } });
+  if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
+
+  // 同じコードが他品目で使われていないか確認（主JAN / 追加バーコード）
+  const ownerByJan = await prisma.product.findFirst({ where: { jan_code: code } });
+  const ownerByBarcode = await prisma.productBarcode.findUnique({ where: { code }, include: { product: true } });
+  if ((ownerByJan && ownerByJan.id !== product.id) || (ownerByBarcode && ownerByBarcode.product_id !== product.id)) {
+    const name = ownerByJan && ownerByJan.id !== product.id ? ownerByJan.name : ownerByBarcode!.product.name;
+    return res.status(409).json({ detail: `このバーコードは既に「${name}」に登録されています` });
+  }
+
+  // すでにこの品目に紐づいている場合は何もしない
+  if (product.jan_code === code || (ownerByBarcode && ownerByBarcode.product_id === product.id)) {
+    return res.json(product);
+  }
+
+  if (!product.jan_code) {
+    const updated = await prisma.product.update({ where: { id: product.id }, data: { jan_code: code } });
+    return res.json(updated);
+  }
+  await prisma.productBarcode.create({ data: { product_id: product.id, code } });
   res.json(product);
 });
 
