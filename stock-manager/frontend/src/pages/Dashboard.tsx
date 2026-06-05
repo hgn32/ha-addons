@@ -355,8 +355,8 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
           >
-            <MenuItem value="stock_asc">在庫 少ない順</MenuItem>
-            <MenuItem value="stock_desc">在庫 多い順</MenuItem>
+            <MenuItem value="stock_asc">在庫 ▲ 少ない順</MenuItem>
+            <MenuItem value="stock_desc">在庫 ▼ 多い順</MenuItem>
             <MenuItem value="name_asc">名前順</MenuItem>
             <MenuItem value="next_purchase">購入予定日順</MenuItem>
           </TextField>
