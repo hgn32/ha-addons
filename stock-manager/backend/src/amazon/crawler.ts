@@ -219,7 +219,7 @@ function cleanChromeCache(): void {
   log("info", "Chromeキャッシュを削除しました");
 }
 
-async function getBrowser(): Promise<PuppeteerBrowser> {
+export async function getBrowser(): Promise<PuppeteerBrowser> {
   if (_browser) {
     // 生存確認: ページを開けるか試す
     try {
