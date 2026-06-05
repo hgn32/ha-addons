@@ -1,7 +1,7 @@
 {
   "name": "Stock Manager",
   "description": "在庫管理アプリ。品目・カテゴリ・置き場・購入先の管理、在庫操作・履歴記録、Amazon購入履歴の自動取込に対応。",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "slug": "3a30c8ec_stock_manager",
   "stage": "experimental",
   "init": false,
@@ -13,6 +13,7 @@
   "ingress": true,
   "ingress_port": 8099,
   "ingress_stream": false,
+  "homeassistant_api": true,
   "panel_icon": "mdi:package-variant-closed",
   "panel_title": "Stock Manager",
   "map": [

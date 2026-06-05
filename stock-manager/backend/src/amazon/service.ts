@@ -7,7 +7,8 @@ import { getCookie, getCurlHeaders, getSetting, setSetting } from "./config";
 import { crawlOrders, enrichItems, CrawledItem } from "./crawler";
 import { log } from "./logger";
 
-const LAST_SYNC_KEY = "amazon_last_sync";
+const LAST_SYNC_KEY = "amazon_last_sync"; // 差分取得カーソル（取得済み注文の最新購入日）
+const LAST_RUN_KEY = "amazon_last_run";   // 実際にクロールを実行した時刻（UIの「前回同期」表示用）
 const DEFAULT_LOOKBACK_DAYS = 90;
 
 export interface CrawlSummary {
@@ -157,6 +158,7 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
   }
 
   await setSetting(LAST_SYNC_KEY, maxDate.toISOString());
+  await setSetting(LAST_RUN_KEY, new Date().toISOString());
   const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
   log("info", `★ 完了: fetched=${orders.length} auto=${auto} queued=${queued} skipped=${skipped} (キュー合計: ${await prisma.amazonQueue.count()}件) / 所要時間 ${elapsedSec}秒`);
 

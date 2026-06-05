@@ -17,7 +17,8 @@ router.get("/amazon/settings", async (_req, res) => {
     // 先頭80文字を表示（確認用）
     cookie_preview: cookie ? cookie.slice(0, 80) + (cookie.length > 80 ? "..." : "") : "",
     cookie_length: cookie.length,
-    last_sync: await getSetting("amazon_last_sync"),
+    // 「前回同期」は実際にクロールを実行した時刻を表示する（差分カーソルの注文日ではない）
+    last_sync: await getSetting("amazon_last_run"),
     cron: getCronSchedule(),
   });
 });
@@ -103,10 +104,10 @@ router.get("/amazon/queue", async (req, res) => {
   );
 });
 
-// キュー全リセット（重複dedup解除用）。last_syncも消して次回クロールで全件再取込できるようにする。
+// キュー全リセット（重複dedup解除用）。last_sync/last_runも消して次回クロールで全件再取込できるようにする。
 router.delete("/amazon/queue", async (_req, res) => {
   await prisma.amazonQueue.deleteMany({});
-  await prisma.setting.deleteMany({ where: { key: "amazon_last_sync" } });
+  await prisma.setting.deleteMany({ where: { key: { in: ["amazon_last_sync", "amazon_last_run"] } } });
   res.status(204).end();
 });
 

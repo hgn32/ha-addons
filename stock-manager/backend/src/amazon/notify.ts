@@ -1,7 +1,10 @@
 import { log } from "./logger";
+import { getNotifyService } from "./config";
 
-// HA Supervisor API経由でネイティブ通知を送る。
-// SUPERVISOR_TOKEN / SUPERVISOR_API は HA がコンテナに自動注入する。
+// HA Core API経由でネイティブ通知を送る。
+// SUPERVISOR_TOKEN は HA がコンテナに自動注入する。
+// http://supervisor/core/api プロキシを使うため、config.json で
+// homeassistant_api: true が必要（無いと 401 Unauthorized になる）。
 export async function notifyHA(title: string, message: string): Promise<void> {
   const token = process.env.SUPERVISOR_TOKEN;
   if (!token) {
@@ -9,7 +12,7 @@ export async function notifyHA(title: string, message: string): Promise<void> {
     return;
   }
 
-  const service = process.env.NOTIFY_SERVICE || "persistent_notification";
+  const service = getNotifyService();
   const baseUrl = process.env.SUPERVISOR_API || "http://supervisor/core";
   const url = `${baseUrl}/api/services/notify/${service}`;
 
