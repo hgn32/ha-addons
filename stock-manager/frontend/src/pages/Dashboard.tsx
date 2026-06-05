@@ -295,7 +295,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   );
 }
 
-type SortKey = "stock_asc" | "name_asc";
+type SortKey = "stock_asc" | "stock_desc" | "name_asc";
 
 // --- Dashboard ---
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -322,6 +322,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
 
     list.sort((a, b) => {
       if (sortKey === "stock_asc") return a.quantity - b.quantity;
+      if (sortKey === "stock_desc") return b.quantity - a.quantity;
       return a.name.localeCompare(b.name, "ja");
     });
     return list;
@@ -347,7 +348,8 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
           >
-            <MenuItem value="stock_asc">在庫 ▲ 少ない順</MenuItem>
+            <MenuItem value="stock_asc">在庫 ▲</MenuItem>
+            <MenuItem value="stock_desc">在庫 ▼</MenuItem>
             <MenuItem value="name_asc">名前順</MenuItem>
           </TextField>
         </Stack>
