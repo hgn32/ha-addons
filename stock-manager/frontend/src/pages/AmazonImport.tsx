@@ -230,32 +230,37 @@ export default function AmazonImport() {
         <Typography variant="h6" mb={1}>
           2. 購入履歴を取得
         </Typography>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button
-            variant="contained"
-            startIcon={running ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
-            disabled={!settings?.cookie_set || running}
-            onClick={() => crawl(false)}
-          >
-            {running ? "取得中..." : "差分取得"}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<SyncIcon />}
-            disabled={!settings?.cookie_set || running}
-            onClick={() => crawl(true)}
-          >
-            90日分取込
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            startIcon={notifyTesting ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveIcon />}
-            disabled={notifyTesting}
-            onClick={notifyTest}
-          >
-            通知テスト
-          </Button>
+        <Stack spacing={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              variant="contained"
+              sx={{ flexShrink: 0 }}
+              startIcon={running ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
+              disabled={!settings?.cookie_set || running}
+              onClick={() => crawl(false)}
+            >
+              {running ? "取得中..." : "差分取得"}
+            </Button>
+            <Button
+              variant="outlined"
+              sx={{ flexShrink: 0 }}
+              startIcon={<SyncIcon />}
+              disabled={!settings?.cookie_set || running}
+              onClick={() => crawl(true)}
+            >
+              90日分取込
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              sx={{ flexShrink: 0 }}
+              startIcon={notifyTesting ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveIcon />}
+              disabled={notifyTesting}
+              onClick={notifyTest}
+            >
+              通知テスト
+            </Button>
+          </Stack>
           <Typography variant="body2" color="text.secondary">
             前回同期: {settings?.last_sync ? new Date(settings.last_sync).toLocaleString("ja-JP") : "未実行"}
             {settings?.cron ? ` / 定期実行: ${settings.cron}` : ""}
@@ -312,19 +317,21 @@ export default function AmazonImport() {
 
       {/* --- 4. 取込待ちリスト --- */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
-          <Typography variant="h6">
+        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={1} mb={1}>
+          <Typography variant="h6" sx={{ flexShrink: 0 }}>
             4. 取込待ちリスト（{queue.length}件）
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             <FormControlLabel
               control={<Switch size="small" checked={showAll} onChange={(e) => { setShowAll(e.target.checked); loadQueue(e.target.checked); }} />}
-              label="全件表示（自動処理済み含む）"
+              label={<Typography variant="body2" noWrap>全件表示（自動処理済み含む）</Typography>}
+              sx={{ mr: 0 }}
             />
             <Button
               size="small"
               color="error"
               variant="outlined"
+              sx={{ flexShrink: 0 }}
               onClick={async () => {
                 if (!confirm("取込履歴と同期日時をリセットします。次回クロール時に過去90日分が再取込されます。よろしいですか？")) return;
                 await api.del("/api/amazon/queue");
