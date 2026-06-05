@@ -53,15 +53,26 @@ router.get("/products/by-barcode/:code", async (req, res) => {
   res.json(product);
 });
 
-// スキャンしたバーコードを既存品目に紐づける（簡単棚卸しで未登録コードを検出した時に使用）。
-// 主JANが空ならそこに、埋まっていれば追加バーコードとして登録し（既存JANは上書きしない）。
+// 品目に紐づくJAN/バーコード一覧を取得（主jan_codeを除く追加分）。
+router.get("/products/:id/barcodes", async (req, res) => {
+  const rows = await prisma.productBarcode.findMany({
+    where: { product_id: req.params.id as string },
+    orderBy: { created_at: "asc" },
+  });
+  res.json(rows);
+});
+
+// スキャンしたバーコードを既存品目に紐づける。
+// mode="additional" : 常に追加バーコードとして登録（品目編集のJANコードタブ用）。
+// modeなし(既定) : 主JANが空なら主JANに、埋まっていれば追加バーコードに（簡単棚卸しの紐づけ用）。
+// いずれも既存JANは上書きせず、他品目で使用中なら409。
 router.post("/products/:id/barcodes", async (req, res) => {
   const code = String(req.body.code ?? "").trim();
+  const mode = String(req.body.mode ?? "").trim();
   if (!code) return res.status(400).json({ detail: "コードが空です" });
   const product = await prisma.product.findUnique({ where: { id: req.params.id as string } });
   if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
 
-  // 同じコードが他品目で使われていないか確認（主JAN / 追加バーコード）
   const ownerByJan = await prisma.product.findFirst({ where: { jan_code: code } });
   const ownerByBarcode = await prisma.productBarcode.findUnique({ where: { code }, include: { product: true } });
   if ((ownerByJan && ownerByJan.id !== product.id) || (ownerByBarcode && ownerByBarcode.product_id !== product.id)) {
@@ -74,12 +85,23 @@ router.post("/products/:id/barcodes", async (req, res) => {
     return res.json(product);
   }
 
-  if (!product.jan_code) {
+  // 主JANが空 かつ 既定モードのときだけ主JANに設定する。
+  if (!product.jan_code && mode !== "additional") {
     const updated = await prisma.product.update({ where: { id: product.id }, data: { jan_code: code } });
     return res.json(updated);
   }
-  await prisma.productBarcode.create({ data: { product_id: product.id, code } });
-  res.json(product);
+  const row = await prisma.productBarcode.create({ data: { product_id: product.id, code } });
+  res.status(201).json(row);
+});
+
+// 追加バーコードを削除
+router.delete("/products/barcodes/:barcodeId", async (req, res) => {
+  try {
+    await prisma.productBarcode.delete({ where: { id: req.params.barcodeId as string } });
+    res.status(204).end();
+  } catch {
+    res.status(404).json({ detail: "Not found" });
+  }
 });
 
 router.put("/products/reorder", async (req, res) => {

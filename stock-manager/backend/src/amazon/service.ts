@@ -20,7 +20,8 @@ export interface CrawlSummary {
 }
 
 // Find a product master entry matching the crawled item's ASIN or JAN.
-// Checks ProductAsin table first, then legacy product.amazon_asin field, then JAN code.
+// Checks ProductAsin table first, then legacy product.amazon_asin field, then
+// JAN code (主jan_code → 追加バーコードProductBarcode).
 async function matchProduct(asin: string, jan: string) {
   if (asin) {
     const byProductAsin = await prisma.productAsin.findUnique({ where: { asin }, include: { product: true } });
@@ -32,6 +33,8 @@ async function matchProduct(asin: string, jan: string) {
   if (jan) {
     const byJan = await prisma.product.findFirst({ where: { jan_code: jan } });
     if (byJan) return byJan;
+    const byBarcode = await prisma.productBarcode.findUnique({ where: { code: jan }, include: { product: true } });
+    if (byBarcode) return byBarcode.product;
   }
   return null;
 }

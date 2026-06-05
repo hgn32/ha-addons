@@ -20,7 +20,8 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
-import { useEffect, useState } from "react";
+import SearchIcon from "@mui/icons-material/Search";
+import { useCallback, useEffect, useState } from "react";
 import { useForm, Controller, type FieldPath } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -32,11 +33,18 @@ interface Props {
   open: boolean;
   product: Product | null;
   onClose: () => void;
+  initialJan?: string;
+  onCreated?: (product: Product) => void;
 }
 
 interface ProductAsin {
   id: string;
   asin: string;
+}
+
+interface ProductBarcode {
+  id: string;
+  code: string;
 }
 
 const schema = yup.object({
@@ -54,15 +62,18 @@ const schema = yup.object({
 
 type FormValues = yup.InferType<typeof schema>;
 
-export default function ProductDialog({ open, product, onClose }: Props) {
+export default function ProductDialog({ open, product, onClose, initialJan, onCreated }: Props) {
   const { categories, locations, reloadProducts, reloadInventory, toast } = useStore();
   const [file, setFile] = useState<File | null>(null);
   const [fetchUrl, setFetchUrl] = useState("");
   const [fetching, setFetching] = useState(false);
   const [fetchingPhoto, setFetchingPhoto] = useState(false);
+  const [searchingJan, setSearchingJan] = useState(false);
   const [tab, setTab] = useState(0);
   const [asins, setAsins] = useState<ProductAsin[]>([]);
   const [newAsin, setNewAsin] = useState("");
+  const [barcodes, setBarcodes] = useState<ProductBarcode[]>([]);
+  const [newBarcode, setNewBarcode] = useState("");
 
   const {
     register,
@@ -71,6 +82,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     reset,
     setValue,
     watch,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -85,7 +97,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
         volume: product?.volume ?? "",
         piece_count: product?.piece_count ?? 1,
         maker: product?.maker ?? "",
-        jan_code: product?.jan_code ?? "",
+        jan_code: product?.jan_code ?? initialJan ?? "",
         amazon_asin: product?.amazon_asin ?? "",
         amazon_url: product?.amazon_url ?? "",
         category_id: product?.category_id ?? "",
@@ -95,21 +107,68 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       setFile(null);
       setFetchUrl("");
       setNewAsin("");
+      setNewBarcode("");
       if (product) {
         api.get<ProductAsin[]>(`/api/products/${product.id}/asins`).then(setAsins).catch(() => setAsins([]));
+        api.get<ProductBarcode[]>(`/api/products/${product.id}/barcodes`).then(setBarcodes).catch(() => setBarcodes([]));
       } else {
         setAsins([]);
+        setBarcodes([]);
       }
     }
-  }, [open, product, reset]);
+  }, [open, product, reset, initialJan]);
 
   const watchedAmazonUrl = watch("amazon_url");
+  const watchedJan = watch("jan_code");
 
   const preview = file ? URL.createObjectURL(file) : product?.photo ? imageUrl(product.photo) : "";
 
   const openAmazonUrl = () => {
     if (watchedAmazonUrl) window.open(watchedAmazonUrl, "_blank", "noopener,noreferrer");
   };
+
+  // JANコードでAmazonを検索してフォームを自動入力する（スクレイピング方式）。
+  const runJanSearch = useCallback(async (rawJan: string) => {
+    const jan = (rawJan || "").trim();
+    if (!jan) return;
+    setSearchingJan(true);
+    try {
+      const data = await api.post<{ name: string; maker: string; jan_code: string; asin: string; product_url: string; image_url: string }>("/api/amazon/search-by-jan", { jan });
+      const fields: [FieldPath<FormValues>, string][] = [
+        ["name", data.name],
+        ["maker", data.maker],
+        ["jan_code", data.jan_code || jan],
+        ["amazon_asin", data.asin],
+        ["amazon_url", data.product_url],
+      ];
+      for (const [field, value] of fields) {
+        if (value) setValue(field, value);
+      }
+      if (data.image_url) {
+        try {
+          const res = await fetch(data.image_url);
+          const blob = await res.blob();
+          const ext = data.image_url.split(".").pop()?.split("?")[0] ?? "jpg";
+          setFile(new File([blob], `amazon_photo.${ext}`, { type: blob.type }));
+        } catch {
+          // 画像取込失敗は無視
+        }
+      }
+      toast("Amazonから商品情報を取込みました");
+    } catch (e) {
+      toast((e as Error).message || "Amazon検索に失敗しました", "error");
+    } finally {
+      setSearchingJan(false);
+    }
+  }, [setValue, toast]);
+
+  // 新規 + 初期JAN指定時（簡単棚卸しからの新規登録）はAmazon検索を自動実行
+  useEffect(() => {
+    if (open && !product && initialJan) {
+      runJanSearch(initialJan);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, product, initialJan]);
 
   const handleFetchProduct = async () => {
     if (!fetchUrl.trim()) return;
@@ -167,6 +226,31 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     }
   };
 
+  // 追加JAN/バーコードの追加・削除（色違い等で複数JANを持つケース）
+  const addBarcode = async () => {
+    if (!product || !newBarcode.trim()) return;
+    try {
+      await api.post(`/api/products/${product.id}/barcodes`, { code: newBarcode.trim(), mode: "additional" });
+      const list = await api.get<ProductBarcode[]>(`/api/products/${product.id}/barcodes`);
+      setBarcodes(list);
+      setNewBarcode("");
+      toast("JANコードを追加しました");
+    } catch (e) {
+      toast((e as Error).message || "エラーが発生しました", "error");
+    }
+  };
+
+  const removeBarcode = async (barcodeId: string) => {
+    if (!product) return;
+    try {
+      await api.del(`/api/products/barcodes/${barcodeId}`);
+      setBarcodes((prev) => prev.filter((b) => b.id !== barcodeId));
+      toast("JANコードを削除しました");
+    } catch (e) {
+      toast((e as Error).message || "エラーが発生しました", "error");
+    }
+  };
+
   const handleFetchPhoto = async () => {
     const url = watchedAmazonUrl;
     if (!url) return;
@@ -192,14 +276,16 @@ export default function ProductDialog({ open, product, onClose }: Props) {
     (Object.keys(data) as (keyof FormValues)[]).forEach((k) => fd.append(k, data[k] ?? ""));
     if (file) fd.append("photo", file);
     try {
+      let created: Product | null = null;
       if (product) {
         await api.put(`/api/products/${product.id}`, fd);
         toast("アイテムを更新しました");
       } else {
-        await api.post("/api/products", fd);
+        created = await api.post<Product>("/api/products", fd);
         toast("アイテムを追加しました");
       }
       await Promise.all([reloadProducts(), reloadInventory()]);
+      if (created) onCreated?.(created);
       onClose();
     } catch (e) {
       toast((e as Error).message || "エラーが発生しました", "error");
@@ -211,12 +297,16 @@ export default function ProductDialog({ open, product, onClose }: Props) {
       <DialogTitle>{product ? "アイテムを編集" : "アイテムを追加"}</DialogTitle>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 3, borderBottom: 1, borderColor: "divider" }}>
         <Tab label="基本情報" />
+        {product && <Tab label={`JANコード (${barcodes.length})`} />}
         {product && <Tab label={`ASIN (${asins.length})`} />}
       </Tabs>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           {tab === 0 && (
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {searchingJan && (
+                <Typography variant="body2" color="text.secondary">Amazonを検索中...</Typography>
+              )}
               {/* Amazon URLから取込（全幅） */}
               <Stack direction="row" spacing={1} alignItems="flex-start">
                 <TextField
@@ -258,7 +348,17 @@ export default function ProductDialog({ open, product, onClose }: Props) {
                     />
                   </Stack>
                   <TextField label="メーカー" fullWidth {...register("maker")} />
-                  <TextField label="JANコード" fullWidth {...register("jan_code")} />
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField label="JANコード（主）" fullWidth {...register("jan_code")} />
+                    <IconButton
+                      color="primary"
+                      aria-label="JANコードでAmazon検索して取込"
+                      disabled={!watchedJan || searchingJan}
+                      onClick={() => runJanSearch(getValues("jan_code"))}
+                    >
+                      <SearchIcon />
+                    </IconButton>
+                  </Stack>
                   <TextField label="Amazon ASIN (メイン)" fullWidth {...register("amazon_asin")} />
                 </Stack>
 
@@ -332,6 +432,43 @@ export default function ProductDialog({ open, product, onClose }: Props) {
           )}
 
           {tab === 1 && product && (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                色違い等で複数のJAN/バーコードがある場合に追加します。ここに登録したコードはバーコードスキャン時にこのアイテムとして認識されます。
+              </Typography>
+              <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
+                <Typography variant="caption" color="text.secondary" display="block">主JANコード（「基本情報」タブで編集）</Typography>
+                <Typography fontWeight={600}>{watchedJan || "未設定"}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>追加のJANコード</Typography>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {barcodes.length === 0 && (
+                    <Typography variant="body2" color="text.disabled">追加のJANコードはありません</Typography>
+                  )}
+                  {barcodes.map((b) => (
+                    <Chip key={b.id} label={b.code} onDelete={() => removeBarcode(b.id)} deleteIcon={<DeleteIcon />} />
+                  ))}
+                </Box>
+              </Box>
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  label="JANコード追加"
+                  placeholder="例: 4901234567890"
+                  size="small"
+                  value={newBarcode}
+                  onChange={(e) => setNewBarcode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBarcode(); } }}
+                  fullWidth
+                />
+                <IconButton color="primary" onClick={addBarcode} disabled={!newBarcode.trim()}>
+                  <AddIcon />
+                </IconButton>
+              </Stack>
+            </Stack>
+          )}
+
+          {tab === 2 && product && (
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 紐づいたASINはAmazonクロール時に自動でこのアイテムに在庫加算されます。

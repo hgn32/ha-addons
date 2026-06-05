@@ -175,7 +175,7 @@ router.post("/amazon/queue/:id/ignore", async (req, res) => {
   }
 });
 
-// --- Amazon URL → 品目情報取込 --------------------------------------------------
+// --- Amazon URL / JAN → 品目情報取込 ------------------------------------------
 
 const CHROMIUM_PATHS = [
   "/usr/bin/chromium",
@@ -211,6 +211,90 @@ function parseCookiesForFetch(cookieStr: string): Array<{ name: string; value: s
     .filter(Boolean) as Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }>;
 }
 
+interface ScrapedProduct {
+  name: string;
+  maker: string;
+  jan_code: string;
+  asin: string;
+  product_url: string;
+  image_url: string;
+}
+
+// Chromiumを起動（Amazonスクレイプ共通）。
+async function launchChromium() {
+  const executablePath = findChromium();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
+  return puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer"],
+  });
+}
+
+// 保存済みCookie/UAを適用したページを作る。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function newAmazonPage(browser: any) {
+  const page = await browser.newPage();
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+  );
+  await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
+  const cookie = await getCookie();
+  if (cookie) {
+    const cookies = parseCookiesForFetch(cookie);
+    for (const c of cookies) {
+      try { await page.setCookie(c); } catch { /* skip bad cookies */ }
+    }
+  }
+  return page;
+}
+
+// 商品詳細ページ(/dp/ASIN)から情報を抽出する。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function scrapeProductDetail(page: any, asin: string): Promise<ScrapedProduct> {
+  const productUrl = `https://www.amazon.co.jp/dp/${asin}`;
+  await page.goto(productUrl, { waitUntil: "networkidle2", timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 1000));
+  const html = await page.content();
+  const $ = cheerio.load(html);
+  const name = $("#productTitle").text().trim();
+  const makerRaw = $("#bylineInfo, #brand").first().text().trim();
+  const maker = makerRaw
+    .replace(/ブランド:|Brand:|Visit the/gi, "")
+    .replace(/のストアを表示/g, "")
+    .trim();
+  const image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
+  const bullets = $("#detailBullets_feature_div, #prodDetails").text();
+  const janMatch = bullets.match(/\b(\d{13})\b/);
+  const jan_code = janMatch ? janMatch[1] : "";
+  return { name, maker, jan_code, asin, product_url: productUrl, image_url };
+}
+
+// 検索ページ(/s?k=...)から先頭ヒットのASINを取得。ブロック(captcha)検知も返す。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function searchAsinByKeyword(page: any, keyword: string): Promise<{ asin: string; blocked: boolean }> {
+  const searchUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(keyword)}`;
+  await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 800));
+  const html = await page.content();
+  const $ = cheerio.load(html);
+  let asin = "";
+  $('[data-component-type="s-search-result"]').each((_, el) => {
+    const a = ($(el).attr("data-asin") || "").trim();
+    if (/^[A-Z0-9]{10}$/.test(a)) { asin = a; return false; }
+  });
+  if (!asin) {
+    $("div.s-result-item[data-asin]").each((_, el) => {
+      const a = ($(el).attr("data-asin") || "").trim();
+      if (/^[A-Z0-9]{10}$/.test(a)) { asin = a; return false; }
+    });
+  }
+  const blocked = !asin && /captcha|ロボットでは|automated access|api-services-support/i.test(html);
+  return { asin, blocked };
+}
+
+// Amazon商品URL → 品目情報取込
 router.post("/amazon/fetch-product", async (req, res) => {
   const url = String(req.body.url ?? "").trim();
   const asinMatch = url.match(/\/(?:dp|gp\/product|product)\/([A-Z0-9]{10})/);
@@ -218,50 +302,41 @@ router.post("/amazon/fetch-product", async (req, res) => {
     return res.status(400).json({ detail: "URLからASINを取得できませんでした" });
   }
   const asin = asinMatch[1];
-  const productUrl = `https://www.amazon.co.jp/dp/${asin}`;
-
   try {
-    const executablePath = findChromium();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
-    const browser = await puppeteer.launch({
-      executablePath,
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer"],
-    });
+    const browser = await launchChromium();
     try {
-      const page = await browser.newPage();
-      await page.setUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
-      );
-      await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
+      const page = await newAmazonPage(browser);
+      const data = await scrapeProductDetail(page, asin);
+      res.json(data);
+    } finally {
+      await browser.close();
+    }
+  } catch (e) {
+    res.status(500).json({ detail: (e as Error).message });
+  }
+});
 
-      const cookie = await getCookie();
-      if (cookie) {
-        const cookies = parseCookiesForFetch(cookie);
-        for (const c of cookies) {
-          try { await page.setCookie(c); } catch { /* skip bad cookies */ }
-        }
+// JANコード → Amazon検索 → 先頭ヒット商品の情報取込（スクレイピング方式）
+router.post("/amazon/search-by-jan", async (req, res) => {
+  const jan = String(req.body.jan ?? req.body.code ?? "").trim();
+  if (!/^\d{8,14}$/.test(jan)) {
+    return res.status(400).json({ detail: "JANコード（数字8〜14桁）を指定してください" });
+  }
+  try {
+    const browser = await launchChromium();
+    try {
+      const page = await newAmazonPage(browser);
+      const { asin, blocked } = await searchAsinByKeyword(page, jan);
+      if (!asin) {
+        return res.status(blocked ? 503 : 404).json({
+          detail: blocked
+            ? "Amazonにアクセスをブロックされた可能性があります。ログインCookieを設定/更新してお試しください。"
+            : `Amazonでヒットしませんでした（JAN: ${jan}）`,
+        });
       }
-
-      await page.goto(productUrl, { waitUntil: "networkidle2", timeout: 20000 });
-      await new Promise((r) => setTimeout(r, 1000));
-      const html = await page.content();
-      await page.close();
-
-      const $ = cheerio.load(html);
-      const name = $("#productTitle").text().trim();
-      const makerRaw = $("#bylineInfo, #brand").first().text().trim();
-      const maker = makerRaw
-        .replace(/ブランド:|Brand:|Visit the/gi, "")
-        .replace(/のストアを表示/g, "")
-        .trim();
-      const image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
-      const bullets = $("#detailBullets_feature_div, #prodDetails").text();
-      const janMatch = bullets.match(/\b(\d{13})\b/);
-      const jan_code = janMatch ? janMatch[1] : "";
-
-      res.json({ name, maker, jan_code, asin, product_url: productUrl, image_url });
+      const data = await scrapeProductDetail(page, asin);
+      if (!data.jan_code) data.jan_code = jan; // 詳細でJANが取れなければ検索キーで補完
+      res.json(data);
     } finally {
       await browser.close();
     }

@@ -3,6 +3,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import LinkIcon from "@mui/icons-material/Link";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import RemoveIcon from "@mui/icons-material/Remove";
+import SearchIcon from "@mui/icons-material/Search";
 import {
   Alert,
   Avatar,
@@ -25,8 +26,9 @@ import {
 } from "@mui/material";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, imageUrl } from "../api";
+import ProductDialog from "../components/ProductDialog";
 import { useStore } from "../store";
-import { InventoryItem } from "../types";
+import { InventoryItem, Product } from "../types";
 
 // カメラ用のバーコードライブラリ(@zxing)は重いので、カメラを開いた時だけ遅延読込する
 const BarcodeScanner = lazy(() => import("../components/BarcodeScanner"));
@@ -61,7 +63,7 @@ function beep(ok: boolean): void {
 }
 
 export default function Stocktake() {
-  const { inventory, stockOf, reloadProducts, reloadInventory, reloadTransactions, toast } = useStore();
+  const { inventory, stockOf, reloadInventory, reloadTransactions, toast } = useStore();
 
   const [mode, setMode] = useState<Mode>("adjust");
   const [cameraOn, setCameraOn] = useState(false);
@@ -76,6 +78,8 @@ export default function Stocktake() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkFilter, setLinkFilter] = useState("");
   const [linking, setLinking] = useState(false);
+  // 「Amazonで検索して新規登録」ダイアログ（ProductDialogを初期JAN付きで開く）
+  const [newProductOpen, setNewProductOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const lastScanRef = useRef<{ code: string; t: number }>({ code: "", t: 0 });
@@ -177,6 +181,16 @@ export default function Stocktake() {
     }
   };
 
+  // Amazon検索から新規作成された品目をそのまま棚卸し対象にする
+  const handleNewProductCreated = (created: Product) => {
+    setNewProductOpen(false);
+    setNotFound(null);
+    beep(true);
+    setCurrent({ ...created, quantity: 0 });
+    setCount(1);
+    lastScanRef.current = { code: created.jan_code || "", t: Date.now() };
+  };
+
   const filteredForLink = useMemo(() => {
     const q = linkFilter.trim().toLowerCase();
     if (!q) return inventory;
@@ -255,16 +269,27 @@ export default function Stocktake() {
       {notFound && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setNotFound(null)}>
           <Stack spacing={1} alignItems="flex-start">
-            <span>未登録のバーコードです（{notFound}）。既存の品目に紐づけるか、品目マスタにJANコードを登録してください。</span>
-            <Button
-              color="inherit"
-              size="small"
-              variant="outlined"
-              startIcon={<LinkIcon />}
-              onClick={() => { setLinkFilter(""); setLinkOpen(true); }}
-            >
-              既存品目と紐づける
-            </Button>
+            <span>未登録のバーコードです（{notFound}）。既存の品目に紐づけるか、Amazonで検索して新規登録できます。</span>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button
+                color="inherit"
+                size="small"
+                variant="outlined"
+                startIcon={<LinkIcon />}
+                onClick={() => { setLinkFilter(""); setLinkOpen(true); }}
+              >
+                既存品目と紐づける
+              </Button>
+              <Button
+                color="inherit"
+                size="small"
+                variant="outlined"
+                startIcon={<SearchIcon />}
+                onClick={() => setNewProductOpen(true)}
+              >
+                Amazonで検索して新規登録
+              </Button>
+            </Stack>
           </Stack>
         </Alert>
       )}
@@ -396,6 +421,15 @@ export default function Stocktake() {
           <Button onClick={() => setLinkOpen(false)}>キャンセル</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Amazonで検索して新規登録（ProductDialogを初期JAN付きで開くと自動検索される） */}
+      <ProductDialog
+        open={newProductOpen}
+        product={null}
+        initialJan={notFound ?? undefined}
+        onClose={() => setNewProductOpen(false)}
+        onCreated={handleNewProductCreated}
+      />
     </Box>
   );
 }
