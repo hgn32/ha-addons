@@ -18,6 +18,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import { useEffect, useState } from "react";
 import { useForm, Controller, type FieldPath } from "react-hook-form";
@@ -105,6 +106,10 @@ export default function ProductDialog({ open, product, onClose }: Props) {
   const watchedAmazonUrl = watch("amazon_url");
 
   const preview = file ? URL.createObjectURL(file) : product?.photo ? imageUrl(product.photo) : "";
+
+  const openAmazonUrl = () => {
+    if (watchedAmazonUrl) window.open(watchedAmazonUrl, "_blank", "noopener,noreferrer");
+  };
 
   const handleFetchProduct = async () => {
     if (!fetchUrl.trim()) return;
@@ -202,7 +207,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{product ? "アイテムを編集" : "アイテムを追加"}</DialogTitle>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 3, borderBottom: 1, borderColor: "divider" }}>
         <Tab label="基本情報" />
@@ -212,6 +217,7 @@ export default function ProductDialog({ open, product, onClose }: Props) {
         <DialogContent>
           {tab === 0 && (
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {/* Amazon URLから取込（全幅） */}
               <Stack direction="row" spacing={1} alignItems="flex-start">
                 <TextField
                   label="Amazon URLから取込"
@@ -230,60 +236,79 @@ export default function ProductDialog({ open, product, onClose }: Props) {
                   {fetching ? "取込中..." : "情報を取込"}
                 </Button>
               </Stack>
-              <TextField
-                label="品目名"
-                required
-                fullWidth
-                {...register("name")}
-                error={!!errors.name}
-                helperText={errors.name?.message}
-              />
-              <Stack direction="row" spacing={2}>
-                <TextField label="内容量" fullWidth placeholder="例: 500ml、1kg、100g×3" {...register("volume")} />
-                <TextField
-                  label="入り数" type="number" sx={{ width: 120, flexShrink: 0 }}
-                  slotProps={{ htmlInput: { min: 1 } }}
-                  {...register("piece_count", { valueAsNumber: true })}
-                />
+
+              {/* 2カラム（狭い画面では1カラム）にして古いHD画面でもスクロール不要に */}
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-start">
+                {/* 左カラム */}
+                <Stack spacing={2} sx={{ flex: 1, width: "100%" }}>
+                  <TextField
+                    label="品目名"
+                    required
+                    fullWidth
+                    {...register("name")}
+                    error={!!errors.name}
+                    helperText={errors.name?.message}
+                  />
+                  <Stack direction="row" spacing={2}>
+                    <TextField label="内容量" fullWidth placeholder="例: 500ml、1kg、100g×3" {...register("volume")} />
+                    <TextField
+                      label="入り数" type="number" sx={{ width: 100, flexShrink: 0 }}
+                      slotProps={{ htmlInput: { min: 1 } }}
+                      {...register("piece_count", { valueAsNumber: true })}
+                    />
+                  </Stack>
+                  <TextField label="メーカー" fullWidth {...register("maker")} />
+                  <TextField label="JANコード" fullWidth {...register("jan_code")} />
+                  <TextField label="Amazon ASIN (メイン)" fullWidth {...register("amazon_asin")} />
+                </Stack>
+
+                {/* 右カラム */}
+                <Stack spacing={2} sx={{ flex: 1, width: "100%" }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TextField label="Amazon URL" fullWidth {...register("amazon_url")} />
+                    <IconButton
+                      color="info"
+                      aria-label="Amazon URLを別タブで開く"
+                      disabled={!watchedAmazonUrl}
+                      onClick={openAmazonUrl}
+                    >
+                      <OpenInNewIcon />
+                    </IconButton>
+                  </Stack>
+                  <Controller
+                    name="category_id"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField select label="品目カテゴリ" fullWidth {...field}>
+                        <MenuItem value="">-- 選択 --</MenuItem>
+                        {categories.map((c) => (
+                          <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                        ))}
+                      </TextField>
+                    )}
+                  />
+                  <Controller
+                    name="location_id"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField select label="置き場" fullWidth {...field}>
+                        <MenuItem value="">-- 選択 --</MenuItem>
+                        {locations.map((l) => (
+                          <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>
+                        ))}
+                      </TextField>
+                    )}
+                  />
+                  <TextField label="メモ" fullWidth multiline minRows={2} {...register("note")} />
+                </Stack>
               </Stack>
-              <TextField label="メーカー" fullWidth {...register("maker")} />
-              <Stack direction="row" spacing={2}>
-                <TextField label="JANコード" fullWidth {...register("jan_code")} />
-                <TextField label="Amazon ASIN (メイン)" fullWidth {...register("amazon_asin")} />
-              </Stack>
-              <TextField label="Amazon URL" fullWidth {...register("amazon_url")} />
-              <Stack direction="row" spacing={2}>
-                <Controller
-                  name="category_id"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField select label="品目カテゴリ" fullWidth {...field}>
-                      <MenuItem value="">-- 選択 --</MenuItem>
-                      {categories.map((c) => (
-                        <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                      ))}
-                    </TextField>
-                  )}
-                />
-                <Controller
-                  name="location_id"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField select label="置き場" fullWidth {...field}>
-                      <MenuItem value="">-- 選択 --</MenuItem>
-                      {locations.map((l) => (
-                        <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>
-                      ))}
-                    </TextField>
-                  )}
-                />
-              </Stack>
-              <TextField label="メモ" fullWidth multiline minRows={2} {...register("note")} />
+
+              {/* 写真（全幅） */}
               <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                 <Avatar src={preview} variant="rounded" sx={{ width: 64, height: 64 }}>
                   📦
                 </Avatar>
-                <Stack spacing={1}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />}>
                     写真を選択
                     <input

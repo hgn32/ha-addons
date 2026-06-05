@@ -1,5 +1,6 @@
 import AddIcon from "@mui/icons-material/Add";
 import HistoryIcon from "@mui/icons-material/History";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RemoveIcon from "@mui/icons-material/Remove";
 import TuneIcon from "@mui/icons-material/Tune";
 import {
@@ -394,6 +395,16 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                           {next && <NextPurchaseChip date={next} />}
                         </Box>
                         <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
+                          {item.amazon_url && (
+                            <IconButton
+                              size="small"
+                              color="info"
+                              aria-label="Amazonを別タブで開く"
+                              onClick={() => window.open(item.amazon_url, "_blank", "noopener,noreferrer")}
+                            >
+                              <OpenInNewIcon fontSize="small" />
+                            </IconButton>
+                          )}
                           <IconButton size="small" onClick={() => setHistoryItem(item)}>
                             <HistoryIcon fontSize="small" />
                           </IconButton>
