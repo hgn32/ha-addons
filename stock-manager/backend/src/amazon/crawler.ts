@@ -465,8 +465,6 @@ export async function enrichItems(cookie: string, items: CrawledItem[], curlHead
   const failed: string[] = [];
   let timeoutCount = 0;
   const onTimeout = () => { timeoutCount++; };
-  const COOLDOWN_THRESHOLD = 5;
-  const COOLDOWN_MS = 2 * 60 * 1000;
 
   await withBrowser(async (browser) => {
     const pages = await Promise.all(
@@ -479,12 +477,15 @@ export async function enrichItems(cookie: string, items: CrawledItem[], curlHead
         if (i >= items.length) break;
         const ok = await enrichItem(page, items[i], i + 1, items.length, onTimeout);
         if (!ok) failed.push(items[i].asin);
-        if (timeoutCount > COOLDOWN_THRESHOLD) {
-          log("warn", `タイムアウト累計 ${timeoutCount} 回 — 2分間待機します`);
-          timeoutCount = 0;
-          await sleep(COOLDOWN_MS);
-        } else if (cursor < items.length) {
-          await enrichDelay();
+        if (cursor < items.length) {
+          if (timeoutCount > 5) {
+            // タイムアウト累計が5を超えたら、超過分×30秒（最大2分）待機
+            const waitMs = Math.min((timeoutCount - 5) * 30_000, 120_000);
+            log("warn", `タイムアウト累計 ${timeoutCount} 回 — ${Math.round(waitMs / 1000)}秒待機`);
+            await sleep(waitMs);
+          } else {
+            await enrichDelay();
+          }
         }
       }
       await page.close();
