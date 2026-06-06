@@ -36,7 +36,7 @@ import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { InventoryItem, Product } from "../types";
 
-// カメラ用のバーコードライブラリ(@zxing)は重いので、カメラを開いた時だけ遅延読込する
+// カメラ用のJANコードライブラリ(@zxing)は重いので、カメラを開いた時だけ遅延読込する
 const BarcodeScanner = lazy(() => import("../components/BarcodeScanner"));
 
 type Mode = "adjust" | "add";
@@ -148,7 +148,7 @@ export default function Stocktake() {
       if (mode === "adjust") {
         await api.post("/api/inventory/adjust", { product_id: current.id, quantity: count });
       } else {
-        // 実数量としてそのまま加算（入り数換算しない）
+        // 実数量としてそのまま加算（員数換算しない）
         await api.post("/api/inventory/add", { product_id: current.id, quantity: count, by_piece: false });
       }
       const after = mode === "adjust" ? count : before + count;
@@ -166,7 +166,7 @@ export default function Stocktake() {
     }
   };
 
-  // 未登録バーコードを既存品目に紐づける。紐づけ後はスキャン成功と同じ状態（カウント1）にする。
+  // 未登録JANコードを既存品目に紐づける。紐づけ後はスキャン成功と同じ状態（カウント1）にする。
   const linkToProduct = async (item: InventoryItem) => {
     const code = notFound;
     if (!code) return;
@@ -174,7 +174,7 @@ export default function Stocktake() {
     try {
       await api.post(`/api/products/${item.id}/barcodes`, { code });
       await Promise.all([reloadProducts(), reloadInventory()]);
-      toast(`「${item.name}」にバーコード ${code} を紐づけました`);
+      toast(`「${item.name}」にJANコード ${code} を紐づけました`);
       setLinkOpen(false);
       setNotFound(null);
       beep(true);
@@ -188,7 +188,7 @@ export default function Stocktake() {
     }
   };
 
-  // Amazon検索から新規作成された品目をそのまま棚卸し対象にする
+  // Amazon検索から新規作成された品目をそのまま棚卸対象にする
   const handleNewProductCreated = (created: Product) => {
     setNewProductOpen(false);
     setNotFound(null);
@@ -215,10 +215,10 @@ export default function Stocktake() {
   return (
     <Box>
       <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>
-        簡単棚卸し（バーコード）
+        棚卸
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        バーコードをスキャンして在庫を登録します。USBバーコードリーダー（キーボード入力）や手入力にも対応。
+        JANコードをスキャンして在庫を登録します
       </Typography>
 
       {/* モード選択 */}
@@ -231,8 +231,8 @@ export default function Stocktake() {
           value={mode}
           onChange={(_, v: Mode | null) => v && setMode(v)}
         >
-          <ToggleButton value="adjust"><InventoryIcon fontSize="small" sx={{ mr: 0.5 }} />棚卸し</ToggleButton>
-          <ToggleButton value="add"><AddShoppingCartIcon fontSize="small" sx={{ mr: 0.5 }} />入庫</ToggleButton>
+          <ToggleButton value="adjust"><InventoryIcon fontSize="small" sx={{ mr: 0.5 }} />数量指定</ToggleButton>
+          <ToggleButton value="add"><AddShoppingCartIcon fontSize="small" sx={{ mr: 0.5 }} />追加</ToggleButton>
         </ToggleButtonGroup>
       </Paper>
 
@@ -241,7 +241,7 @@ export default function Stocktake() {
         <Stack direction="row" spacing={1} alignItems="flex-start">
           <TextField
             inputRef={inputRef}
-            label="バーコード（JANコード）"
+            label="JANコード"
             placeholder="スキャン または 手入力して Enter"
             size="small"
             fullWidth
@@ -277,7 +277,7 @@ export default function Stocktake() {
       {notFound && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setNotFound(null)}>
           <Stack spacing={1} alignItems="flex-start">
-            <span>未登録のバーコードです（{notFound}）。既存の品目に紐づけるか、Amazonで検索して新規登録できます。</span>
+            <span>未登録のJANコードです（{notFound}）。既存の品目に紐づけるか、Amazonで検索して新規登録できます。</span>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Button
                 color="inherit"
@@ -370,7 +370,7 @@ export default function Stocktake() {
               <Stack key={i} direction="row" spacing={1} alignItems="center" sx={{ fontSize: "0.85rem" }}>
                 <Chip
                   size="small"
-                  label={l.mode === "adjust" ? "棚卸し" : "入庫"}
+                  label={l.mode === "adjust" ? "棚卸" : "入庫"}
                   color={l.mode === "adjust" ? "warning" : "success"}
                 />
                 <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>{l.name}</Typography>
@@ -386,7 +386,7 @@ export default function Stocktake() {
         <DialogTitle>既存の品目と紐づける</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            バーコード <strong>{notFound}</strong> を選択した品目に登録します。次回からはスキャンだけで認識されます。
+            JANコード <strong>{notFound}</strong> を選択した品目に登録します。次回からはスキャンだけで認識されます。
           </Typography>
           <TextField
             autoFocus

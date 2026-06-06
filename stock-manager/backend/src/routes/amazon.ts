@@ -5,6 +5,7 @@ import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/co
 import { clearLogs, getLogs } from "../amazon/logger";
 import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
 import { notifyHA } from "../amazon/notify";
+import { getBrowser } from "../amazon/crawler";
 
 const router = Router();
 
@@ -194,40 +195,6 @@ router.post("/amazon/queue/:id/ignore", async (req, res) => {
 
 // --- Amazon URL / JAN → 品目情報取込 ------------------------------------------
 
-const CHROMIUM_PATHS = [
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-];
-
-function findChromium(): string {
-  const { existsSync } = require("fs") as typeof import("fs");
-  for (const p of CHROMIUM_PATHS) {
-    if (existsSync(p)) return p;
-  }
-  throw new Error(`Chromiumが見つかりません。確認したパス: ${CHROMIUM_PATHS.join(", ")}`);
-}
-
-function parseCookiesForFetch(cookieStr: string): Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }> {
-  const sanitized = cookieStr.replace(/[\r\n\t]/g, " ");
-  return sanitized
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => {
-      const idx = s.indexOf("=");
-      if (idx === -1) return null;
-      const name = s.slice(0, idx).trim();
-      const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
-      if (!name) return null;
-      const secure = name.startsWith("__Secure-") || name.startsWith("__Host-");
-      const path = name.startsWith("__Host-") ? "/" : undefined;
-      return { name, value, domain: ".amazon.co.jp", ...(secure ? { secure } : {}), ...(path ? { path } : {}) };
-    })
-    .filter(Boolean) as Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }>;
-}
-
 interface ScrapedProduct {
   name: string;
   maker: string;
@@ -237,19 +204,6 @@ interface ScrapedProduct {
   image_url: string;
 }
 
-// Chromiumを起動（Amazonスクレイプ共通）。
-async function launchChromium() {
-  const executablePath = findChromium();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
-  return puppeteer.launch({
-    executablePath,
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer"],
-  });
-}
-
-// 保存済みCookie/UAを適用したページを作る。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function newAmazonPage(browser: any) {
   const page = await browser.newPage();
@@ -259,7 +213,17 @@ async function newAmazonPage(browser: any) {
   await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
   const cookie = await getCookie();
   if (cookie) {
-    const cookies = parseCookiesForFetch(cookie);
+    const sanitized = cookie.replace(/[\r\n\t]/g, " ");
+    const cookies = sanitized.split(";").map((s: string) => s.trim()).filter(Boolean).map((s: string) => {
+      const idx = s.indexOf("=");
+      if (idx === -1) return null;
+      const name = s.slice(0, idx).trim();
+      const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
+      if (!name) return null;
+      const secure = name.startsWith("__Secure-") || name.startsWith("__Host-");
+      const path = name.startsWith("__Host-") ? "/" : undefined;
+      return { name, value, domain: ".amazon.co.jp", ...(secure ? { secure } : {}), ...(path ? { path } : {}) };
+    }).filter(Boolean);
     for (const c of cookies) {
       try { await page.setCookie(c); } catch { /* skip bad cookies */ }
     }
@@ -267,12 +231,11 @@ async function newAmazonPage(browser: any) {
   return page;
 }
 
-// 商品詳細ページ(/dp/ASIN)から情報を抽出する。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function scrapeProductDetail(page: any, asin: string): Promise<ScrapedProduct> {
   const productUrl = `https://www.amazon.co.jp/dp/${asin}`;
-  await page.goto(productUrl, { waitUntil: "networkidle2", timeout: 20000 });
-  await new Promise((r) => setTimeout(r, 1000));
+  await page.goto(productUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 500));
   const html = await page.content();
   const $ = cheerio.load(html);
   const name = $("#productTitle").text().trim();
@@ -288,12 +251,11 @@ async function scrapeProductDetail(page: any, asin: string): Promise<ScrapedProd
   return { name, maker, jan_code, asin, product_url: productUrl, image_url };
 }
 
-// 検索ページ(/s?k=...)から先頭ヒットのASINを取得。ブロック(captcha)検知も返す。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function searchAsinByKeyword(page: any, keyword: string): Promise<{ asin: string; blocked: boolean }> {
   const searchUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(keyword)}`;
-  await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 20000 });
-  await new Promise((r) => setTimeout(r, 800));
+  await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 500));
   const html = await page.content();
   const $ = cheerio.load(html);
   let asin = "";
@@ -320,13 +282,13 @@ router.post("/amazon/fetch-product", async (req, res) => {
   }
   const asin = asinMatch[1];
   try {
-    const browser = await launchChromium();
+    const browser = await getBrowser();
+    const page = await newAmazonPage(browser);
     try {
-      const page = await newAmazonPage(browser);
       const data = await scrapeProductDetail(page, asin);
       res.json(data);
     } finally {
-      await browser.close();
+      await page.close();
     }
   } catch (e) {
     res.status(500).json({ detail: (e as Error).message });
@@ -340,9 +302,9 @@ router.post("/amazon/search-by-jan", async (req, res) => {
     return res.status(400).json({ detail: "JANコード（数字8〜14桁）を指定してください" });
   }
   try {
-    const browser = await launchChromium();
+    const browser = await getBrowser();
+    const page = await newAmazonPage(browser);
     try {
-      const page = await newAmazonPage(browser);
       const { asin, blocked } = await searchAsinByKeyword(page, jan);
       if (!asin) {
         return res.status(blocked ? 503 : 404).json({
@@ -352,10 +314,10 @@ router.post("/amazon/search-by-jan", async (req, res) => {
         });
       }
       const data = await scrapeProductDetail(page, asin);
-      if (!data.jan_code) data.jan_code = jan; // 詳細でJANが取れなければ検索キーで補完
+      if (!data.jan_code) data.jan_code = jan;
       res.json(data);
     } finally {
-      await browser.close();
+      await page.close();
     }
   } catch (e) {
     res.status(500).json({ detail: (e as Error).message });

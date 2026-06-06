@@ -27,7 +27,7 @@ export interface CrawlSummary {
 
 // Find a product master entry matching the crawled item's ASIN or JAN.
 // Checks ProductAsin table first, then legacy product.amazon_asin field, then
-// JAN code (主jan_code → 追加バーコードProductBarcode).
+// JAN code (主jan_code → 追加JANコードProductBarcode).
 async function matchProduct(asin: string, jan: string) {
   if (asin) {
     const byProductAsin = await prisma.productAsin.findUnique({ where: { asin }, include: { product: true } });

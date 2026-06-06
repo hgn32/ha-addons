@@ -172,7 +172,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
     }
   }, [setValue, toast]);
 
-  // 新規 + 初期JAN指定時（簡単棚卸しからの新規登録）はAmazon検索を自動実行
+  // 新規 + 初期JAN指定時（棚卸からの新規登録）はAmazon検索を自動実行
   useEffect(() => {
     if (open && !product && initialJan) {
       runJanSearch(initialJan);
@@ -236,7 +236,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
     }
   };
 
-  // 追加JAN/バーコードの追加・削除（色違い等で複数JANを持つケース）
+  // 追加JAN/JANコードの追加・削除（色違い等で複数JANを持つケース）
   const addBarcode = async () => {
     if (!product || !newBarcode.trim()) return;
     try {
@@ -353,7 +353,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   <Stack direction="row" spacing={2}>
                     <TextField label="内容量" fullWidth placeholder="例: 500ml、1kg、100g×3" {...register("volume")} />
                     <TextField
-                      label="入り数" type="number" sx={{ width: 100, flexShrink: 0 }}
+                      label="員数" type="number" sx={{ width: 100, flexShrink: 0 }}
                       slotProps={{ htmlInput: { min: 1 } }}
                       {...register("piece_count", { valueAsNumber: true })}
                     />
@@ -421,7 +421,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                 </Avatar>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />}>
-                    写真を選択
+                    選択
                     <input
                       hidden
                       type="file"
@@ -435,7 +435,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     disabled={!watchedAmazonUrl || fetchingPhoto}
                     onClick={handleFetchPhoto}
                   >
-                    {fetchingPhoto ? "取込中..." : "写真をAmazonから取込"}
+                    {fetchingPhoto ? "取込中..." : "Amazonから取込"}
                   </Button>
                 </Stack>
               </Box>
@@ -445,7 +445,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
           {tab === 1 && product && (
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Typography variant="body2" color="text.secondary">
-                色違い等で複数のJAN/バーコードがある場合に追加します。ここに登録したコードはバーコードスキャン時にこのアイテムとして認識されます。
+                色違い等で複数のJANコードがある場合に追加します。ここに登録したコードはJANコードスキャン時にこのアイテムとして認識されます。
               </Typography>
               <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
                 <Typography variant="caption" color="text.secondary" display="block">主JANコード（「基本情報」タブで編集）</Typography>

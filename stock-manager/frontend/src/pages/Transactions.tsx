@@ -50,11 +50,11 @@ export default function Transactions() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
+      <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
         <Typography variant="h5" fontWeight={700}>在庫履歴</Typography>
-        <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ ml: "auto" }}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ ml: { sm: "auto" } }}>
           <TextField
-            select label="品目" size="small" sx={{ minWidth: 200 }}
+            select label="品目" size="small" sx={{ flex: "1 1 140px", minWidth: 0 }}
             value={filterProduct}
             onChange={(e) => { setFilterProduct(e.target.value); handleFilterChange(); }}
           >
@@ -64,7 +64,7 @@ export default function Transactions() {
             ))}
           </TextField>
           <TextField
-            select label="種別" size="small" sx={{ minWidth: 120 }}
+            select label="種別" size="small" sx={{ flex: "1 1 90px", minWidth: 0 }}
             value={filterType}
             onChange={(e) => { setFilterType(e.target.value); handleFilterChange(); }}
           >
@@ -85,8 +85,8 @@ export default function Transactions() {
                 <TableCell>種別</TableCell>
                 <TableCell>品目</TableCell>
                 <TableCell align="right">数量</TableCell>
-                <TableCell>購入先</TableCell>
-                <TableCell>メモ</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>購入先</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>メモ</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -106,16 +106,16 @@ export default function Transactions() {
                         {tx.type === "use" ? `-${tx.quantity}` : `+${tx.quantity}`}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ color: "text.secondary", fontSize: 13 }}>
+                    <TableCell sx={{ color: "text.secondary", fontSize: 13, display: { xs: "none", sm: "table-cell" } }}>
                       {tx.supplier_id ? supplierName(tx.supplier_id) : ""}
                     </TableCell>
-                    <TableCell sx={{ color: "text.secondary", fontSize: 13 }}>{tx.note}</TableCell>
+                    <TableCell sx={{ color: "text.secondary", fontSize: 13, display: { xs: "none", sm: "table-cell" } }}>{tx.note}</TableCell>
                   </TableRow>
                 );
               })}
               {paged.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 4, color: "text.secondary" }}>
                     履歴がありません
                   </TableCell>
                 </TableRow>

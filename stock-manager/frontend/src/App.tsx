@@ -52,7 +52,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "ダッシュボード", icon: <DashboardIcon />, section: "メイン" },
-  { key: "stocktake", label: "簡単棚卸し", icon: <QrCodeScannerIcon />, section: "メイン" },
+  { key: "stocktake", label: "棚卸", icon: <QrCodeScannerIcon />, section: "メイン" },
   { key: "transactions", label: "在庫履歴", icon: <HistoryIcon />, section: "メイン" },
   { key: "products", label: "品目", icon: <SellIcon />, section: "マスタ" },
   { key: "categories", label: "品目カテゴリ", icon: <CategoryIcon />, section: "マスタ" },

@@ -66,8 +66,8 @@ export class CookieExpiredError extends Error {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const politeDelay = (): Promise<void> => sleep(1500 + Math.floor(Math.random() * 1500));
-const enrichDelay = (): Promise<void> => sleep(800 + Math.floor(Math.random() * 400));
+const politeDelay = (): Promise<void> => sleep(800 + Math.floor(Math.random() * 700));
+const enrichDelay = (): Promise<void> => sleep(400 + Math.floor(Math.random() * 200));
 
 function asinFromUrl(href: string): string {
   const m = href.match(/\/(?:dp|gp\/product|product|gp\/aw\/d)\/([A-Z0-9]{10})/);
@@ -219,7 +219,7 @@ function cleanChromeCache(): void {
   log("info", "Chromeキャッシュを削除しました");
 }
 
-async function getBrowser(): Promise<PuppeteerBrowser> {
+export async function getBrowser(): Promise<PuppeteerBrowser> {
   if (_browser) {
     // 生存確認: ページを開けるか試す
     try {
@@ -343,7 +343,7 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   log("info", `ページ取得: ${url}`);
   // domcontentloaded後にAmazonのSiegeClientSideDecryptionが実行されるまで待つ
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await sleep(1500);
+  await sleep(800);
   const finalUrl = page.url();
   const html = await page.content();
   if (finalUrl !== url) log("info", `リダイレクト → ${finalUrl}`);
@@ -354,7 +354,7 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
   try {
     log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
     await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: 20000 });
-    await sleep(800);
+    await sleep(300);
     const html = await page.content();
     const $ = cheerio.load(html);
     if (!item.maker) {
@@ -437,16 +437,26 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
   return { items: collected, refreshedCookie };
 }
 
+const ENRICH_CONCURRENCY = 3;
+
 export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<void> {
   if (items.length === 0) return;
-  log("info", `詳細補完: ${items.length}件`);
+  const concurrency = Math.min(ENRICH_CONCURRENCY, items.length);
+  log("info", `詳細補完: ${items.length}件 (並列${concurrency})`);
   await withBrowser(async (browser) => {
-    const page = await setupPage(browser, cookie, curlHeaders);
-    for (let i = 0; i < items.length; i++) {
-      await enrichItem(page, items[i], i + 1, items.length);
-      await enrichDelay();
-    }
-    await page.close();
+    const pages = await Promise.all(
+      Array.from({ length: concurrency }, () => setupPage(browser, cookie, curlHeaders))
+    );
+    let cursor = 0;
+    await Promise.all(pages.map(async (page) => {
+      while (cursor < items.length) {
+        const i = cursor++;
+        if (i >= items.length) break;
+        await enrichItem(page, items[i], i + 1, items.length);
+        if (cursor < items.length) await enrichDelay();
+      }
+      await page.close();
+    }));
   });
   log("info", "詳細補完完了");
 }

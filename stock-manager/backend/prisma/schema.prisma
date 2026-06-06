@@ -67,7 +67,7 @@ model ProductAsin {
 
 // One product can have multiple scanned barcodes (JAN/EAN/UPC). The primary
 // jan_code field stays for display/CSV; extra barcodes linked via the
-// 簡単棚卸し screen are stored here so scans resolve to the right product.
+// 棚卸 screen are stored here so scans resolve to the right product.
 model ProductBarcode {
   id         String   @id @default(uuid())
   product_id String

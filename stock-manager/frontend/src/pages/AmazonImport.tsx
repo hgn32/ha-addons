@@ -230,32 +230,37 @@ export default function AmazonImport() {
         <Typography variant="h6" mb={1}>
           2. 購入履歴を取得
         </Typography>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button
-            variant="contained"
-            startIcon={running ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
-            disabled={!settings?.cookie_set || running}
-            onClick={() => crawl(false)}
-          >
-            {running ? "取得中..." : "差分取得"}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<SyncIcon />}
-            disabled={!settings?.cookie_set || running}
-            onClick={() => crawl(true)}
-          >
-            90日分取込
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            startIcon={notifyTesting ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveIcon />}
-            disabled={notifyTesting}
-            onClick={notifyTest}
-          >
-            通知テスト
-          </Button>
+        <Stack spacing={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              variant="contained"
+              sx={{ flexShrink: 0 }}
+              startIcon={running ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
+              disabled={!settings?.cookie_set || running}
+              onClick={() => crawl(false)}
+            >
+              {running ? "取得中..." : "差分取得"}
+            </Button>
+            <Button
+              variant="outlined"
+              sx={{ flexShrink: 0 }}
+              startIcon={<SyncIcon />}
+              disabled={!settings?.cookie_set || running}
+              onClick={() => crawl(true)}
+            >
+              90日分取込
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              sx={{ flexShrink: 0 }}
+              startIcon={notifyTesting ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveIcon />}
+              disabled={notifyTesting}
+              onClick={notifyTest}
+            >
+              通知テスト
+            </Button>
+          </Stack>
           <Typography variant="body2" color="text.secondary">
             前回同期: {settings?.last_sync ? new Date(settings.last_sync).toLocaleString("ja-JP") : "未実行"}
             {settings?.cron ? ` / 定期実行: ${settings.cron}` : ""}
@@ -312,19 +317,21 @@ export default function AmazonImport() {
 
       {/* --- 4. 取込待ちリスト --- */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
-          <Typography variant="h6">
+        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={1} mb={1}>
+          <Typography variant="h6" sx={{ flexShrink: 0 }}>
             4. 取込待ちリスト（{queue.length}件）
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             <FormControlLabel
               control={<Switch size="small" checked={showAll} onChange={(e) => { setShowAll(e.target.checked); loadQueue(e.target.checked); }} />}
-              label="全件表示（自動処理済み含む）"
+              label={<Typography variant="body2" noWrap>全件表示（自動処理済み含む）</Typography>}
+              sx={{ mr: 0 }}
             />
             <Button
               size="small"
               color="error"
               variant="outlined"
+              sx={{ flexShrink: 0 }}
               onClick={async () => {
                 if (!confirm("取込履歴と同期日時をリセットします。次回クロール時に過去90日分が再取込されます。よろしいですか？")) return;
                 await api.del("/api/amazon/queue");
@@ -340,18 +347,18 @@ export default function AmazonImport() {
         <Typography variant="body2" color="text.secondary" mb={2}>
           マスタに一致した品目は自動で在庫加算済みです。未登録の品目をここで振り分けます。
         </Typography>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: "auto" }}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 56 }} />
+                <TableCell sx={{ width: 48, p: 1 }} />
                 <TableCell>品目名</TableCell>
-                <TableCell>ASIN</TableCell>
-                <TableCell>購入日</TableCell>
-                <TableCell align="right">数量</TableCell>
-                <TableCell align="right">単価</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>ASIN</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>購入日</TableCell>
+                <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>数量</TableCell>
+                <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>単価</TableCell>
                 <TableCell>状態</TableCell>
-                <TableCell align="right" />
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -367,10 +374,10 @@ export default function AmazonImport() {
                     </Avatar>
                   </TableCell>
                   <TableCell>{q.product_name}</TableCell>
-                  <TableCell>{q.asin}</TableCell>
-                  <TableCell>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
-                  <TableCell align="right">{q.quantity}</TableCell>
-                  <TableCell align="right">¥{q.unit_price.toLocaleString()}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{q.asin}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
+                  <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>{q.quantity}</TableCell>
+                  <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>¥{q.unit_price.toLocaleString()}</TableCell>
                   <TableCell>
                     <Chip
                       size="small"
@@ -378,24 +385,24 @@ export default function AmazonImport() {
                       color={{ pending: "warning", auto: "success", managed: "primary", ignored: "default" }[q.status] as "warning" | "success" | "primary" | "default" ?? "default"}
                     />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell sx={{ p: 1 }}>
                     {q.status === "pending" && (
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Stack direction="column" spacing={0.5} alignItems="stretch">
                         <Button
                           size="small"
                           variant="contained"
                           startIcon={<InventoryIcon />}
                           onClick={() => setManageItem(q)}
                         >
-                          在庫管理する
+                          追加
                         </Button>
                         <Button
                           size="small"
                           color="inherit"
+                          variant="outlined"
                           startIcon={<BlockIcon />}
                           onClick={() => ignore(q)}
                         >
-                          管理しない
                         </Button>
                       </Stack>
                     )}
@@ -404,7 +411,7 @@ export default function AmazonImport() {
               ))}
               {queue.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 4, color: "text.secondary" }}>
                     取込待ちの品目はありません
                   </TableCell>
                 </TableRow>
