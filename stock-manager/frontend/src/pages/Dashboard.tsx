@@ -334,7 +334,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
         <Typography variant="h5" fontWeight={700}>ダッシュボード</Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ ml: "auto" }}>
           <TextField
-            select label="品目カテゴリ" size="small" sx={{ flex: "1 1 130px", minWidth: 0 }}
+            select label="品目カテゴリ" size="small" sx={{ minWidth: 140 }}
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
           >
@@ -344,7 +344,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
             ))}
           </TextField>
           <TextField
-            select label="並び替え" size="small" sx={{ flex: "1 1 90px", minWidth: 0 }}
+            select label="並び替え" size="small" sx={{ minWidth: 110 }}
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
           >

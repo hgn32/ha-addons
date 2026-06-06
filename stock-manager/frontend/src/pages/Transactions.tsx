@@ -54,7 +54,7 @@ export default function Transactions() {
         <Typography variant="h5" fontWeight={700}>在庫履歴</Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ ml: { sm: "auto" } }}>
           <TextField
-            select label="品目" size="small" sx={{ flex: "1 1 140px", minWidth: 0 }}
+            select label="品目" size="small" sx={{ minWidth: 150 }}
             value={filterProduct}
             onChange={(e) => { setFilterProduct(e.target.value); handleFilterChange(); }}
           >
@@ -64,7 +64,7 @@ export default function Transactions() {
             ))}
           </TextField>
           <TextField
-            select label="種別" size="small" sx={{ flex: "1 1 90px", minWidth: 0 }}
+            select label="種別" size="small" sx={{ minWidth: 100 }}
             value={filterType}
             onChange={(e) => { setFilterType(e.target.value); handleFilterChange(); }}
           >
