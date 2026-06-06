@@ -481,6 +481,7 @@ export async function enrichItems(cookie: string, items: CrawledItem[], curlHead
           const waitMs = Math.min(timeoutCount * 20_000, 180_000);
           if (waitMs > 0) {
             log("warn", `タイムアウト累計 ${timeoutCount} 回 — ${Math.round(waitMs / 1000)}秒待機`);
+            timeoutCount = 0;
             await sleep(waitMs);
           } else {
             await enrichDelay();
