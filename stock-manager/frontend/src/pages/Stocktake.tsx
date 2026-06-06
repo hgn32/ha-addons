@@ -277,7 +277,7 @@ export default function Stocktake() {
       {notFound && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setNotFound(null)}>
           <Stack spacing={1} alignItems="flex-start">
-            <span>未登録のJANコードです（{notFound}）。既存の品目に紐づけるか、Amazonで検索して新規登録できます。</span>
+            <span>未登録のJANコードです（{notFound}）</span>
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Button
                 color="inherit"
@@ -286,7 +286,7 @@ export default function Stocktake() {
                 startIcon={<LinkIcon />}
                 onClick={() => { setLinkFilter(""); setLinkOpen(true); }}
               >
-                既存品目と紐づける
+                既存品目と紐づけ
               </Button>
               <Button
                 color="inherit"
@@ -295,7 +295,7 @@ export default function Stocktake() {
                 startIcon={<SearchIcon />}
                 onClick={() => setNewProductOpen(true)}
               >
-                Amazonで検索して新規登録
+                Amazonで検索
               </Button>
             </Stack>
           </Stack>
