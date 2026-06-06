@@ -377,8 +377,8 @@ export default function AmazonImport() {
                   <TableCell>
                     <Chip
                       size="small"
-                      label={{ pending: "要確認", auto: "自動処理済", managed: "管理中", skipped: "スキップ", ignored: "無視" }[q.status] ?? q.status}
-                      color={{ pending: "warning", auto: "success", managed: "primary", skipped: "default", ignored: "default" }[q.status] as "warning" | "success" | "primary" | "default" ?? "default"}
+                      label={{ pending: "要確認", auto: "自動処理済", managed: "管理中" }[q.status] ?? q.status}
+                      color={{ pending: "warning", auto: "success", managed: "primary" }[q.status] as "warning" | "success" | "primary" | "default" ?? "default"}
                     />
                   </TableCell>
                   <TableCell sx={{ p: 1 }}>

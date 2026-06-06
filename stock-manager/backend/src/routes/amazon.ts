@@ -191,13 +191,10 @@ router.delete("/products/asins/:asinId", async (req, res) => {
   }
 });
 
-// 今回は取り込まない（この注文のみスキップ、次回購入は再出現）
+// 取り込まない（レコードを完全削除。次回購入時に新規注文として再出現）
 router.post("/amazon/queue/:id/skip", async (req, res) => {
   try {
-    await prisma.amazonQueue.update({
-      where: { id: req.params.id as string },
-      data: { status: "skipped" },
-    });
+    await prisma.amazonQueue.delete({ where: { id: req.params.id as string } });
     res.status(204).end();
   } catch {
     res.status(404).json({ detail: "Not found" });
