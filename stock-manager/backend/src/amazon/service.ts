@@ -28,7 +28,7 @@ export interface CrawlSummary {
 // Find a product master entry matching the crawled item's ASIN or JAN.
 // Checks ProductAsin table first, then legacy product.amazon_asin field, then
 // JAN code (主jan_code → 追加JANコードProductBarcode).
-async function matchProduct(asin: string, jan: string) {
+export async function matchProduct(asin: string, jan: string) {
   if (asin) {
     const byProductAsin = await prisma.productAsin.findUnique({ where: { asin }, include: { product: true } });
     if (byProductAsin) return byProductAsin.product;
@@ -100,16 +100,9 @@ async function runAmazonCrawlInner(full = false): Promise<CrawlSummary> {
 
   log("info", `★ crawlOrders完了: ${orders.length}件取得`);
 
-  const amazonSupplier = await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } });
-
-  const ignoredRows = await prisma.amazonIgnoredAsin.findMany();
-  const ignored = new Set(ignoredRows.map((a) => a.asin));
-  log("info", `無視リスト: ${ignored.size}件`);
-
   const existingQueue = await prisma.amazonQueue.count();
   log("info", `キュー既存件数: ${existingQueue}件`);
 
-  let auto = 0;
   let queued = 0;
   let skipped = 0;
   let maxDate = since;
@@ -120,12 +113,6 @@ async function runAmazonCrawlInner(full = false): Promise<CrawlSummary> {
 
   for (const item of orders) {
     if (item.purchased_at > maxDate) maxDate = item.purchased_at;
-
-    if (item.asin && ignored.has(item.asin)) {
-      log("info", `  スキップ(無視リスト): [${item.order_id}] ${item.product_name}`);
-      skipped++;
-      continue;
-    }
 
     const dup = await prisma.amazonQueue.findFirst({
       where: { order_id: item.order_id, asin: item.asin },
@@ -150,38 +137,18 @@ async function runAmazonCrawlInner(full = false): Promise<CrawlSummary> {
   }
 
   // DB登録
-  for (const { item, product } of toProcess) {
-    if (product) {
-      const actualQty = item.quantity * (product.piece_count || 1);
-      log("info", `  自動加算: "${product.name}" +${actualQty}${product.piece_count > 1 ? ` (${item.quantity}×${product.piece_count})` : ""}`);
-      await prisma.product.update({
-        where: { id: product.id },
-        data: { quantity: { increment: actualQty } },
-      });
-      await prisma.transaction.create({
-        data: {
-          type: "add",
-          product_id: product.id,
-          quantity: actualQty,
-          supplier_id: amazonSupplier?.id ?? "",
-          note: `Amazon自動取込 注文:${item.order_id}`,
-        },
-      });
-      await prisma.amazonQueue.create({ data: queueData(item, "auto") });
-      auto++;
-    } else {
-      log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
-      await prisma.amazonQueue.create({ data: queueData(item, "pending") });
-      queued++;
-    }
+  for (const { item } of toProcess) {
+    log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
+    await prisma.amazonQueue.create({ data: queueData(item, "pending") });
+    queued++;
   }
 
   await setSetting(LAST_SYNC_KEY, maxDate.toISOString());
   await setSetting(LAST_RUN_KEY, new Date().toISOString());
   const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
-  log("info", `★ 完了: fetched=${orders.length} auto=${auto} queued=${queued} skipped=${skipped} (キュー合計: ${await prisma.amazonQueue.count()}件) / 所要時間 ${elapsedSec}秒`);
+  log("info", `★ 完了: fetched=${orders.length} queued=${queued} skipped=${skipped} (キュー合計: ${await prisma.amazonQueue.count()}件) / 所要時間 ${elapsedSec}秒`);
 
-  return { fetched: orders.length, auto, queued, skipped, last_sync: maxDate.toISOString() };
+  return { fetched: orders.length, auto: 0, queued, skipped, last_sync: maxDate.toISOString() };
 }
 
 // Best-effort: download a remote image into IMAGES_DIR, return stored filename.
@@ -210,7 +177,7 @@ export interface ManageOverrides {
 }
 
 // パターンA-1「新規登録」: 品目マスタに新規登録 + 在庫加算 + ASIN紐づけ
-export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrides) {
+export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrides, quantity: number) {
   const overrides: ManageOverrides = {
     name: rawOverrides.name?.trim(),
     maker: rawOverrides.maker?.trim(),
@@ -246,7 +213,7 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
       location_id: overrides.location_id ?? "",
       note: overrides.note ?? "",
       photo,
-      quantity: item.quantity,
+      quantity: quantity,
     },
   });
 
@@ -263,7 +230,7 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
     data: {
       type: "add",
       product_id: product.id,
-      quantity: item.quantity,
+      quantity: quantity,
       supplier_id: amazonSupplier?.id ?? "",
       note: `Amazon取込(新規登録) 注文:${item.order_id}`,
     },
@@ -274,7 +241,7 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
 }
 
 // パターンA-2「既存アイテムにマージ」: 既存マスタにASIN紐づけ + 在庫加算
-export async function manageQueueItemMerge(id: string, productId: string) {
+export async function manageQueueItemMerge(id: string, productId: string, quantity: number) {
   const item = await prisma.amazonQueue.findUnique({ where: { id } });
   if (!item) throw new Error("取込データが見つかりません");
   const product = await prisma.product.findUnique({ where: { id: productId } });
@@ -291,14 +258,14 @@ export async function manageQueueItemMerge(id: string, productId: string) {
 
   await prisma.product.update({
     where: { id: productId },
-    data: { quantity: { increment: item.quantity } },
+    data: { quantity: { increment: quantity } },
   });
 
   await prisma.transaction.create({
     data: {
       type: "add",
       product_id: productId,
-      quantity: item.quantity,
+      quantity: quantity,
       unit_price: item.unit_price,
       supplier_id: (await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } }))?.id ?? "",
       note: `Amazon取込(マージ) 注文:${item.order_id}`,

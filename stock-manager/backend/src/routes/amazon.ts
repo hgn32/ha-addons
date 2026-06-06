@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
-import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
+import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, matchProduct, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
 import { notifyHA } from "../amazon/notify";
 import { getBrowser } from "../amazon/crawler";
 
@@ -100,11 +100,8 @@ router.post("/amazon/crawl", async (req, res) => {
   }
   try {
     const summary = await runAmazonCrawl(full);
-    if (summary.auto > 0 || summary.queued > 0) {
-      const lines: string[] = [];
-      if (summary.auto > 0) lines.push(`・自動追加: ${summary.auto}件`);
-      if (summary.queued > 0) lines.push(`・確認待ち: ${summary.queued}件`);
-      await notifyHA("Stock Manager: Amazon取込完了", lines.join("\n"));
+    if (summary.queued > 0) {
+      await notifyHA("Stock Manager: Amazon取込完了", `・確認待ち: ${summary.queued}件`);
     }
     res.json(summary);
   } catch (e) {
@@ -114,12 +111,22 @@ router.post("/amazon/crawl", async (req, res) => {
 
 router.get("/amazon/queue", async (req, res) => {
   const status = (req.query.status as string) || "pending";
-  res.json(
-    await prisma.amazonQueue.findMany({
-      where: status === "all" ? undefined : { status },
-      orderBy: { purchased_at: "desc" },
+  const items = await prisma.amazonQueue.findMany({
+    where: status === "all" ? undefined : { status },
+    orderBy: { purchased_at: "desc" },
+  });
+  const enriched = await Promise.all(
+    items.map(async (item) => {
+      const product = await matchProduct(item.asin, item.jan_code);
+      return {
+        ...item,
+        matched_product: product
+          ? { id: product.id, name: product.name, piece_count: product.piece_count, quantity: product.quantity, photo: product.photo }
+          : null,
+      };
     })
   );
+  res.json(enriched);
 });
 
 // キュー全リセット（重複dedup解除用）。last_sync/last_runも消して次回クロールで全件再取込できるようにする。
@@ -134,13 +141,14 @@ router.delete("/amazon/queue", async (_req, res) => {
 // mode="merge" → 既存アイテムにASIN紐づけ + 在庫加算
 router.post("/amazon/queue/:id/manage", async (req, res) => {
   try {
-    const { mode, product_id, ...overrides } = req.body ?? {};
+    const { mode, product_id, quantity, ...overrides } = req.body ?? {};
+    const qty = Math.max(0, parseInt(quantity, 10) || 0);
     let product;
     if (mode === "merge") {
       if (!product_id) return res.status(400).json({ detail: "product_id is required for merge" });
-      product = await manageQueueItemMerge(req.params.id as string, product_id as string);
+      product = await manageQueueItemMerge(req.params.id as string, product_id as string, qty);
     } else {
-      product = await manageQueueItemNew(req.params.id as string, overrides);
+      product = await manageQueueItemNew(req.params.id as string, overrides, qty);
     }
     res.json(product);
   } catch (e) {
@@ -190,6 +198,19 @@ router.post("/amazon/queue/:id/ignore", async (req, res) => {
     res.status(204).end();
   } catch (e) {
     res.status(400).json({ detail: (e as Error).message });
+  }
+});
+
+// パターンC: 今回は取り込まない（この注文のみスキップ、次回購入は再出現）
+router.post("/amazon/queue/:id/skip", async (req, res) => {
+  try {
+    await prisma.amazonQueue.update({
+      where: { id: req.params.id as string },
+      data: { status: "skipped" },
+    });
+    res.status(204).end();
+  } catch {
+    res.status(404).json({ detail: "Not found" });
   }
 });
 

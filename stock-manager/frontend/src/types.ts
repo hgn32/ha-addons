@@ -77,12 +77,6 @@ export interface AmazonCrawlSummary {
   last_sync: string;
 }
 
-export interface IgnoredAsin {
-  asin: string;
-  product_name: string;
-  created_at: string;
-}
-
 export interface AmazonQueueItem {
   id: string;
   order_id: string;
@@ -97,4 +91,11 @@ export interface AmazonQueueItem {
   unit_price: number;
   status: string;
   created_at: string;
+  matched_product: {
+    id: string;
+    name: string;
+    piece_count: number;
+    quantity: number;
+    photo: string;
+  } | null;
 }
