@@ -351,48 +351,45 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
 }
 
 async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
-  const ENRICH_TIMEOUT = 30000;
-  const attempt = async () => {
-    await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: ENRICH_TIMEOUT });
-    await sleep(300);
-    const html = await page.content();
-    const $ = cheerio.load(html);
-    if (!item.maker) {
-      const brand = $("#bylineInfo, #brand").first().text().trim();
-      item.maker = brand
-        .replace(/ブランド:|Brand:|Visit the/gi, "")
-        .replace(/のストアを表示/g, "")
-        .trim();
-    }
-    if (!item.image_url) {
-      item.image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
-    }
-    const bullets = $("#detailBullets_feature_div, #prodDetails").text();
-    const jan = bullets.match(/\b(\d{13})\b/);
-    if (jan) item.jan_code = jan[1];
-  };
+  const ENRICH_TIMEOUT = 10000;
+  const MAX_RETRIES = 3;
 
   log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
-  try {
-    await attempt();
-  } catch (e) {
-    const msg = (e as Error).message || "";
-    if (msg.includes("timeout") || msg.includes("Timeout")) {
-      log("warn", `詳細補完リトライ (${index}/${total} ${item.asin})`);
-      await sleep(2000);
-      try {
-        await attempt();
-      } catch (e2) {
-        log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${(e2 as Error).message}`);
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: ENRICH_TIMEOUT });
+      await sleep(300);
+      const html = await page.content();
+      const $ = cheerio.load(html);
+      if (!item.maker) {
+        const brand = $("#bylineInfo, #brand").first().text().trim();
+        item.maker = brand
+          .replace(/ブランド:|Brand:|Visit the/gi, "")
+          .replace(/のストアを表示/g, "")
+          .trim();
+      }
+      if (!item.image_url) {
+        item.image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
+      }
+      const bullets = $("#detailBullets_feature_div, #prodDetails").text();
+      const jan = bullets.match(/\b(\d{13})\b/);
+      if (jan) item.jan_code = jan[1];
+      const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
+      if (got) log("info", `  補完: ${got}`);
+      return;
+    } catch (e) {
+      const msg = (e as Error).message || "";
+      const isTimeout = msg.includes("timeout") || msg.includes("Timeout");
+      if (isTimeout && attempt < MAX_RETRIES) {
+        log("warn", `詳細補完リトライ ${attempt}/${MAX_RETRIES - 1} (${item.asin})`);
+        await sleep(1000 * attempt);
+      } else {
+        log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${msg}`);
         return;
       }
-    } else {
-      log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${msg}`);
-      return;
     }
   }
-  const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
-  if (got) log("info", `  補完: ${got}`);
 }
 
 export interface CrawlOptions {
