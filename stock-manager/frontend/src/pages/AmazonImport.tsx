@@ -388,6 +388,7 @@ export default function AmazonImport() {
                           size="small"
                           variant="contained"
                           startIcon={<InventoryIcon />}
+                          sx={{ whiteSpace: "nowrap" }}
                           onClick={() => setManageItem(q)}
                         >
                           追加
@@ -397,6 +398,7 @@ export default function AmazonImport() {
                           color="inherit"
                           variant="outlined"
                           startIcon={<BlockIcon />}
+                          sx={{ whiteSpace: "nowrap" }}
                           onClick={() => skip(q)}
                         >
                           削除
