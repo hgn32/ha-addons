@@ -434,7 +434,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     disabled={!watchedAmazonUrl || fetchingPhoto}
                     onClick={handleFetchPhoto}
                   >
-                    {fetchingPhoto ? "取込中..." : "Amazonから取込"}
+                    {fetchingPhoto ? "取込中..." : "Amazonから"}
                   </Button>
                 </Stack>
               </Box>
