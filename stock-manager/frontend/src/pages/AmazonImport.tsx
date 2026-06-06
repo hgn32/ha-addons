@@ -400,6 +400,7 @@ export default function AmazonImport() {
                           startIcon={<BlockIcon />}
                           onClick={() => ignore(q)}
                         >
+                          削除
                         </Button>
                       </Stack>
                     )}
