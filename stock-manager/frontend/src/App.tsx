@@ -77,6 +77,7 @@ export default function App() {
   }, []);
 
   const navigate = (p: Page) => {
+    setPage(p);
     window.location.hash = p;
     setMobileOpen(false);
   };
