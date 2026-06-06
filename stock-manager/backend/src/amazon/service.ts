@@ -279,6 +279,16 @@ export async function manageQueueItemMerge(id: string, productId: string, quanti
 }
 
 export async function retryEnrichFailed(): Promise<{ total: number; success: number }> {
+  if (crawlRunning) throw new Error("既にクロールを実行中です");
+  crawlRunning = true;
+  try {
+    return await retryEnrichFailedInner();
+  } finally {
+    crawlRunning = false;
+  }
+}
+
+async function retryEnrichFailedInner(): Promise<{ total: number; success: number }> {
   const cookie = await getCookie();
   if (!cookie) throw new Error("Amazon Cookieが設定されていません");
 
@@ -316,5 +326,6 @@ export async function retryEnrichFailed(): Promise<{ total: number; success: num
 
   log("info", `補完リトライ完了: ${success}/${failedItems.length}件成功`);
   return { total: failedItems.length, success };
+}
 }
 
