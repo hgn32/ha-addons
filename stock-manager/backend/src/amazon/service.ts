@@ -145,7 +145,9 @@ async function runAmazonCrawlInner(full = false): Promise<CrawlSummary> {
     queued++;
   }
 
-  await setSetting(LAST_SYNC_KEY, maxDate.toISOString());
+  // +1ms makes the next crawl's filter strictly after this date, preventing
+  // boundary re-imports when purchased_at equals the last seen order's date.
+  await setSetting(LAST_SYNC_KEY, new Date(maxDate.getTime() + 1).toISOString());
   await setSetting(LAST_RUN_KEY, new Date().toISOString());
   const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
   log("info", `★ 完了: fetched=${orders.length} queued=${queued} skipped=${skipped} (キュー合計: ${await prisma.amazonQueue.count()}件) / 所要時間 ${elapsedSec}秒`);
