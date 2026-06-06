@@ -1,6 +1,10 @@
 import AddIcon from "@mui/icons-material/Add";
+import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CloseIcon from "@mui/icons-material/Close";
+import InventoryIcon from "@mui/icons-material/Inventory";
 import LinkIcon from "@mui/icons-material/Link";
+import NoPhotographyIcon from "@mui/icons-material/NoPhotography";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import RemoveIcon from "@mui/icons-material/Remove";
 import SearchIcon from "@mui/icons-material/Search";
@@ -22,6 +26,7 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -226,8 +231,8 @@ export default function Stocktake() {
           value={mode}
           onChange={(_, v: Mode | null) => v && setMode(v)}
         >
-          <ToggleButton value="adjust">数えた数にする（棚卸し）</ToggleButton>
-          <ToggleButton value="add">数えた数を追加（入庫）</ToggleButton>
+          <ToggleButton value="adjust"><InventoryIcon fontSize="small" sx={{ mr: 0.5 }} />棚卸し</ToggleButton>
+          <ToggleButton value="add"><AddShoppingCartIcon fontSize="small" sx={{ mr: 0.5 }} />入庫</ToggleButton>
         </ToggleButtonGroup>
       </Paper>
 
@@ -250,14 +255,15 @@ export default function Stocktake() {
               }
             }}
           />
-          <Button
-            variant={cameraOn ? "contained" : "outlined"}
-            startIcon={<PhotoCameraIcon />}
-            onClick={() => setCameraOn((v) => !v)}
-            sx={{ whiteSpace: "nowrap" }}
-          >
-            {cameraOn ? "カメラ停止" : "カメラ"}
-          </Button>
+          <Tooltip title={cameraOn ? "カメラ停止" : "カメラ起動"}>
+            <IconButton
+              color={cameraOn ? "error" : "default"}
+              onClick={() => setCameraOn((v) => !v)}
+              sx={{ border: 1, borderColor: cameraOn ? "error.main" : "action.disabled" }}
+            >
+              {cameraOn ? <NoPhotographyIcon /> : <PhotoCameraIcon />}
+            </IconButton>
+          </Tooltip>
         </Stack>
         {cameraOn && (
           <Box sx={{ mt: 2 }}>
@@ -334,10 +340,12 @@ export default function Stocktake() {
                 : `在庫を ${currentStock} → ${currentStock + count} に加算します`}
             </Typography>
 
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-              <Button fullWidth color="inherit" onClick={() => { setCurrent(null); setCount(0); focusInput(); }}>
-                キャンセル
-              </Button>
+            <Stack direction="row" spacing={1} sx={{ mt: 2 }} alignItems="center">
+              <Tooltip title="キャンセル">
+                <IconButton onClick={() => { setCurrent(null); setCount(0); focusInput(); }}>
+                  <CloseIcon />
+                </IconButton>
+              </Tooltip>
               <Button
                 fullWidth
                 variant="contained"
