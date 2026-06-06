@@ -11,11 +11,9 @@ import {
   Button,
   Chip,
   CircularProgress,
-  FormControlLabel,
   LinearProgress,
   Paper,
   Stack,
-  Switch,
   Table,
   TableBody,
   TableCell,
@@ -43,7 +41,6 @@ export default function AmazonImport() {
   const [savingCookie, setSavingCookie] = useState(false);
   const [notifyTesting, setNotifyTesting] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
-  const [showAll, setShowAll] = useState(false);
   const [enrichRetrying, setEnrichRetrying] = useState(false);
   const logBoxRef = useRef<HTMLDivElement>(null);
 
@@ -54,10 +51,9 @@ export default function AmazonImport() {
   const loadSettings = useCallback(async () => {
     setSettings(await api.get<AmazonSettings>("/api/amazon/settings"));
   }, []);
-  const loadQueue = useCallback(async (all?: boolean) => {
-    const s = all !== undefined ? all : showAll;
-    setQueue(await api.get<AmazonQueueItem[]>(`/api/amazon/queue?status=${s ? "all" : "pending"}`));
-  }, [showAll]);
+  const loadQueue = useCallback(async () => {
+    setQueue(await api.get<AmazonQueueItem[]>("/api/amazon/queue?status=pending"));
+  }, []);
   const loadLogs = useCallback(async () => {
     setLogs(await api.get<AmazonLogEntry[]>("/api/amazon/logs"));
   }, []);
@@ -339,11 +335,6 @@ export default function AmazonImport() {
             4. 取込待ちリスト（{queue.length}件）
           </Typography>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-            <FormControlLabel
-              control={<Switch size="small" checked={showAll} onChange={(e) => { setShowAll(e.target.checked); loadQueue(e.target.checked); }} />}
-              label={<Typography variant="body2" noWrap>全件表示（自動処理済み含む）</Typography>}
-              sx={{ mr: 0 }}
-            />
             {enrichFailedCount > 0 && (
               <Button
                 size="small"
@@ -375,7 +366,7 @@ export default function AmazonImport() {
           </Stack>
         </Stack>
         <Typography variant="body2" color="text.secondary" mb={2}>
-          マスタに一致した品目は自動で在庫加算済みです。未登録の品目をここで振り分けます。
+          購入履歴を取り込む品目を1件ずつ確認します。在庫に追加するか、削除するかを選択してください。
         </Typography>
         <TableContainer sx={{ overflowX: "auto" }}>
           <Table>

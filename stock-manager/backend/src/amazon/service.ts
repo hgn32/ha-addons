@@ -238,7 +238,7 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
     },
   });
 
-  await prisma.amazonQueue.update({ where: { id }, data: { status: "managed" } });
+  await prisma.amazonQueue.delete({ where: { id } });
   return product;
 }
 
@@ -274,7 +274,7 @@ export async function manageQueueItemMerge(id: string, productId: string, quanti
     },
   });
 
-  await prisma.amazonQueue.update({ where: { id }, data: { status: "managed" } });
+  await prisma.amazonQueue.delete({ where: { id } });
   return product;
 }
 
