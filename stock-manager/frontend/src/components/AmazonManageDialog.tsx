@@ -240,11 +240,11 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
               <TextField label="JANコード" size="small" value={form.jan_code} onChange={set("jan_code")} fullWidth />
               <Stack direction="row" spacing={2}>
                 <TextField select label="品目カテゴリ" size="small" value={form.category_id} onChange={set("category_id")} fullWidth>
-                  <MenuItem value=""></MenuItem>
+                  <MenuItem value="">----</MenuItem>
                   {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
                 </TextField>
                 <TextField select label="置き場" size="small" value={form.location_id} onChange={set("location_id")} fullWidth>
-                  <MenuItem value=""></MenuItem>
+                  <MenuItem value="">----</MenuItem>
                   {locations.map((l) => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
                 </TextField>
               </Stack>

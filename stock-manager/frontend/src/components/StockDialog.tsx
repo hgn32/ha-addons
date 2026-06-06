@@ -119,7 +119,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
                   error={!!errors.product_id}
                   helperText={errors.product_id?.message}
                 >
-                  <MenuItem value=""></MenuItem>
+                  <MenuItem value="">----</MenuItem>
                   {products.map((p) => (
                     <MenuItem key={p.id} value={p.id}>
                       {p.name}（在庫: {stockOf(p.id)}）
@@ -180,7 +180,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
                   control={control}
                   render={({ field }) => (
                     <TextField select label="購入先" fullWidth {...field}>
-                      <MenuItem value=""></MenuItem>
+                      <MenuItem value="">----</MenuItem>
                       {suppliers.map((s) => (
                         <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
                       ))}

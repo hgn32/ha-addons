@@ -390,7 +390,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     control={control}
                     render={({ field }) => (
                       <TextField select label="品目カテゴリ" fullWidth {...field}>
-                        <MenuItem value=""></MenuItem>
+                        <MenuItem value="">----</MenuItem>
                         {categories.map((c) => (
                           <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
                         ))}
@@ -402,7 +402,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     control={control}
                     render={({ field }) => (
                       <TextField select label="置き場" fullWidth {...field}>
-                        <MenuItem value=""></MenuItem>
+                        <MenuItem value="">----</MenuItem>
                         {locations.map((l) => (
                           <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>
                         ))}
