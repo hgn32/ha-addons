@@ -347,17 +347,18 @@ export default function AmazonImport() {
         <Typography variant="body2" color="text.secondary" mb={2}>
           マスタに一致した品目は自動で在庫加算済みです。未登録の品目をここで振り分けます。
         </Typography>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: "auto" }}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 56 }} />
+                <TableCell sx={{ width: 48, p: 1 }} />
                 <TableCell>品目名</TableCell>
-                <TableCell>ASIN</TableCell>
-                <TableCell>購入日</TableCell>
-                <TableCell align="right">数量</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>ASIN</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>購入日</TableCell>
+                <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>数量</TableCell>
+                <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>単価</TableCell>
                 <TableCell>状態</TableCell>
-                <TableCell align="right" />
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -373,9 +374,10 @@ export default function AmazonImport() {
                     </Avatar>
                   </TableCell>
                   <TableCell>{q.product_name}</TableCell>
-                  <TableCell>{q.asin}</TableCell>
-                  <TableCell>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
-                  <TableCell align="right">{q.quantity}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{q.asin}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
+                  <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>{q.quantity}</TableCell>
+                  <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>¥{q.unit_price.toLocaleString()}</TableCell>
                   <TableCell>
                     <Chip
                       size="small"
@@ -383,23 +385,25 @@ export default function AmazonImport() {
                       color={{ pending: "warning", auto: "success", managed: "primary", ignored: "default" }[q.status] as "warning" | "success" | "primary" | "default" ?? "default"}
                     />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell sx={{ p: 1 }}>
                     {q.status === "pending" && (
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Stack direction="column" spacing={0.5} alignItems="stretch">
                         <Button
                           size="small"
                           variant="contained"
                           startIcon={<InventoryIcon />}
                           onClick={() => setManageItem(q)}
                         >
-                          在庫登録
+                          在庫管理する
                         </Button>
                         <Button
                           size="small"
                           color="inherit"
+                          variant="outlined"
                           startIcon={<BlockIcon />}
                           onClick={() => ignore(q)}
                         >
+                          管理しない
                         </Button>
                       </Stack>
                     )}
@@ -408,7 +412,7 @@ export default function AmazonImport() {
               ))}
               {queue.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 4, color: "text.secondary" }}>
                     取込待ちの品目はありません
                   </TableCell>
                 </TableRow>
