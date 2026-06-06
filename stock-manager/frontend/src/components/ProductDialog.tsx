@@ -318,7 +318,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                 <Typography variant="body2" color="text.secondary">Amazonを検索中...</Typography>
               )}
               {/* Amazon URLから取込（全幅） */}
-              <Stack direction="row" spacing={1} alignItems="flex-start">
+              <Stack direction="row" spacing={1} alignItems="center">
                 <TextField
                   label="Amazon URLから取込"
                   placeholder="https://www.amazon.co.jp/dp/..."
@@ -327,14 +327,13 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   onChange={(e) => setFetchUrl(e.target.value)}
                   size="small"
                 />
-                <Button
-                  variant="outlined"
+                <IconButton
+                  color="primary"
                   onClick={handleFetchProduct}
                   disabled={fetching || !fetchUrl.trim()}
-                  sx={{ whiteSpace: "nowrap", minWidth: 120 }}
                 >
-                  {fetching ? "取込中..." : "取込"}
-                </Button>
+                  <CloudDownloadIcon />
+                </IconButton>
               </Stack>
 
               {/* 2カラム（狭い画面では1カラム）にして古いHD画面でもスクロール不要に */}
@@ -420,14 +419,15 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   📦
                 </Avatar>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />}>
+                  <IconButton component="label" color="primary">
                     <input
                       hidden
                       type="file"
                       accept="image/*"
                       onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                     />
-                  </Button>
+                    <PhotoCameraIcon />
+                  </IconButton>
                   <Button
                     variant="outlined"
                     startIcon={<CloudDownloadIcon />}
