@@ -410,7 +410,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                       </TextField>
                     )}
                   />
-                  <TextField label="メモ" fullWidth multiline minRows={2} {...register("note")} />
+                  <TextField label="メモ" fullWidth multiline minRows={2} slotProps={{ htmlInput: { style: { resize: "vertical" } } }} {...register("note")} />
                 </Stack>
               </Stack>
 

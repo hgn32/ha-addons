@@ -249,7 +249,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
                   {locations.map((l) => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
                 </TextField>
               </Stack>
-              <TextField label="メモ" size="small" multiline minRows={2} value={form.note} onChange={set("note")} fullWidth />
+              <TextField label="メモ" size="small" multiline minRows={2} slotProps={{ htmlInput: { style: { resize: "vertical" } } }} value={form.note} onChange={set("note")} fullWidth />
               {QtySection}
             </Stack>
           )}

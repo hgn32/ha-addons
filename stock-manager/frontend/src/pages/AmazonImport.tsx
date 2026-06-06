@@ -217,6 +217,7 @@ export default function AmazonImport() {
             multiline
             minRows={2}
             placeholder="cURL コマンドをそのまま貼り付け、または Cookie の値のみ貼り付け"
+            slotProps={{ htmlInput: { style: { resize: "vertical" } } }}
           />
           <Button variant="contained" disabled={!cookie.trim() || savingCookie} onClick={saveCookie}>
             Cookieを保存
@@ -289,8 +290,9 @@ export default function AmazonImport() {
             fontSize: "0.75rem",
             p: 1.5,
             borderRadius: 1,
-            height: 260,
+            minHeight: 260,
             overflowY: "auto",
+            resize: "vertical",
             whiteSpace: "pre-wrap",
             wordBreak: "break-all",
           }}
