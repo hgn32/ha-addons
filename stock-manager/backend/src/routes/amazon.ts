@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
-import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, matchProduct, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
+import { manageQueueItemNew, manageQueueItemMerge, matchProduct, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
 import { notifyHA } from "../amazon/notify";
 import { getBrowser } from "../amazon/crawler";
 
@@ -191,45 +191,13 @@ router.delete("/products/asins/:asinId", async (req, res) => {
   }
 });
 
-// パターンB: 在庫管理しない（無視リスト登録 + 取込リストから削除）
-router.post("/amazon/queue/:id/ignore", async (req, res) => {
-  try {
-    await ignoreQueueItem(req.params.id as string);
-    res.status(204).end();
-  } catch (e) {
-    res.status(400).json({ detail: (e as Error).message });
-  }
-});
-
-// パターンC: 今回は取り込まない（この注文のみスキップ、次回購入は再出現）
+// 今回は取り込まない（この注文のみスキップ、次回購入は再出現）
 router.post("/amazon/queue/:id/skip", async (req, res) => {
   try {
     await prisma.amazonQueue.update({
       where: { id: req.params.id as string },
       data: { status: "skipped" },
     });
-    res.status(204).end();
-  } catch {
-    res.status(404).json({ detail: "Not found" });
-  }
-});
-
-// 無視リスト取得（品目名はキュー履歴から補完）
-router.get("/amazon/ignored", async (_req, res) => {
-  const ignored = await prisma.amazonIgnoredAsin.findMany({ orderBy: { created_at: "desc" } });
-  const asinList = ignored.map((i) => i.asin);
-  const queueEntries = await prisma.amazonQueue.findMany({ where: { asin: { in: asinList } } });
-  const nameMap = new Map<string, string>();
-  for (const q of queueEntries) {
-    if (!nameMap.has(q.asin) && q.product_name) nameMap.set(q.asin, q.product_name);
-  }
-  res.json(ignored.map((i) => ({ asin: i.asin, product_name: nameMap.get(i.asin) ?? "", created_at: i.created_at })));
-});
-
-// 無視リストから削除（次回クロールで再取込対象に戻す）
-router.delete("/amazon/ignored/:asin", async (req, res) => {
-  try {
-    await prisma.amazonIgnoredAsin.delete({ where: { asin: req.params.asin as string } });
     res.status(204).end();
   } catch {
     res.status(404).json({ detail: "Not found" });

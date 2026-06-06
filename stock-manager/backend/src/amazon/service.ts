@@ -276,19 +276,3 @@ export async function manageQueueItemMerge(id: string, productId: string, quanti
   return product;
 }
 
-// パターンB「在庫管理しない」: 無視リストに登録し、取込リストから削除。
-export async function ignoreQueueItem(id: string): Promise<void> {
-  const item = await prisma.amazonQueue.findUnique({ where: { id } });
-  if (!item) throw new Error("取込データが見つかりません");
-
-  if (item.asin) {
-    await prisma.amazonIgnoredAsin.upsert({
-      where: { asin: item.asin },
-      update: {},
-      create: { asin: item.asin },
-    });
-    await prisma.amazonQueue.deleteMany({ where: { asin: item.asin, status: "pending" } });
-  } else {
-    await prisma.amazonQueue.delete({ where: { id } });
-  }
-}
