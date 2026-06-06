@@ -131,15 +131,17 @@ async function runAmazonCrawlInner(full = false): Promise<CrawlSummary> {
   const needEnrich = toProcess
     .filter(({ product }) => !product)
     .map(({ item }) => item);
+  let failedAsins: string[] = [];
   if (needEnrich.length > 0) {
     log("info", `詳細補完対象: ${needEnrich.length}件（マスタ未登録のみ）`);
-    await enrichItems(cookie, needEnrich, curlHeaders);
+    failedAsins = await enrichItems(cookie, needEnrich, curlHeaders);
   }
 
   // DB登録
   for (const { item } of toProcess) {
     log("info", `  取込待ち追加: "${item.product_name}" (ASIN=${item.asin})`);
-    await prisma.amazonQueue.create({ data: queueData(item, "pending") });
+    const enrichFailed = needEnrich.some(n => n.asin === item.asin) && failedAsins.includes(item.asin);
+    await prisma.amazonQueue.create({ data: { ...queueData(item, "pending"), enrich_failed: enrichFailed } });
     queued++;
   }
 
@@ -274,5 +276,45 @@ export async function manageQueueItemMerge(id: string, productId: string, quanti
 
   await prisma.amazonQueue.update({ where: { id }, data: { status: "managed" } });
   return product;
+}
+
+export async function retryEnrichFailed(): Promise<{ total: number; success: number }> {
+  const cookie = await getCookie();
+  if (!cookie) throw new Error("Amazon Cookieが設定されていません");
+
+  const failedItems = await prisma.amazonQueue.findMany({ where: { enrich_failed: true } });
+  if (failedItems.length === 0) return { total: 0, success: 0 };
+
+  log("info", `補完リトライ: ${failedItems.length}件`);
+  const curlHeaders = await getCurlHeaders();
+
+  const crawlItems: CrawledItem[] = failedItems.map(q => ({
+    order_id: q.order_id,
+    asin: q.asin,
+    jan_code: q.jan_code,
+    product_name: q.product_name,
+    maker: q.maker,
+    product_url: q.product_url,
+    image_url: q.image_url,
+    purchased_at: q.purchased_at,
+    quantity: q.quantity,
+    unit_price: q.unit_price,
+  }));
+
+  const failedAsins = await enrichItems(cookie, crawlItems, curlHeaders);
+
+  let success = 0;
+  for (const item of crawlItems) {
+    const enrichFailed = failedAsins.includes(item.asin);
+    const queueRow = failedItems.find(f => f.asin === item.asin)!;
+    await prisma.amazonQueue.update({
+      where: { id: queueRow.id },
+      data: { maker: item.maker, image_url: item.image_url, jan_code: item.jan_code, enrich_failed: enrichFailed },
+    });
+    if (!enrichFailed) success++;
+  }
+
+  log("info", `補完リトライ完了: ${success}/${failedItems.length}件成功`);
+  return { total: failedItems.length, success };
 }
 

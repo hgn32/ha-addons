@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
-import { manageQueueItemNew, manageQueueItemMerge, matchProduct, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
+import { manageQueueItemNew, manageQueueItemMerge, matchProduct, runAmazonCrawl, isCrawlRunning, retryEnrichFailed } from "../amazon/service";
 import { notifyHA } from "../amazon/notify";
 import { getBrowser } from "../amazon/crawler";
 
@@ -104,6 +104,16 @@ router.post("/amazon/crawl", async (req, res) => {
       await notifyHA("Stock Manager: Amazon取込完了", `・確認待ち: ${summary.queued}件`);
     }
     res.json(summary);
+  } catch (e) {
+    res.status(400).json({ detail: (e as Error).message });
+  }
+});
+
+router.post("/amazon/enrich-retry", async (_req, res) => {
+  if (isCrawlRunning()) return res.status(409).json({ detail: "クロール実行中です" });
+  try {
+    const result = await retryEnrichFailed();
+    res.json(result);
   } catch (e) {
     res.status(400).json({ detail: (e as Error).message });
   }

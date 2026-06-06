@@ -112,8 +112,9 @@ model AmazonQueue {
   purchased_at DateTime
   quantity     Int      @default(1)
   unit_price   Float    @default(0)
-  status       String   @default("pending")
-  created_at   DateTime @default(now())
+  status        String   @default("pending")
+  enrich_failed Boolean  @default(false)
+  created_at    DateTime @default(now())
 
   @@index([status])
 }

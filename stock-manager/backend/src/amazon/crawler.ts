@@ -350,7 +350,7 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   return { html, finalUrl };
 }
 
-async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
+async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<boolean> {
   const ENRICH_TIMEOUT = 10000;
   const MAX_RETRIES = 10;
 
@@ -369,15 +369,17 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
           .replace(/のストアを表示/g, "")
           .trim();
       }
+      // メーカー名が品目名の先頭に重複していれば除去
+      if (item.maker && item.product_name.toLowerCase().startsWith(item.maker.toLowerCase())) {
+        item.product_name = item.product_name.slice(item.maker.length).trimStart();
+      }
       if (!item.image_url) {
         item.image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
       }
       const bullets = $("#detailBullets_feature_div, #prodDetails").text();
       const jan = bullets.match(/\b(\d{13})\b/);
       if (jan) item.jan_code = jan[1];
-      const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
-      if (got) log("info", `  補完: ${got}`);
-      return;
+      return true;
     } catch (e) {
       const msg = (e as Error).message || "";
       const isTimeout = msg.includes("timeout") || msg.includes("Timeout");
@@ -386,10 +388,11 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
         await sleep(1000 * attempt);
       } else {
         log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${msg}`);
-        return;
+        return false;
       }
     }
   }
+  return false;
 }
 
 export interface CrawlOptions {
@@ -454,10 +457,11 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
 
 const ENRICH_CONCURRENCY = 2;
 
-export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<void> {
-  if (items.length === 0) return;
+export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<string[]> {
+  if (items.length === 0) return [];
   const concurrency = Math.min(ENRICH_CONCURRENCY, items.length);
   log("info", `詳細補完: ${items.length}件 (並列${concurrency})`);
+  const failed: string[] = [];
   await withBrowser(async (browser) => {
     const pages = await Promise.all(
       Array.from({ length: concurrency }, () => setupPage(browser, cookie, curlHeaders))
@@ -467,11 +471,13 @@ export async function enrichItems(cookie: string, items: CrawledItem[], curlHead
       while (cursor < items.length) {
         const i = cursor++;
         if (i >= items.length) break;
-        await enrichItem(page, items[i], i + 1, items.length);
+        const ok = await enrichItem(page, items[i], i + 1, items.length);
+        if (!ok) failed.push(items[i].asin);
         if (cursor < items.length) await enrichDelay();
       }
       await page.close();
     }));
   });
   log("info", "詳細補完完了");
+  return failed;
 }

@@ -90,6 +90,7 @@ export interface AmazonQueueItem {
   quantity: number;
   unit_price: number;
   status: string;
+  enrich_failed: boolean;
   created_at: string;
   matched_product: {
     id: string;

@@ -44,6 +44,7 @@ export default function AmazonImport() {
   const [notifyTesting, setNotifyTesting] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [enrichRetrying, setEnrichRetrying] = useState(false);
   const logBoxRef = useRef<HTMLDivElement>(null);
 
   // クロール実行中か（UI操作 or バックグラウンド/定期実行のどちらでも）
@@ -157,6 +158,21 @@ export default function AmazonImport() {
       setNotifyTesting(false);
     }
   };
+
+  const enrichRetry = async () => {
+    setEnrichRetrying(true);
+    try {
+      const r = await api.post<{ total: number; success: number }>("/api/amazon/enrich-retry", {});
+      toast(`補完リトライ完了: ${r.success}/${r.total}件成功`);
+      await loadQueue();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setEnrichRetrying(false);
+    }
+  };
+
+  const enrichFailedCount = queue.filter(q => q.enrich_failed).length;
 
   const skip = async (item: AmazonQueueItem) => {
     try {
@@ -328,6 +344,19 @@ export default function AmazonImport() {
               label={<Typography variant="body2" noWrap>全件表示（自動処理済み含む）</Typography>}
               sx={{ mr: 0 }}
             />
+            {enrichFailedCount > 0 && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="warning"
+                disabled={enrichRetrying}
+                startIcon={enrichRetrying ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
+                onClick={enrichRetry}
+                sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+              >
+                補完リトライ ({enrichFailedCount})
+              </Button>
+            )}
             <Button
               size="small"
               color="error"
@@ -371,7 +400,12 @@ export default function AmazonImport() {
                     </Avatar>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">{q.product_name}</Typography>
+                    <Typography variant="body2" component="span">
+                      {q.product_name}
+                      {q.enrich_failed && (
+                        <Chip size="small" label="補完失敗" color="warning" variant="outlined" sx={{ ml: 0.5, height: 16, fontSize: "0.6rem", verticalAlign: "middle" }} />
+                      )}
+                    </Typography>
                     <Typography variant="caption" color="text.secondary" component="div">
                       {q.asin} · {new Date(q.purchased_at).toLocaleDateString("ja-JP")} · {q.quantity}個
                     </Typography>
