@@ -54,7 +54,7 @@ interface ProductBarcode {
 }
 
 const schema = yup.object({
-  name: yup.string().required("アイテム名は必須です"),
+  name: yup.string().required("名は必須です"),
   volume: yup.string().default(""),
   piece_count: yup.number().integer().min(1).default(1),
   maker: yup.string().default(""),
@@ -205,7 +205,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
           // 写真取込失敗は無視
         }
       }
-      toast("アイテム情報を取込みました");
+      toast("品目情報を取込みました");
     } catch (e) {
       toast((e as Error).message || "取込に失敗しました", "error");
     } finally {
@@ -289,10 +289,10 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
       let created: Product | null = null;
       if (product) {
         await api.put(`/api/products/${product.id}`, fd);
-        toast("アイテムを更新しました");
+        toast("品目を更新しました");
       } else {
         created = await api.post<Product>("/api/products", fd);
-        toast("アイテムを追加しました");
+        toast("品目を追加しました");
       }
       await Promise.all([reloadProducts(), reloadInventory()]);
       if (created) onCreated?.(created);
@@ -304,7 +304,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
-      <DialogTitle>{product ? "アイテムを編集" : "アイテムを追加"}</DialogTitle>
+      <DialogTitle>{product ? "品目編集" : "品目追加"}</DialogTitle>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 3, borderBottom: 1, borderColor: "divider" }}>
         <Tab label="基本情報" />
         {product && <Tab label={`JANコード (${barcodes.length})`} />}
@@ -333,7 +333,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   disabled={fetching || !fetchUrl.trim()}
                   sx={{ whiteSpace: "nowrap", minWidth: 120 }}
                 >
-                  {fetching ? "取込中..." : "情報を取込"}
+                  {fetching ? "取込中..." : "取込"}
                 </Button>
               </Stack>
 
@@ -391,7 +391,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     control={control}
                     render={({ field }) => (
                       <TextField select label="品目カテゴリ" fullWidth {...field}>
-                        <MenuItem value="">-- 選択 --</MenuItem>
+                        <MenuItem value=""></MenuItem>
                         {categories.map((c) => (
                           <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
                         ))}
@@ -403,7 +403,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     control={control}
                     render={({ field }) => (
                       <TextField select label="置き場" fullWidth {...field}>
-                        <MenuItem value="">-- 選択 --</MenuItem>
+                        <MenuItem value=""></MenuItem>
                         {locations.map((l) => (
                           <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>
                         ))}
@@ -421,7 +421,6 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                 </Avatar>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />}>
-                    選択
                     <input
                       hidden
                       type="file"
@@ -445,7 +444,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
           {tab === 1 && product && (
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Typography variant="body2" color="text.secondary">
-                色違い等で複数のJANコードがある場合に追加します。ここに登録したコードはJANコードスキャン時にこのアイテムとして認識されます。
+                色違い等で複数のJANコードがある場合に追加します。ここに登録したコードはJANコードスキャン時にこの品目として認識されます。
               </Typography>
               <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
                 <Typography variant="caption" color="text.secondary" display="block">主JANコード（「基本情報」タブで編集）</Typography>
@@ -482,7 +481,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
           {tab === 2 && product && (
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Typography variant="body2" color="text.secondary">
-                紐づいたASINはAmazonクロール時に自動でこのアイテムに在庫加算されます。
+                紐づいたASINはAmazonクロール時に自動でこの品目に在庫加算されます。
               </Typography>
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                 {asins.length === 0 && (
