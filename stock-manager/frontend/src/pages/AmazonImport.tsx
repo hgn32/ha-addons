@@ -353,10 +353,6 @@ export default function AmazonImport() {
               <TableRow>
                 <TableCell sx={{ width: 48, p: 1 }} />
                 <TableCell>品目名</TableCell>
-                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>ASIN</TableCell>
-                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>購入日</TableCell>
-                <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>数量</TableCell>
-                <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>単価</TableCell>
                 <TableCell>状態</TableCell>
                 <TableCell />
               </TableRow>
@@ -373,11 +369,12 @@ export default function AmazonImport() {
                       📦
                     </Avatar>
                   </TableCell>
-                  <TableCell>{q.product_name}</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{q.asin}</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
-                  <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>{q.quantity}</TableCell>
-                  <TableCell align="right" sx={{ display: { xs: "none", sm: "table-cell" } }}>¥{q.unit_price.toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{q.product_name}</Typography>
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      {q.asin} · {new Date(q.purchased_at).toLocaleDateString("ja-JP")} · {q.quantity}個
+                    </Typography>
+                  </TableCell>
                   <TableCell>
                     <Chip
                       size="small"
