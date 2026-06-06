@@ -350,7 +350,7 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   return { html, finalUrl };
 }
 
-async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<boolean> {
+async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number, onTimeout: () => void): Promise<boolean> {
   const ENRICH_TIMEOUT = 10000;
   const MAX_RETRIES = 10;
 
@@ -384,6 +384,7 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
       const msg = (e as Error).message || "";
       const isTimeout = msg.includes("timeout") || msg.includes("Timeout");
       if (isTimeout && attempt < MAX_RETRIES) {
+        onTimeout();
         log("warn", `詳細補完リトライ ${attempt}/${MAX_RETRIES - 1} (${item.asin})`);
         await sleep(1000 * attempt);
       } else {
@@ -462,6 +463,11 @@ export async function enrichItems(cookie: string, items: CrawledItem[], curlHead
   const concurrency = Math.min(ENRICH_CONCURRENCY, items.length);
   log("info", `詳細補完: ${items.length}件 (並列${concurrency})`);
   const failed: string[] = [];
+  let timeoutCount = 0;
+  const onTimeout = () => { timeoutCount++; };
+  const COOLDOWN_THRESHOLD = 5;
+  const COOLDOWN_MS = 2 * 60 * 1000;
+
   await withBrowser(async (browser) => {
     const pages = await Promise.all(
       Array.from({ length: concurrency }, () => setupPage(browser, cookie, curlHeaders))
@@ -471,9 +477,15 @@ export async function enrichItems(cookie: string, items: CrawledItem[], curlHead
       while (cursor < items.length) {
         const i = cursor++;
         if (i >= items.length) break;
-        const ok = await enrichItem(page, items[i], i + 1, items.length);
+        const ok = await enrichItem(page, items[i], i + 1, items.length, onTimeout);
         if (!ok) failed.push(items[i].asin);
-        if (cursor < items.length) await enrichDelay();
+        if (timeoutCount > COOLDOWN_THRESHOLD) {
+          log("warn", `タイムアウト累計 ${timeoutCount} 回 — 2分間待機します`);
+          timeoutCount = 0;
+          await sleep(COOLDOWN_MS);
+        } else if (cursor < items.length) {
+          await enrichDelay();
+        }
       }
       await page.close();
     }));
