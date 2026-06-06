@@ -351,9 +351,9 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
 }
 
 async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
-  try {
-    log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
-    await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: 20000 });
+  const ENRICH_TIMEOUT = 30000;
+  const attempt = async () => {
+    await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: ENRICH_TIMEOUT });
     await sleep(300);
     const html = await page.content();
     const $ = cheerio.load(html);
@@ -370,11 +370,29 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
     const bullets = $("#detailBullets_feature_div, #prodDetails").text();
     const jan = bullets.match(/\b(\d{13})\b/);
     if (jan) item.jan_code = jan[1];
-    const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
-    if (got) log("info", `  補完: ${got}`);
+  };
+
+  log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
+  try {
+    await attempt();
   } catch (e) {
-    log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${(e as Error).message}`);
+    const msg = (e as Error).message || "";
+    if (msg.includes("timeout") || msg.includes("Timeout")) {
+      log("warn", `詳細補完リトライ (${index}/${total} ${item.asin})`);
+      await sleep(2000);
+      try {
+        await attempt();
+      } catch (e2) {
+        log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${(e2 as Error).message}`);
+        return;
+      }
+    } else {
+      log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${msg}`);
+      return;
+    }
   }
+  const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
+  if (got) log("info", `  補完: ${got}`);
 }
 
 export interface CrawlOptions {
