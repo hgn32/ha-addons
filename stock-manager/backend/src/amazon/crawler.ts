@@ -455,7 +455,7 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
   return { items: collected, refreshedCookie };
 }
 
-const ENRICH_CONCURRENCY = 2;
+const ENRICH_CONCURRENCY = 1;
 
 export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<string[]> {
   if (items.length === 0) return [];
