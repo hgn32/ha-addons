@@ -256,7 +256,7 @@ export default function Stocktake() {
             onClick={() => setCameraOn((v) => !v)}
             sx={{ whiteSpace: "nowrap" }}
           >
-            {cameraOn ? "カメラ停止" : "カメラ"}
+            {cameraOn ? "停止" : ""}
           </Button>
         </Stack>
         {cameraOn && (
