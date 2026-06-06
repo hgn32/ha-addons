@@ -193,6 +193,28 @@ router.post("/amazon/queue/:id/ignore", async (req, res) => {
   }
 });
 
+// 無視リスト取得（品目名はキュー履歴から補完）
+router.get("/amazon/ignored", async (_req, res) => {
+  const ignored = await prisma.amazonIgnoredAsin.findMany({ orderBy: { created_at: "desc" } });
+  const asinList = ignored.map((i) => i.asin);
+  const queueEntries = await prisma.amazonQueue.findMany({ where: { asin: { in: asinList } } });
+  const nameMap = new Map<string, string>();
+  for (const q of queueEntries) {
+    if (!nameMap.has(q.asin) && q.product_name) nameMap.set(q.asin, q.product_name);
+  }
+  res.json(ignored.map((i) => ({ asin: i.asin, product_name: nameMap.get(i.asin) ?? "", created_at: i.created_at })));
+});
+
+// 無視リストから削除（次回クロールで再取込対象に戻す）
+router.delete("/amazon/ignored/:asin", async (req, res) => {
+  try {
+    await prisma.amazonIgnoredAsin.delete({ where: { asin: req.params.asin as string } });
+    res.status(204).end();
+  } catch {
+    res.status(404).json({ detail: "Not found" });
+  }
+});
+
 // --- Amazon URL / JAN → 品目情報取込 ------------------------------------------
 
 interface ScrapedProduct {

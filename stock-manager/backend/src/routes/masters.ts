@@ -20,7 +20,7 @@ function crudRouter(path: string, delegate: Delegate, fields: string[]): Router 
     // Place new items at the end
     const existing = await delegate.findMany({ select: { id: true } });
     const data: Record<string, unknown> = { sort_order: existing.length };
-    for (const f of fields) data[f] = req.body[f] ?? "";
+    for (const f of fields) data[f] = String(req.body[f] ?? "").trim();
     res.status(201).json(await delegate.create({ data }));
   });
 
@@ -35,7 +35,7 @@ function crudRouter(path: string, delegate: Delegate, fields: string[]): Router 
 
   r.put(`/${path}/:id`, async (req, res) => {
     const data: Record<string, string> = {};
-    for (const f of fields) data[f] = req.body[f] ?? "";
+    for (const f of fields) data[f] = String(req.body[f] ?? "").trim();
     try {
       res.json(await delegate.update({ where: { id: req.params.id }, data }));
     } catch {

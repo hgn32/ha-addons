@@ -77,6 +77,12 @@ export interface AmazonCrawlSummary {
   last_sync: string;
 }
 
+export interface IgnoredAsin {
+  asin: string;
+  product_name: string;
+  created_at: string;
+}
+
 export interface AmazonQueueItem {
   id: string;
   order_id: string;

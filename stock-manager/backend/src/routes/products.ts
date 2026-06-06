@@ -115,7 +115,7 @@ router.put("/products/reorder", async (req, res) => {
 
 function coerce(field: string, value: string): string | number {
   if (field === "piece_count") return Math.max(1, parseInt(value, 10) || 1);
-  return value;
+  return String(value ?? "").trim();
 }
 
 router.post("/products", upload.single("photo"), async (req, res) => {

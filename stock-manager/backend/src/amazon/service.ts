@@ -210,7 +210,17 @@ export interface ManageOverrides {
 }
 
 // パターンA-1「新規登録」: 品目マスタに新規登録 + 在庫加算 + ASIN紐づけ
-export async function manageQueueItemNew(id: string, overrides: ManageOverrides) {
+export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrides) {
+  const overrides: ManageOverrides = {
+    name: rawOverrides.name?.trim(),
+    maker: rawOverrides.maker?.trim(),
+    volume: rawOverrides.volume?.trim(),
+    piece_count: rawOverrides.piece_count,
+    jan_code: rawOverrides.jan_code?.trim(),
+    category_id: rawOverrides.category_id?.trim(),
+    location_id: rawOverrides.location_id?.trim(),
+    note: rawOverrides.note?.trim(),
+  };
   const item = await prisma.amazonQueue.findUnique({ where: { id } });
   if (!item) throw new Error("取込データが見つかりません");
 

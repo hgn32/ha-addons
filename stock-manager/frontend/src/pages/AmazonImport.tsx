@@ -4,6 +4,7 @@ import InventoryIcon from "@mui/icons-material/Inventory";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SyncIcon from "@mui/icons-material/Sync";
+import UndoIcon from "@mui/icons-material/Undo";
 import {
   Alert,
   Avatar,
@@ -29,7 +30,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, imageUrl } from "../api";
 import AmazonManageDialog from "../components/AmazonManageDialog";
 import { useStore } from "../store";
-import { AmazonCrawlSummary, AmazonLogEntry, AmazonQueueItem, AmazonSettings } from "../types";
+import { AmazonCrawlSummary, AmazonLogEntry, AmazonQueueItem, AmazonSettings, IgnoredAsin } from "../types";
 
 export default function AmazonImport() {
   const { reloadProducts, reloadInventory, reloadTransactions, toast } = useStore();
@@ -44,6 +45,7 @@ export default function AmazonImport() {
   const [notifyTesting, setNotifyTesting] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [ignored, setIgnored] = useState<IgnoredAsin[]>([]);
   const logBoxRef = useRef<HTMLDivElement>(null);
 
   // クロール実行中か（UI操作 or バックグラウンド/定期実行のどちらでも）
@@ -60,12 +62,16 @@ export default function AmazonImport() {
   const loadLogs = useCallback(async () => {
     setLogs(await api.get<AmazonLogEntry[]>("/api/amazon/logs"));
   }, []);
+  const loadIgnored = useCallback(async () => {
+    setIgnored(await api.get<IgnoredAsin[]>("/api/amazon/ignored"));
+  }, []);
 
   useEffect(() => {
     loadSettings().catch((e) => toast((e as Error).message, "error"));
     loadQueue().catch(() => undefined);
     loadLogs().catch(() => undefined);
-  }, [loadSettings, loadQueue, loadLogs, toast]);
+    loadIgnored().catch(() => undefined);
+  }, [loadSettings, loadQueue, loadLogs, loadIgnored, toast]);
 
   // 実行ログ・実行状態を定期ポーリングして随時更新する。
   // これにより、クロール完了前でも進捗ログがリアルタイムに見える。
@@ -158,11 +164,21 @@ export default function AmazonImport() {
     }
   };
 
+  const unignore = async (asin: string) => {
+    try {
+      await api.del(`/api/amazon/ignored/${encodeURIComponent(asin)}`);
+      toast("取り込み対象外を解除しました。次回クロール時に取込対象に戻ります。");
+      await loadIgnored();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
+
   const ignore = async (item: AmazonQueueItem) => {
     try {
       await api.post(`/api/amazon/queue/${item.id}/ignore`);
       toast(`「${item.product_name}」を在庫管理しない（無視）に設定しました`);
-      await loadQueue();
+      await Promise.all([loadQueue(), loadIgnored()]);
     } catch (e) {
       toast((e as Error).message, "error");
     }
@@ -418,6 +434,36 @@ export default function AmazonImport() {
           </Table>
         </TableContainer>
       </Paper>
+
+      {/* --- 5. 取り込み対象外リスト --- */}
+      {ignored.length > 0 && (
+        <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            5. 取り込み対象外（{ignored.length}件）
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            以下のASINは再購入しても自動スキップされます。「解除」すると次回クロール時から取込対象に戻ります。
+          </Typography>
+          <Stack spacing={1}>
+            {ignored.map((i) => (
+              <Stack key={i.asin} direction="row" spacing={1} alignItems="center">
+                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                  <Typography variant="body2" noWrap>{i.product_name || "(品目名不明)"}</Typography>
+                  <Typography variant="caption" color="text.secondary">{i.asin}</Typography>
+                </Box>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<UndoIcon />}
+                  onClick={() => unignore(i.asin)}
+                >
+                  解除
+                </Button>
+              </Stack>
+            ))}
+          </Stack>
+        </Paper>
+      )}
 
       <AmazonManageDialog
         open={Boolean(manageItem)}
