@@ -375,8 +375,6 @@ async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number,
       const bullets = $("#detailBullets_feature_div, #prodDetails").text();
       const jan = bullets.match(/\b(\d{13})\b/);
       if (jan) item.jan_code = jan[1];
-      const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
-      if (got) log("info", `  補完: ${got}`);
       return;
     } catch (e) {
       const msg = (e as Error).message || "";
