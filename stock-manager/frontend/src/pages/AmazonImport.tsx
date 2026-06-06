@@ -374,7 +374,6 @@ export default function AmazonImport() {
               <TableRow>
                 <TableCell sx={{ width: 48, p: 1 }} />
                 <TableCell>品目名</TableCell>
-                <TableCell>状態</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
@@ -401,16 +400,8 @@ export default function AmazonImport() {
                       {q.asin} · {new Date(q.purchased_at).toLocaleDateString("ja-JP")} · {q.quantity}個
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={{ pending: "要確認", auto: "自動処理済", managed: "管理中" }[q.status] ?? q.status}
-                      color={{ pending: "warning", auto: "success", managed: "primary" }[q.status] as "warning" | "success" | "primary" | "default" ?? "default"}
-                    />
-                  </TableCell>
                   <TableCell sx={{ p: 1 }}>
-                    {q.status === "pending" && (
-                      <Stack direction="column" spacing={0.5} alignItems="stretch">
+                    <Stack direction="column" spacing={0.5} alignItems="stretch">
                         <Button
                           size="small"
                           variant="contained"
@@ -431,13 +422,12 @@ export default function AmazonImport() {
                           削除
                         </Button>
                       </Stack>
-                    )}
                   </TableCell>
                 </TableRow>
               ))}
               {queue.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                  <TableCell colSpan={3} align="center" sx={{ py: 4, color: "text.secondary" }}>
                     取込待ちの品目はありません
                   </TableCell>
                 </TableRow>
