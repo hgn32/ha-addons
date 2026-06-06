@@ -200,6 +200,9 @@ async function downloadImage(id: string, url: string): Promise<string> {
 
 export interface ManageOverrides {
   name?: string;
+  maker?: string;
+  volume?: string;
+  piece_count?: number;
   jan_code?: string;
   category_id?: string;
   location_id?: string;
@@ -223,7 +226,9 @@ export async function manageQueueItemNew(id: string, overrides: ManageOverrides)
     data: {
       id: productId,
       name: (overrides.name ?? item.product_name) || item.asin || "不明",
-      maker: item.maker,
+      maker: overrides.maker ?? item.maker,
+      volume: overrides.volume ?? "",
+      piece_count: overrides.piece_count ?? 1,
       jan_code: overrides.jan_code ?? item.jan_code,
       amazon_asin: item.asin,
       amazon_url: item.product_url,
