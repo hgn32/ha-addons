@@ -122,14 +122,14 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
         </Stack>
       </DialogTitle>
       <DialogContent dividers>
-        {/* 強制メンテ（棚卸し）: 履歴は書き換えず、指定した数量に合わせる調整を1件登録する */}
+        {/* 強制メンテ（棚卸）: 履歴は書き換えず、指定した数量に合わせる調整を1件登録する */}
         <Box sx={{ mb: 2, p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
             <TuneIcon fontSize="small" color="warning" />
-            <Typography variant="subtitle2" fontWeight={700}>強制メンテ（棚卸し）</Typography>
+            <Typography variant="subtitle2" fontWeight={700}>強制メンテ</Typography>
           </Stack>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
-            実際に数えた在庫数を入力すると、その数に合わせる調整履歴が登録されます（現在: {currentStock}）。
+            現在の在庫数を入力すると、その数に合わせる調整履歴が登録されます（現在: {currentStock}）。
           </Typography>
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <TextField
@@ -205,7 +205,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   const fullScreen = useIsMobile();
   const [qty, setQty] = useState("1");
   const [busy, setBusy] = useState(false);
-  // 在庫追加時の数量の解釈: true=入り数で換算 / false=実数量をそのまま加算
+  // 在庫追加時の数量の解釈: true=員数で換算 / false=実数量をそのまま加算
   const [byPiece, setByPiece] = useState(true);
   const { api } = useStoreApi();
 
@@ -266,13 +266,13 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
             onChange={(_, v) => v && setByPiece(v === "piece")}
             sx={{ mt: 1 }}
           >
-            <ToggleButton value="piece">入り数で指定（×{pieceCount}）</ToggleButton>
-            <ToggleButton value="actual">実数量で指定</ToggleButton>
+            <ToggleButton value="piece">員数（×{pieceCount}）</ToggleButton>
+            <ToggleButton value="actual">実数量</ToggleButton>
           </ToggleButtonGroup>
         )}
         <TextField
           autoFocus type="number"
-          label={mode === "add" ? (usePieceConv ? "購入数量（箱・パック数）" : "実数量（個数）") : "数量"}
+          label={mode === "add" ? (usePieceConv ? "購員数量（箱・パック数）" : "実数量（個数）") : "数量"}
           value={qty}
           onChange={(e) => setQty(e.target.value)}
           slotProps={{ htmlInput: { min: 1 } }}
@@ -281,7 +281,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
         />
         {actualAdd && (
           <Typography variant="body2" color="success.main" sx={{ mt: 1, fontWeight: 600 }}>
-            {qtyNum} × 入り数{pieceCount} = <strong>{actualAdd}個</strong> 追加
+            {qtyNum} × 員数{pieceCount} = <strong>{actualAdd}個</strong> 追加
           </Typography>
         )}
       </DialogContent>

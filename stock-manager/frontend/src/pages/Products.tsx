@@ -172,7 +172,7 @@ export default function Products() {
   }
 
   const exportCsv = () => {
-    const headers = ["名前", "内容量", "入り数", "メーカー", "JANコード", "品目カテゴリ", "メモ"];
+    const headers = ["名前", "内容量", "員数", "メーカー", "JANコード", "品目カテゴリ", "メモ"];
     const rows = localProducts.map((p) => [
       p.name, p.volume, String(p.piece_count), p.maker, p.jan_code, categoryName(p.category_id), p.note,
     ].map((v) => `"${(v ?? "").replace(/"/g, '""')}"`));

@@ -54,7 +54,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
   const fullScreen = useIsMobile();
   const cfg = CONFIG[mode];
 
-  // 在庫追加時の数量の解釈: true=入り数で換算 / false=実数量をそのまま加算
+  // 在庫追加時の数量の解釈: true=員数で換算 / false=実数量をそのまま加算
   const [byPiece, setByPiece] = useState(true);
 
   const {
@@ -137,8 +137,8 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
                 value={byPiece ? "piece" : "actual"}
                 onChange={(_, v) => v && setByPiece(v === "piece")}
               >
-                <ToggleButton value="piece">入り数で指定（×{pieceCount}）</ToggleButton>
-                <ToggleButton value="actual">実数量で指定</ToggleButton>
+                <ToggleButton value="piece">員数（×{pieceCount}）</ToggleButton>
+                <ToggleButton value="actual">実数量</ToggleButton>
               </ToggleButtonGroup>
             )}
             <TextField
@@ -148,7 +148,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
                   ? "新しい在庫数"
                   : mode === "add"
                   ? byPiece && pieceCount > 1
-                    ? "購入数量（箱・パック数）"
+                    ? "購員数量（箱・パック数）"
                     : "実数量（個数）"
                   : "数量"
               }
@@ -161,7 +161,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
             />
             {mode === "add" && actualAdd && (
               <Typography variant="body2" color="success.main" sx={{ mt: -1, fontWeight: 600 }}>
-                {watchedQty} × 入り数{pieceCount} = <strong>{actualAdd}個</strong> 追加
+                {watchedQty} × 員数{pieceCount} = <strong>{actualAdd}個</strong> 追加
               </Typography>
             )}
             {mode === "add" && (

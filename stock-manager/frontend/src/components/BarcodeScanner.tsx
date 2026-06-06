@@ -8,7 +8,7 @@ interface Props {
   onError?: (msg: string) => void;
 }
 
-// 端末のカメラでバーコード(JAN/EAN/UPC等)を連続スキャンするコンポーネント。
+// 端末のカメラでJANコード(JAN/EAN/UPC等)を連続スキャンするコンポーネント。
 // マウント中だけカメラを起動し、アンマウントで確実に停止する。
 // 複数カメラがある端末ではカメラ切り替えボタンを表示する。
 export default function BarcodeScanner({ onDetected, onError }: Props) {

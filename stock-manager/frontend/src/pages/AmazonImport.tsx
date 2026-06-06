@@ -394,7 +394,7 @@ export default function AmazonImport() {
                           startIcon={<InventoryIcon />}
                           onClick={() => setManageItem(q)}
                         >
-                          在庫管理する
+                          追加
                         </Button>
                         <Button
                           size="small"
@@ -403,7 +403,6 @@ export default function AmazonImport() {
                           startIcon={<BlockIcon />}
                           onClick={() => ignore(q)}
                         >
-                          管理しない
                         </Button>
                       </Stack>
                     )}

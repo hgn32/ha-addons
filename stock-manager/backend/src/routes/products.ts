@@ -39,8 +39,8 @@ router.get("/products", async (_req, res) => {
   res.json(await prisma.product.findMany({ orderBy: [{ sort_order: "asc" }, { created_at: "asc" }] }));
 });
 
-// バーコード(JANコード)で品目を検索。簡単棚卸し画面のスキャンから利用する。
-// 主JANコード → 追加バーコード(ProductBarcode) の順でフォールバックする。
+// JANコード(JANコード)で品目を検索。棚卸画面のスキャンから利用する。
+// 主JANコード → 追加JANコード(ProductBarcode) の順でフォールバックする。
 router.get("/products/by-barcode/:code", async (req, res) => {
   const code = String(req.params.code ?? "").trim();
   if (!code) return res.status(400).json({ detail: "コードが空です" });
@@ -53,7 +53,7 @@ router.get("/products/by-barcode/:code", async (req, res) => {
   res.json(product);
 });
 
-// 品目に紐づくJAN/バーコード一覧を取得（主jan_codeを除く追加分）。
+// 品目に紐づくJAN/JANコード一覧を取得（主jan_codeを除く追加分）。
 router.get("/products/:id/barcodes", async (req, res) => {
   const rows = await prisma.productBarcode.findMany({
     where: { product_id: req.params.id as string },
@@ -62,9 +62,9 @@ router.get("/products/:id/barcodes", async (req, res) => {
   res.json(rows);
 });
 
-// スキャンしたバーコードを既存品目に紐づける。
-// mode="additional" : 常に追加バーコードとして登録（品目編集のJANコードタブ用）。
-// modeなし(既定) : 主JANが空なら主JANに、埋まっていれば追加バーコードに（簡単棚卸しの紐づけ用）。
+// スキャンしたJANコードを既存品目に紐づける。
+// mode="additional" : 常に追加JANコードとして登録（品目編集のJANコードタブ用）。
+// modeなし(既定) : 主JANが空なら主JANに、埋まっていれば追加JANコードに（棚卸の紐づけ用）。
 // いずれも既存JANは上書きせず、他品目で使用中なら409。
 router.post("/products/:id/barcodes", async (req, res) => {
   const code = String(req.body.code ?? "").trim();
@@ -77,7 +77,7 @@ router.post("/products/:id/barcodes", async (req, res) => {
   const ownerByBarcode = await prisma.productBarcode.findUnique({ where: { code }, include: { product: true } });
   if ((ownerByJan && ownerByJan.id !== product.id) || (ownerByBarcode && ownerByBarcode.product_id !== product.id)) {
     const name = ownerByJan && ownerByJan.id !== product.id ? ownerByJan.name : ownerByBarcode!.product.name;
-    return res.status(409).json({ detail: `このバーコードは既に「${name}」に登録されています` });
+    return res.status(409).json({ detail: `このJANコードは既に「${name}」に登録されています` });
   }
 
   // すでにこの品目に紐づいている場合は何もしない
@@ -94,7 +94,7 @@ router.post("/products/:id/barcodes", async (req, res) => {
   res.status(201).json(row);
 });
 
-// 追加バーコードを削除
+// 追加JANコードを削除
 router.delete("/products/barcodes/:barcodeId", async (req, res) => {
   try {
     await prisma.productBarcode.delete({ where: { id: req.params.barcodeId as string } });
