@@ -352,7 +352,7 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
 
 async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
   const ENRICH_TIMEOUT = 10000;
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 10;
 
   log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
 
