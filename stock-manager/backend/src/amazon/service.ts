@@ -327,5 +327,3 @@ async function retryEnrichFailedInner(): Promise<{ total: number; success: numbe
   log("info", `補完リトライ完了: ${success}/${failedItems.length}件成功`);
   return { total: failedItems.length, success };
 }
-}
-
