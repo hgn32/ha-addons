@@ -139,10 +139,9 @@ router.get("/amazon/queue", async (req, res) => {
   res.json(enriched);
 });
 
-// キュー全リセット（重複dedup解除用）。last_sync/last_runも消して次回クロールで全件再取込できるようにする。
+// キュー全クリア。同期カーソル(last_sync)は保持するので次回クロールは差分取得のまま。
 router.delete("/amazon/queue", async (_req, res) => {
   await prisma.amazonQueue.deleteMany({});
-  await prisma.setting.deleteMany({ where: { key: { in: ["amazon_last_sync", "amazon_last_run"] } } });
   res.status(204).end();
 });
 

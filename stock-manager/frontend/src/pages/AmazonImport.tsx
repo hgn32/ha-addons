@@ -354,11 +354,10 @@ export default function AmazonImport() {
               variant="outlined"
               sx={{ flexShrink: 0 }}
               onClick={async () => {
-                if (!confirm("取込履歴と同期日時をリセットします。次回クロール時に過去90日分が再取込されます。よろしいですか？")) return;
+                if (!confirm("取込待ちリストをすべて削除します。同期日時は保持されるため、次回クロールは差分取得になります。よろしいですか？")) return;
                 await api.del("/api/amazon/queue");
                 await loadQueue();
-                await loadSettings();
-                toast("取込履歴をリセットしました。「今すぐ取得」で再取込してください。");
+                toast("取込待ちリストをクリアしました。");
               }}
             >
               履歴リセット
