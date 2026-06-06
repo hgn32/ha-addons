@@ -21,7 +21,7 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AmazonImport from "./pages/AmazonImport";
 import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
@@ -61,13 +61,23 @@ const NAV: NavItem[] = [
   { key: "amazon", label: "Amazon取込", icon: <CloudDownloadIcon />, section: "インポート" },
 ];
 
+const getPageFromHash = (): Page => {
+  const hash = window.location.hash.replace("#", "") as Page;
+  return NAV.some((n) => n.key === hash) ? hash : "dashboard";
+};
+
 export default function App() {
-  const [page, setPage] = useState<Page>("dashboard");
+  const [page, setPage] = useState<Page>(getPageFromHash);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ナビ選択時はモバイルのドロワーを閉じる
+  useEffect(() => {
+    const handler = () => setPage(getPageFromHash());
+    window.addEventListener("hashchange", handler);
+    return () => window.removeEventListener("hashchange", handler);
+  }, []);
+
   const navigate = (p: Page) => {
-    setPage(p);
+    window.location.hash = p;
     setMobileOpen(false);
   };
 
@@ -176,7 +186,7 @@ export default function App() {
 
       <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, minHeight: "100vh", width: { md: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
         <Toolbar />
-        {page === "dashboard" && <Dashboard onNavigate={setPage} />}
+        {page === "dashboard" && <Dashboard onNavigate={navigate} />}
         {page === "stocktake" && <Stocktake />}
         {page === "transactions" && <Transactions />}
         {page === "products" && <Products />}
