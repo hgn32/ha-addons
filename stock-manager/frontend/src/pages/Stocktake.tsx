@@ -393,7 +393,7 @@ export default function Stocktake() {
             onChange={(e) => setLinkFilter(e.target.value)}
             sx={{ mb: 2 }}
           />
-          <Stack spacing={1} sx={{ maxHeight: 360, overflowY: "auto" }}>
+          <Stack spacing={1} sx={{ overflowY: "auto" }}>
             {filteredForLink.map((item) => (
               <Card
                 key={item.id}

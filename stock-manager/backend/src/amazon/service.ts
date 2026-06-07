@@ -236,7 +236,7 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
       product_id: product.id,
       quantity: quantity,
       supplier_id: amazonSupplier?.id ?? "",
-      note: `Amazon取込(新規登録) 注文:${item.order_id}`,
+      note: `Amazon取込:${item.order_id}`,
     },
   });
 
