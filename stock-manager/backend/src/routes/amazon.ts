@@ -228,6 +228,16 @@ async function newAmazonPage(browser: any) {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
   );
   await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
+  // 画像/CSS/フォント等は読み込まずスキップしページ取得を高速化（HTMLのテキスト・属性のみ使用するため）
+  await page.setRequestInterception(true);
+  page.on("request", (req: any) => {
+    const type = req.resourceType();
+    if (type === "image" || type === "stylesheet" || type === "font" || type === "media") {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
   const cookie = await getCookie();
   if (cookie) {
     const sanitized = cookie.replace(/[\r\n\t]/g, " ");

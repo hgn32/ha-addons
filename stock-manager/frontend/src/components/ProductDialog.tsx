@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  LinearProgress,
   MenuItem,
   Stack,
   Tab,
@@ -315,7 +316,12 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
           {tab === 0 && (
             <Stack spacing={2} sx={{ mt: 1 }}>
               {searchingJan && (
-                <Typography variant="body2" color="text.secondary">Amazonを検索中...</Typography>
+                <Box>
+                  <LinearProgress sx={{ mb: 1 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    JANコードからAmazon商品を検索しています…（情報を取得するまでしばらくお待ちください）
+                  </Typography>
+                </Box>
               )}
               {/* Amazon URLから取込（全幅） */}
               <Stack direction="row" spacing={1} alignItems="center">

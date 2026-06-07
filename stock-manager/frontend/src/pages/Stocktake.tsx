@@ -276,9 +276,9 @@ export default function Stocktake() {
 
       {notFound && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setNotFound(null)}>
-          <Stack spacing={1} alignItems="flex-start">
+          <Stack spacing={1} sx={{ width: "100%" }}>
             <span>未登録のJANコードです（{notFound}）</span>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={1} useFlexGap sx={{ width: "100%", flexWrap: "wrap" }}>
               <Button
                 color="inherit"
                 size="small"
@@ -310,7 +310,7 @@ export default function Stocktake() {
               <Avatar src={current.photo ? imageUrl(current.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64 }}>📦</Avatar>
               <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                 <Typography fontWeight={700} noWrap>{current.name}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} flexWrap="wrap">
+                <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
                   <Chip size="small" label={`現在在庫: ${currentStock}`} />
                   {current.piece_count > 1 && <Chip size="small" variant="outlined" label={`${current.piece_count}個入`} />}
                 </Stack>
