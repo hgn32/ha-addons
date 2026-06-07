@@ -384,6 +384,7 @@ export default function AmazonImport() {
                       src={q.image_url.startsWith("http") ? q.image_url : q.image_url ? imageUrl(q.image_url) : ""}
                       variant="rounded"
                       sx={{ width: 40, height: 40 }}
+                      slotProps={{ img: { style: { objectFit: "contain" } } }}
                     >
                       📦
                     </Avatar>

@@ -307,7 +307,7 @@ export default function Stocktake() {
         <Card sx={{ mb: 2 }}>
           <CardContent>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Avatar src={current.photo ? imageUrl(current.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64 }}>📦</Avatar>
+              <Avatar src={current.photo ? imageUrl(current.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
               <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                 <Typography fontWeight={700} noWrap>{current.name}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
@@ -407,7 +407,7 @@ export default function Stocktake() {
               >
                 <CardContent sx={{ py: 1, "&:last-child": { pb: 1 } }}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }}>📦</Avatar>
+                    <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                     <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                       <Typography fontWeight={600} noWrap>{item.name}</Typography>
                       <Typography variant="caption" color="text.secondary" noWrap component="div">

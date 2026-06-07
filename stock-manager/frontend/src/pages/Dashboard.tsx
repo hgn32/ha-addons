@@ -113,7 +113,7 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
       <DialogTitle>
         <Stack direction="row" spacing={1.5} alignItems="center">
           {item?.photo && (
-            <Avatar src={imageUrl(item.photo)} variant="rounded" sx={{ width: 36, height: 36 }}>📦</Avatar>
+            <Avatar src={imageUrl(item.photo)} variant="rounded" sx={{ width: 36, height: 36 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
           )}
           <Box>
             <Typography fontWeight={700}>{item?.name}</Typography>
@@ -369,7 +369,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                 <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
                   <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
                     <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
-                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }}>📦</Avatar>
+                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                       <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
                           <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>{item.name}</Typography>

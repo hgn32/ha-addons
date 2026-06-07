@@ -63,6 +63,7 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
             src={p.photo ? imageUrl(p.photo) : undefined}
             variant="rounded"
             sx={{ width: 64, height: 64, flexShrink: 0 }}
+            slotProps={{ img: { style: { objectFit: "contain" } } }}
           >
             📦
           </Avatar>

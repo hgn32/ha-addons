@@ -36,6 +36,23 @@ import { Product } from "../types";
 // ラベルが入力文字と重なるため、watch した値で明示的に shrink させる。
 const shrinkLabel = (value: unknown) => ({ inputLabel: { shrink: Boolean(value) || undefined } });
 
+// Amazonの商品名は「メーカー名 商品名」のように先頭にメーカー名が付くことが多いため、
+// 取込時に重複表示を避けられるよう先頭のメーカー名と区切り文字を取り除く。
+function stripMakerPrefix(name: string, maker: string): string {
+  const trimmedName = name.trim();
+  const trimmedMaker = maker.trim();
+  if (!trimmedMaker || trimmedName.length <= trimmedMaker.length) return trimmedName;
+  if (!trimmedName.toLowerCase().startsWith(trimmedMaker.toLowerCase())) return trimmedName;
+  const rest = trimmedName
+    .slice(trimmedMaker.length)
+    .replace(/^[\s\-–—:：,、・/／|｜]+/, "")
+    .trim();
+  return rest || trimmedName;
+}
+
+// Amazon画像は縦長など様々なアスペクト比のため、Avatarでも切り取らず全体を表示する。
+const containImgSlotProps = { img: { style: { objectFit: "contain" as const } } };
+
 interface Props {
   open: boolean;
   product: Product | null;
@@ -146,7 +163,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
     try {
       const data = await api.post<{ name: string; maker: string; jan_code: string; asin: string; product_url: string; image_url: string }>("/api/amazon/search-by-jan", { jan });
       const fields: [FieldPath<FormValues>, string][] = [
-        ["name", data.name],
+        ["name", stripMakerPrefix(data.name, data.maker)],
         ["maker", data.maker],
         ["jan_code", data.jan_code || jan],
         ["amazon_asin", data.asin],
@@ -187,7 +204,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
     try {
       const data = await api.post<{ name: string; maker: string; jan_code: string; asin: string; product_url: string; image_url: string }>("/api/amazon/fetch-product", { url: fetchUrl });
       const fields: [FieldPath<FormValues>, string][] = [
-        ["name", data.name],
+        ["name", stripMakerPrefix(data.name, data.maker)],
         ["maker", data.maker],
         ["jan_code", data.jan_code],
         ["amazon_asin", data.asin],
@@ -421,7 +438,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
 
               {/* 写真（全幅） */}
               <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Avatar src={preview} variant="rounded" sx={{ width: 64, height: 64 }}>
+                <Avatar src={preview} variant="rounded" sx={{ width: 64, height: 64 }} slotProps={containImgSlotProps}>
                   📦
                 </Avatar>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

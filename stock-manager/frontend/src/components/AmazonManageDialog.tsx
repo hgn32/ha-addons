@@ -195,7 +195,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
           <Stack spacing={2} sx={{ mt: 1 }}>
             {ItemPreview}
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
-              <Avatar src={matched.photo ? imageUrl(matched.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }}>📦</Avatar>
+              <Avatar src={matched.photo ? imageUrl(matched.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
               <Box>
                 <Typography variant="body2" fontWeight={600}>{matched.name}</Typography>
                 <Typography variant="caption" color="text.secondary">

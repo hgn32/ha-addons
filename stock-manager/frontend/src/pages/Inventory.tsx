@@ -79,7 +79,7 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
                 <TableRow key={item.id} hover>
                   <TableCell>
                     <Stack direction="row" spacing={1.5} alignItems="center">
-                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded">
+                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" slotProps={{ img: { style: { objectFit: "contain" } } }}>
                         📦
                       </Avatar>
                       <Box>
