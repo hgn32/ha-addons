@@ -217,10 +217,6 @@ export default function Stocktake() {
       <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>
         棚卸
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        JANコードをスキャンして在庫を登録します
-      </Typography>
-
       {/* モード選択 */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>登録方法</Typography>
