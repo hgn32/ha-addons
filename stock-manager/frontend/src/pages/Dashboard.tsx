@@ -15,7 +15,6 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  Grid,
   IconButton,
   MenuItem,
   Stack,
@@ -360,13 +359,18 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
           {inventory.length === 0 ? "品目がありません" : "該当する品目がありません"}
         </Typography>
       ) : (
-        <Grid container spacing={2}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)", lg: "repeat(4, 1fr)" },
+            gap: 2,
+          }}
+        >
           {displayed.map((item) => {
             const next = nextPurchaseMap.get(item.id) ?? null;
             const low = item.quantity <= 1;
             return (
-              <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              <Card key={item.id} sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
                   <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
                     <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
                       <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }}>📦</Avatar>
@@ -414,10 +418,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                     </Stack>
                   </CardContent>
                 </Card>
-              </Grid>
             );
           })}
-        </Grid>
+        </Box>
       )}
 
       <QuickStockDialog item={dialogItem} mode={dialogMode} onClose={() => setDialogItem(null)} />
