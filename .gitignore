@@ -5,3 +5,4 @@ __pycache__/
 *.db
 *.trace.db
 .claude/
+backend/prisma/migrations
