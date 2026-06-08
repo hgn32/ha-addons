@@ -67,7 +67,7 @@ model ProductAsin {
 
 // One product can have multiple scanned barcodes (JAN/EAN/UPC). The primary
 // jan_code field stays for display/CSV; extra barcodes linked via the
-// 簡単棚卸し screen are stored here so scans resolve to the right product.
+// 棚卸 screen are stored here so scans resolve to the right product.
 model ProductBarcode {
   id         String   @id @default(uuid())
   product_id String
@@ -99,7 +99,7 @@ model Setting {
 }
 
 // Items crawled from Amazon order history waiting to be triaged.
-// status: pending (要手動) / auto (マスタ一致で自動加算) / managed (在庫管理する) / ignored (在庫管理しない)
+// status: pending (要手動) / managed (在庫管理する) / skipped (今回スキップ)
 model AmazonQueue {
   id           String   @id @default(uuid())
   order_id     String   @default("")
@@ -112,14 +112,10 @@ model AmazonQueue {
   purchased_at DateTime
   quantity     Int      @default(1)
   unit_price   Float    @default(0)
-  status       String   @default("pending")
-  created_at   DateTime @default(now())
+  status        String   @default("pending")
+  enrich_failed Boolean  @default(false)
+  created_at    DateTime @default(now())
 
   @@index([status])
 }
 
-// ASINs the user chose "在庫管理しない"; skipped on subsequent crawls.
-model AmazonIgnoredAsin {
-  asin       String   @id
-  created_at DateTime @default(now())
-}

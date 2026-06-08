@@ -15,7 +15,6 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  Grid,
   IconButton,
   MenuItem,
   Stack,
@@ -113,7 +112,7 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
       <DialogTitle>
         <Stack direction="row" spacing={1.5} alignItems="center">
           {item?.photo && (
-            <Avatar src={imageUrl(item.photo)} variant="rounded" sx={{ width: 36, height: 36 }}>📦</Avatar>
+            <Avatar src={imageUrl(item.photo)} variant="rounded" sx={{ width: 36, height: 36 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
           )}
           <Box>
             <Typography fontWeight={700}>{item?.name}</Typography>
@@ -122,14 +121,14 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
         </Stack>
       </DialogTitle>
       <DialogContent dividers>
-        {/* 強制メンテ（棚卸し）: 履歴は書き換えず、指定した数量に合わせる調整を1件登録する */}
+        {/* 強制メンテ（棚卸）: 履歴は書き換えず、指定した数量に合わせる調整を1件登録する */}
         <Box sx={{ mb: 2, p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
             <TuneIcon fontSize="small" color="warning" />
-            <Typography variant="subtitle2" fontWeight={700}>強制メンテ（棚卸し）</Typography>
+            <Typography variant="subtitle2" fontWeight={700}>強制メンテ</Typography>
           </Stack>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
-            実際に数えた在庫数を入力すると、その数に合わせる調整履歴が登録されます（現在: {currentStock}）。
+            現在の在庫数を入力すると、その数に合わせる調整履歴が登録されます（現在: {currentStock}）。
           </Typography>
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <TextField
@@ -205,7 +204,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   const fullScreen = useIsMobile();
   const [qty, setQty] = useState("1");
   const [busy, setBusy] = useState(false);
-  // 在庫追加時の数量の解釈: true=入り数で換算 / false=実数量をそのまま加算
+  // 在庫追加時の数量の解釈: true=員数で換算 / false=実数量をそのまま加算
   const [byPiece, setByPiece] = useState(true);
   const { api } = useStoreApi();
 
@@ -266,13 +265,13 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
             onChange={(_, v) => v && setByPiece(v === "piece")}
             sx={{ mt: 1 }}
           >
-            <ToggleButton value="piece">入り数で指定（×{pieceCount}）</ToggleButton>
-            <ToggleButton value="actual">実数量で指定</ToggleButton>
+            <ToggleButton value="piece">員数（×{pieceCount}）</ToggleButton>
+            <ToggleButton value="actual">実数量</ToggleButton>
           </ToggleButtonGroup>
         )}
         <TextField
           autoFocus type="number"
-          label={mode === "add" ? (usePieceConv ? "購入数量（箱・パック数）" : "実数量（個数）") : "数量"}
+          label={mode === "add" ? (usePieceConv ? "購員数量（箱・パック数）" : "実数量（個数）") : "数量"}
           value={qty}
           onChange={(e) => setQty(e.target.value)}
           slotProps={{ htmlInput: { min: 1 } }}
@@ -281,7 +280,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
         />
         {actualAdd && (
           <Typography variant="body2" color="success.main" sx={{ mt: 1, fontWeight: 600 }}>
-            {qtyNum} × 入り数{pieceCount} = <strong>{actualAdd}個</strong> 追加
+            {qtyNum} × 員数{pieceCount} = <strong>{actualAdd}個</strong> 追加
           </Typography>
         )}
       </DialogContent>
@@ -295,7 +294,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   );
 }
 
-type SortKey = "stock_asc" | "stock_desc" | "name_asc" | "next_purchase";
+type SortKey = "stock_asc" | "stock_desc" | "name_asc";
 
 // --- Dashboard ---
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -323,25 +322,18 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
     list.sort((a, b) => {
       if (sortKey === "stock_asc") return a.quantity - b.quantity;
       if (sortKey === "stock_desc") return b.quantity - a.quantity;
-      if (sortKey === "name_asc") return a.name.localeCompare(b.name, "ja");
-      // next_purchase: 期限切れ→近い順、未推定は末尾
-      const da = nextPurchaseMap.get(a.id);
-      const db = nextPurchaseMap.get(b.id);
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return da.getTime() - db.getTime();
+      return a.name.localeCompare(b.name, "ja");
     });
     return list;
-  }, [inventory, filterCategory, sortKey, nextPurchaseMap]);
+  }, [inventory, filterCategory, sortKey]);
 
   return (
     <Box>
       <Stack direction="row" alignItems="center" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
         <Typography variant="h5" fontWeight={700}>ダッシュボード</Typography>
-        <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ ml: "auto" }}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ ml: "auto" }}>
           <TextField
-            select label="品目カテゴリ" size="small" sx={{ minWidth: 160 }}
+            select label="品目カテゴリ" size="small" sx={{ minWidth: 140, maxWidth: 200 }}
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
           >
@@ -351,14 +343,13 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
             ))}
           </TextField>
           <TextField
-            select label="並び替え" size="small" sx={{ minWidth: 160 }}
+            select label="並び替え" size="small" sx={{ minWidth: 110, maxWidth: 140 }}
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
           >
-            <MenuItem value="stock_asc">在庫 少ない順</MenuItem>
-            <MenuItem value="stock_desc">在庫 多い順</MenuItem>
+            <MenuItem value="stock_asc">在庫 ▲</MenuItem>
+            <MenuItem value="stock_desc">在庫 ▼</MenuItem>
             <MenuItem value="name_asc">名前順</MenuItem>
-            <MenuItem value="next_purchase">購入予定日順</MenuItem>
           </TextField>
         </Stack>
       </Stack>
@@ -368,16 +359,21 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
           {inventory.length === 0 ? "品目がありません" : "該当する品目がありません"}
         </Typography>
       ) : (
-        <Grid container spacing={2}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)", lg: "repeat(4, 1fr)" },
+            gap: 2,
+          }}
+        >
           {displayed.map((item) => {
             const next = nextPurchaseMap.get(item.id) ?? null;
             const low = item.quantity <= 1;
             return (
-              <Grid key={item.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              <Card key={item.id} sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
                   <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
                     <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
-                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }}>📦</Avatar>
+                      <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                       <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
                           <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>{item.name}</Typography>
@@ -422,10 +418,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                     </Stack>
                   </CardContent>
                 </Card>
-              </Grid>
             );
           })}
-        </Grid>
+        </Box>
       )}
 
       <QuickStockDialog item={dialogItem} mode={dialogMode} onClose={() => setDialogItem(null)} />

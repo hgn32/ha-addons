@@ -90,5 +90,13 @@ export interface AmazonQueueItem {
   quantity: number;
   unit_price: number;
   status: string;
+  enrich_failed: boolean;
   created_at: string;
+  matched_product: {
+    id: string;
+    name: string;
+    piece_count: number;
+    quantity: number;
+    photo: string;
+  } | null;
 }

@@ -18,7 +18,8 @@ import { useState, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -62,6 +63,7 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
             src={p.photo ? imageUrl(p.photo) : undefined}
             variant="rounded"
             sx={{ width: 64, height: 64, flexShrink: 0 }}
+            slotProps={{ img: { style: { objectFit: "contain" } } }}
           >
             📦
           </Avatar>
@@ -133,7 +135,8 @@ export default function Products() {
   }, [products]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -172,7 +175,7 @@ export default function Products() {
   }
 
   const exportCsv = () => {
-    const headers = ["名前", "内容量", "入り数", "メーカー", "JANコード", "品目カテゴリ", "メモ"];
+    const headers = ["名前", "内容量", "員数", "メーカー", "JANコード", "品目カテゴリ", "メモ"];
     const rows = localProducts.map((p) => [
       p.name, p.volume, String(p.piece_count), p.maker, p.jan_code, categoryName(p.category_id), p.note,
     ].map((v) => `"${(v ?? "").replace(/"/g, '""')}"`));

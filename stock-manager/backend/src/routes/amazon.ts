@@ -3,8 +3,9 @@ import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
-import { ignoreQueueItem, manageQueueItemNew, manageQueueItemMerge, runAmazonCrawl, isCrawlRunning } from "../amazon/service";
+import { manageQueueItemNew, manageQueueItemMerge, matchProduct, runAmazonCrawl, isCrawlRunning, retryEnrichFailed } from "../amazon/service";
 import { notifyHA } from "../amazon/notify";
+import { getBrowser } from "../amazon/crawler";
 
 const router = Router();
 
@@ -99,11 +100,8 @@ router.post("/amazon/crawl", async (req, res) => {
   }
   try {
     const summary = await runAmazonCrawl(full);
-    if (summary.auto > 0 || summary.queued > 0) {
-      const lines: string[] = [];
-      if (summary.auto > 0) lines.push(`・自動追加: ${summary.auto}件`);
-      if (summary.queued > 0) lines.push(`・確認待ち: ${summary.queued}件`);
-      await notifyHA("Stock Manager: Amazon取込完了", lines.join("\n"));
+    if (summary.queued > 0) {
+      await notifyHA("Stock Manager: Amazon取込完了", `・確認待ち: ${summary.queued}件`);
     }
     res.json(summary);
   } catch (e) {
@@ -111,20 +109,39 @@ router.post("/amazon/crawl", async (req, res) => {
   }
 });
 
-router.get("/amazon/queue", async (req, res) => {
-  const status = (req.query.status as string) || "pending";
-  res.json(
-    await prisma.amazonQueue.findMany({
-      where: status === "all" ? undefined : { status },
-      orderBy: { purchased_at: "desc" },
-    })
-  );
+router.post("/amazon/enrich-retry", async (_req, res) => {
+  if (isCrawlRunning()) return res.status(409).json({ detail: "クロール実行中です" });
+  try {
+    const result = await retryEnrichFailed();
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ detail: (e as Error).message });
+  }
 });
 
-// キュー全リセット（重複dedup解除用）。last_sync/last_runも消して次回クロールで全件再取込できるようにする。
+router.get("/amazon/queue", async (req, res) => {
+  const status = (req.query.status as string) || "pending";
+  const items = await prisma.amazonQueue.findMany({
+    where: status === "all" ? undefined : { status },
+    orderBy: { purchased_at: "desc" },
+  });
+  const enriched = await Promise.all(
+    items.map(async (item) => {
+      const product = await matchProduct(item.asin, item.jan_code);
+      return {
+        ...item,
+        matched_product: product
+          ? { id: product.id, name: product.name, piece_count: product.piece_count, quantity: product.quantity, photo: product.photo }
+          : null,
+      };
+    })
+  );
+  res.json(enriched);
+});
+
+// キュー全クリア。同期カーソル(last_sync)は保持するので次回クロールは差分取得のまま。
 router.delete("/amazon/queue", async (_req, res) => {
   await prisma.amazonQueue.deleteMany({});
-  await prisma.setting.deleteMany({ where: { key: { in: ["amazon_last_sync", "amazon_last_run"] } } });
   res.status(204).end();
 });
 
@@ -133,13 +150,14 @@ router.delete("/amazon/queue", async (_req, res) => {
 // mode="merge" → 既存アイテムにASIN紐づけ + 在庫加算
 router.post("/amazon/queue/:id/manage", async (req, res) => {
   try {
-    const { mode, product_id, ...overrides } = req.body ?? {};
+    const { mode, product_id, quantity, ...overrides } = req.body ?? {};
+    const qty = Math.max(0, parseInt(quantity, 10) || 0);
     let product;
     if (mode === "merge") {
       if (!product_id) return res.status(400).json({ detail: "product_id is required for merge" });
-      product = await manageQueueItemMerge(req.params.id as string, product_id as string);
+      product = await manageQueueItemMerge(req.params.id as string, product_id as string, qty);
     } else {
-      product = await manageQueueItemNew(req.params.id as string, overrides);
+      product = await manageQueueItemNew(req.params.id as string, overrides, qty);
     }
     res.json(product);
   } catch (e) {
@@ -182,51 +200,17 @@ router.delete("/products/asins/:asinId", async (req, res) => {
   }
 });
 
-// パターンB: 在庫管理しない（無視リスト登録 + 取込リストから削除）
-router.post("/amazon/queue/:id/ignore", async (req, res) => {
+// 取り込まない（レコードを完全削除。次回購入時に新規注文として再出現）
+router.post("/amazon/queue/:id/skip", async (req, res) => {
   try {
-    await ignoreQueueItem(req.params.id as string);
+    await prisma.amazonQueue.delete({ where: { id: req.params.id as string } });
     res.status(204).end();
-  } catch (e) {
-    res.status(400).json({ detail: (e as Error).message });
+  } catch {
+    res.status(404).json({ detail: "Not found" });
   }
 });
 
 // --- Amazon URL / JAN → 品目情報取込 ------------------------------------------
-
-const CHROMIUM_PATHS = [
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-  "/usr/bin/google-chrome",
-  "/usr/bin/google-chrome-stable",
-];
-
-function findChromium(): string {
-  const { existsSync } = require("fs") as typeof import("fs");
-  for (const p of CHROMIUM_PATHS) {
-    if (existsSync(p)) return p;
-  }
-  throw new Error(`Chromiumが見つかりません。確認したパス: ${CHROMIUM_PATHS.join(", ")}`);
-}
-
-function parseCookiesForFetch(cookieStr: string): Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }> {
-  const sanitized = cookieStr.replace(/[\r\n\t]/g, " ");
-  return sanitized
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => {
-      const idx = s.indexOf("=");
-      if (idx === -1) return null;
-      const name = s.slice(0, idx).trim();
-      const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
-      if (!name) return null;
-      const secure = name.startsWith("__Secure-") || name.startsWith("__Host-");
-      const path = name.startsWith("__Host-") ? "/" : undefined;
-      return { name, value, domain: ".amazon.co.jp", ...(secure ? { secure } : {}), ...(path ? { path } : {}) };
-    })
-    .filter(Boolean) as Array<{ name: string; value: string; domain: string; secure?: boolean; path?: string }>;
-}
 
 interface ScrapedProduct {
   name: string;
@@ -237,19 +221,6 @@ interface ScrapedProduct {
   image_url: string;
 }
 
-// Chromiumを起動（Amazonスクレイプ共通）。
-async function launchChromium() {
-  const executablePath = findChromium();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
-  return puppeteer.launch({
-    executablePath,
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer"],
-  });
-}
-
-// 保存済みCookie/UAを適用したページを作る。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function newAmazonPage(browser: any) {
   const page = await browser.newPage();
@@ -257,9 +228,29 @@ async function newAmazonPage(browser: any) {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
   );
   await page.setExtraHTTPHeaders({ "Accept-Language": "ja-JP,ja;q=0.9,en;q=0.8" });
+  // 画像/CSS/フォント等は読み込まずスキップしページ取得を高速化（HTMLのテキスト・属性のみ使用するため）
+  await page.setRequestInterception(true);
+  page.on("request", (req: any) => {
+    const type = req.resourceType();
+    if (type === "image" || type === "stylesheet" || type === "font" || type === "media") {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
   const cookie = await getCookie();
   if (cookie) {
-    const cookies = parseCookiesForFetch(cookie);
+    const sanitized = cookie.replace(/[\r\n\t]/g, " ");
+    const cookies = sanitized.split(";").map((s: string) => s.trim()).filter(Boolean).map((s: string) => {
+      const idx = s.indexOf("=");
+      if (idx === -1) return null;
+      const name = s.slice(0, idx).trim();
+      const value = s.slice(idx + 1).trim().replace(/[\x00-\x1F\x7F]/g, "");
+      if (!name) return null;
+      const secure = name.startsWith("__Secure-") || name.startsWith("__Host-");
+      const path = name.startsWith("__Host-") ? "/" : undefined;
+      return { name, value, domain: ".amazon.co.jp", ...(secure ? { secure } : {}), ...(path ? { path } : {}) };
+    }).filter(Boolean);
     for (const c of cookies) {
       try { await page.setCookie(c); } catch { /* skip bad cookies */ }
     }
@@ -267,12 +258,11 @@ async function newAmazonPage(browser: any) {
   return page;
 }
 
-// 商品詳細ページ(/dp/ASIN)から情報を抽出する。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function scrapeProductDetail(page: any, asin: string): Promise<ScrapedProduct> {
   const productUrl = `https://www.amazon.co.jp/dp/${asin}`;
-  await page.goto(productUrl, { waitUntil: "networkidle2", timeout: 20000 });
-  await new Promise((r) => setTimeout(r, 1000));
+  await page.goto(productUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 500));
   const html = await page.content();
   const $ = cheerio.load(html);
   const name = $("#productTitle").text().trim();
@@ -288,12 +278,11 @@ async function scrapeProductDetail(page: any, asin: string): Promise<ScrapedProd
   return { name, maker, jan_code, asin, product_url: productUrl, image_url };
 }
 
-// 検索ページ(/s?k=...)から先頭ヒットのASINを取得。ブロック(captcha)検知も返す。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function searchAsinByKeyword(page: any, keyword: string): Promise<{ asin: string; blocked: boolean }> {
   const searchUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(keyword)}`;
-  await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 20000 });
-  await new Promise((r) => setTimeout(r, 800));
+  await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 500));
   const html = await page.content();
   const $ = cheerio.load(html);
   let asin = "";
@@ -320,13 +309,13 @@ router.post("/amazon/fetch-product", async (req, res) => {
   }
   const asin = asinMatch[1];
   try {
-    const browser = await launchChromium();
+    const browser = await getBrowser();
+    const page = await newAmazonPage(browser);
     try {
-      const page = await newAmazonPage(browser);
       const data = await scrapeProductDetail(page, asin);
       res.json(data);
     } finally {
-      await browser.close();
+      await page.close();
     }
   } catch (e) {
     res.status(500).json({ detail: (e as Error).message });
@@ -340,9 +329,9 @@ router.post("/amazon/search-by-jan", async (req, res) => {
     return res.status(400).json({ detail: "JANコード（数字8〜14桁）を指定してください" });
   }
   try {
-    const browser = await launchChromium();
+    const browser = await getBrowser();
+    const page = await newAmazonPage(browser);
     try {
-      const page = await newAmazonPage(browser);
       const { asin, blocked } = await searchAsinByKeyword(page, jan);
       if (!asin) {
         return res.status(blocked ? 503 : 404).json({
@@ -352,10 +341,10 @@ router.post("/amazon/search-by-jan", async (req, res) => {
         });
       }
       const data = await scrapeProductDetail(page, asin);
-      if (!data.jan_code) data.jan_code = jan; // 詳細でJANが取れなければ検索キーで補完
+      if (!data.jan_code) data.jan_code = jan;
       res.json(data);
     } finally {
-      await browser.close();
+      await page.close();
     }
   } catch (e) {
     res.status(500).json({ detail: (e as Error).message });

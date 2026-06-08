@@ -66,8 +66,8 @@ export class CookieExpiredError extends Error {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const politeDelay = (): Promise<void> => sleep(1500 + Math.floor(Math.random() * 1500));
-const enrichDelay = (): Promise<void> => sleep(800 + Math.floor(Math.random() * 400));
+const politeDelay = (): Promise<void> => sleep(800 + Math.floor(Math.random() * 700));
+const enrichDelay = (): Promise<void> => sleep(400 + Math.floor(Math.random() * 200));
 
 function asinFromUrl(href: string): string {
   const m = href.match(/\/(?:dp|gp\/product|product|gp\/aw\/d)\/([A-Z0-9]{10})/);
@@ -219,7 +219,7 @@ function cleanChromeCache(): void {
   log("info", "Chromeキャッシュを削除しました");
 }
 
-async function getBrowser(): Promise<PuppeteerBrowser> {
+export async function getBrowser(): Promise<PuppeteerBrowser> {
   if (_browser) {
     // 生存確認: ページを開けるか試す
     try {
@@ -343,38 +343,57 @@ async function fetchPageHtml(page: PuppeteerPage, url: string): Promise<{ html: 
   log("info", `ページ取得: ${url}`);
   // domcontentloaded後にAmazonのSiegeClientSideDecryptionが実行されるまで待つ
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await sleep(1500);
+  await sleep(800);
   const finalUrl = page.url();
   const html = await page.content();
   if (finalUrl !== url) log("info", `リダイレクト → ${finalUrl}`);
   return { html, finalUrl };
 }
 
-async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number): Promise<void> {
-  try {
-    log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
-    await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: 20000 });
-    await sleep(800);
-    const html = await page.content();
-    const $ = cheerio.load(html);
-    if (!item.maker) {
-      const brand = $("#bylineInfo, #brand").first().text().trim();
-      item.maker = brand
-        .replace(/ブランド:|Brand:|Visit the/gi, "")
-        .replace(/のストアを表示/g, "")
-        .trim();
+async function enrichItem(page: PuppeteerPage, item: CrawledItem, index: number, total: number, onTimeout: () => void): Promise<boolean> {
+  const ENRICH_TIMEOUT = 10000;
+  const MAX_RETRIES = 10;
+
+  log("info", `詳細補完 (${index}/${total}): ${item.product_name.slice(0, 40)}`);
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await page.goto(item.product_url, { waitUntil: "domcontentloaded", timeout: ENRICH_TIMEOUT });
+      await sleep(300);
+      const html = await page.content();
+      const $ = cheerio.load(html);
+      if (!item.maker) {
+        const brand = $("#bylineInfo, #brand").first().text().trim();
+        item.maker = brand
+          .replace(/ブランド:|Brand:|Visit the/gi, "")
+          .replace(/のストアを表示/g, "")
+          .trim();
+      }
+      // メーカー名が品目名の先頭に重複していれば除去
+      if (item.maker && item.product_name.toLowerCase().startsWith(item.maker.toLowerCase())) {
+        item.product_name = item.product_name.slice(item.maker.length).trimStart();
+      }
+      if (!item.image_url) {
+        item.image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
+      }
+      const bullets = $("#detailBullets_feature_div, #prodDetails").text();
+      const jan = bullets.match(/\b(\d{13})\b/);
+      if (jan) item.jan_code = jan[1];
+      return true;
+    } catch (e) {
+      const msg = (e as Error).message || "";
+      const isTimeout = msg.includes("timeout") || msg.includes("Timeout");
+      if (isTimeout && attempt < MAX_RETRIES) {
+        onTimeout();
+        log("warn", `詳細補完リトライ ${attempt}/${MAX_RETRIES - 1} (${item.asin})`);
+        await sleep(1000 * attempt);
+      } else {
+        log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${msg}`);
+        return false;
+      }
     }
-    if (!item.image_url) {
-      item.image_url = $("#landingImage, #imgBlkFront").first().attr("src") || "";
-    }
-    const bullets = $("#detailBullets_feature_div, #prodDetails").text();
-    const jan = bullets.match(/\b(\d{13})\b/);
-    if (jan) item.jan_code = jan[1];
-    const got = [item.maker && "メーカー", item.image_url && "画像", item.jan_code && "JAN"].filter(Boolean).join("/");
-    if (got) log("info", `  補完: ${got}`);
-  } catch (e) {
-    log("warn", `詳細補完失敗 (${index}/${total} ${item.asin}): ${(e as Error).message}`);
   }
+  return false;
 }
 
 export interface CrawlOptions {
@@ -437,16 +456,41 @@ export async function crawlOrders(cookie: string, opts: CrawlOptions, curlHeader
   return { items: collected, refreshedCookie };
 }
 
-export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<void> {
-  if (items.length === 0) return;
-  log("info", `詳細補完: ${items.length}件`);
+const ENRICH_CONCURRENCY = 1;
+
+export async function enrichItems(cookie: string, items: CrawledItem[], curlHeaders: Record<string, string> = {}): Promise<string[]> {
+  if (items.length === 0) return [];
+  const concurrency = Math.min(ENRICH_CONCURRENCY, items.length);
+  log("info", `詳細補完: ${items.length}件 (並列${concurrency})`);
+  const failed: string[] = [];
+  let timeoutCount = 0;
+  const onTimeout = () => { timeoutCount++; };
+
   await withBrowser(async (browser) => {
-    const page = await setupPage(browser, cookie, curlHeaders);
-    for (let i = 0; i < items.length; i++) {
-      await enrichItem(page, items[i], i + 1, items.length);
-      await enrichDelay();
-    }
-    await page.close();
+    const pages = await Promise.all(
+      Array.from({ length: concurrency }, () => setupPage(browser, cookie, curlHeaders))
+    );
+    let cursor = 0;
+    await Promise.all(pages.map(async (page) => {
+      while (cursor < items.length) {
+        const i = cursor++;
+        if (i >= items.length) break;
+        const ok = await enrichItem(page, items[i], i + 1, items.length, onTimeout);
+        if (!ok) failed.push(items[i].asin);
+        if (cursor < items.length) {
+          const waitMs = Math.min(timeoutCount * 15_000, 180_000);
+          if (waitMs > 0) {
+            log("warn", `タイムアウト累計 ${timeoutCount} 回 — ${Math.round(waitMs / 1000)}秒待機`);
+            timeoutCount = 0;
+            await sleep(waitMs);
+          } else {
+            await enrichDelay();
+          }
+        }
+      }
+      await page.close();
+    }));
   });
   log("info", "詳細補完完了");
+  return failed;
 }

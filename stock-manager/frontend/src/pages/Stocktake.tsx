@@ -1,6 +1,10 @@
 import AddIcon from "@mui/icons-material/Add";
+import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CloseIcon from "@mui/icons-material/Close";
+import InventoryIcon from "@mui/icons-material/Inventory";
 import LinkIcon from "@mui/icons-material/Link";
+import NoPhotographyIcon from "@mui/icons-material/NoPhotography";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import RemoveIcon from "@mui/icons-material/Remove";
 import SearchIcon from "@mui/icons-material/Search";
@@ -22,6 +26,7 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -31,7 +36,7 @@ import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { InventoryItem, Product } from "../types";
 
-// カメラ用のバーコードライブラリ(@zxing)は重いので、カメラを開いた時だけ遅延読込する
+// カメラ用のJANコードライブラリ(@zxing)は重いので、カメラを開いた時だけ遅延読込する
 const BarcodeScanner = lazy(() => import("../components/BarcodeScanner"));
 
 type Mode = "adjust" | "add";
@@ -143,7 +148,7 @@ export default function Stocktake() {
       if (mode === "adjust") {
         await api.post("/api/inventory/adjust", { product_id: current.id, quantity: count });
       } else {
-        // 実数量としてそのまま加算（入り数換算しない）
+        // 実数量としてそのまま加算（員数換算しない）
         await api.post("/api/inventory/add", { product_id: current.id, quantity: count, by_piece: false });
       }
       const after = mode === "adjust" ? count : before + count;
@@ -161,7 +166,7 @@ export default function Stocktake() {
     }
   };
 
-  // 未登録バーコードを既存品目に紐づける。紐づけ後はスキャン成功と同じ状態（カウント1）にする。
+  // 未登録JANコードを既存品目に紐づける。紐づけ後はスキャン成功と同じ状態（カウント1）にする。
   const linkToProduct = async (item: InventoryItem) => {
     const code = notFound;
     if (!code) return;
@@ -169,7 +174,7 @@ export default function Stocktake() {
     try {
       await api.post(`/api/products/${item.id}/barcodes`, { code });
       await Promise.all([reloadProducts(), reloadInventory()]);
-      toast(`「${item.name}」にバーコード ${code} を紐づけました`);
+      toast(`「${item.name}」にJANコード ${code} を紐づけました`);
       setLinkOpen(false);
       setNotFound(null);
       beep(true);
@@ -183,7 +188,7 @@ export default function Stocktake() {
     }
   };
 
-  // Amazon検索から新規作成された品目をそのまま棚卸し対象にする
+  // Amazon検索から新規作成された品目をそのまま棚卸対象にする
   const handleNewProductCreated = (created: Product) => {
     setNewProductOpen(false);
     setNotFound(null);
@@ -210,12 +215,8 @@ export default function Stocktake() {
   return (
     <Box>
       <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>
-        簡単棚卸し（バーコード）
+        棚卸
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        バーコードをスキャンして在庫を登録します。USBバーコードリーダー（キーボード入力）や手入力にも対応。
-      </Typography>
-
       {/* モード選択 */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>登録方法</Typography>
@@ -226,8 +227,8 @@ export default function Stocktake() {
           value={mode}
           onChange={(_, v: Mode | null) => v && setMode(v)}
         >
-          <ToggleButton value="adjust">数えた数にする（棚卸し）</ToggleButton>
-          <ToggleButton value="add">数えた数を追加（入庫）</ToggleButton>
+          <ToggleButton value="adjust"><InventoryIcon fontSize="small" sx={{ mr: 0.5 }} />数量指定</ToggleButton>
+          <ToggleButton value="add"><AddShoppingCartIcon fontSize="small" sx={{ mr: 0.5 }} />追加</ToggleButton>
         </ToggleButtonGroup>
       </Paper>
 
@@ -236,7 +237,7 @@ export default function Stocktake() {
         <Stack direction="row" spacing={1} alignItems="flex-start">
           <TextField
             inputRef={inputRef}
-            label="バーコード（JANコード）"
+            label="JANコード"
             placeholder="スキャン または 手入力して Enter"
             size="small"
             fullWidth
@@ -250,14 +251,15 @@ export default function Stocktake() {
               }
             }}
           />
-          <Button
-            variant={cameraOn ? "contained" : "outlined"}
-            startIcon={<PhotoCameraIcon />}
-            onClick={() => setCameraOn((v) => !v)}
-            sx={{ whiteSpace: "nowrap" }}
-          >
-            {cameraOn ? "カメラ停止" : "カメラ"}
-          </Button>
+          <Tooltip title={cameraOn ? "カメラ停止" : "カメラ起動"}>
+            <IconButton
+              color={cameraOn ? "error" : "default"}
+              onClick={() => setCameraOn((v) => !v)}
+              sx={{ border: 1, borderColor: cameraOn ? "error.main" : "action.disabled" }}
+            >
+              {cameraOn ? <NoPhotographyIcon /> : <PhotoCameraIcon />}
+            </IconButton>
+          </Tooltip>
         </Stack>
         {cameraOn && (
           <Box sx={{ mt: 2 }}>
@@ -270,9 +272,9 @@ export default function Stocktake() {
 
       {notFound && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setNotFound(null)}>
-          <Stack spacing={1} alignItems="flex-start">
-            <span>未登録のバーコードです（{notFound}）。既存の品目に紐づけるか、Amazonで検索して新規登録できます。</span>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Stack spacing={1} sx={{ width: "100%" }}>
+            <span>未登録のJANコードです（{notFound}）</span>
+            <Stack direction="row" spacing={1} useFlexGap sx={{ width: "100%", flexWrap: "wrap" }}>
               <Button
                 color="inherit"
                 size="small"
@@ -280,7 +282,7 @@ export default function Stocktake() {
                 startIcon={<LinkIcon />}
                 onClick={() => { setLinkFilter(""); setLinkOpen(true); }}
               >
-                既存品目と紐づける
+                既存品目と紐づけ
               </Button>
               <Button
                 color="inherit"
@@ -289,7 +291,7 @@ export default function Stocktake() {
                 startIcon={<SearchIcon />}
                 onClick={() => setNewProductOpen(true)}
               >
-                Amazonで検索して新規登録
+                Amazonで検索
               </Button>
             </Stack>
           </Stack>
@@ -301,10 +303,10 @@ export default function Stocktake() {
         <Card sx={{ mb: 2 }}>
           <CardContent>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Avatar src={current.photo ? imageUrl(current.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64 }}>📦</Avatar>
+              <Avatar src={current.photo ? imageUrl(current.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
               <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                 <Typography fontWeight={700} noWrap>{current.name}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} flexWrap="wrap">
+                <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
                   <Chip size="small" label={`現在在庫: ${currentStock}`} />
                   {current.piece_count > 1 && <Chip size="small" variant="outlined" label={`${current.piece_count}個入`} />}
                 </Stack>
@@ -334,10 +336,12 @@ export default function Stocktake() {
                 : `在庫を ${currentStock} → ${currentStock + count} に加算します`}
             </Typography>
 
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-              <Button fullWidth color="inherit" onClick={() => { setCurrent(null); setCount(0); focusInput(); }}>
-                キャンセル
-              </Button>
+            <Stack direction="row" spacing={1} sx={{ mt: 2 }} alignItems="center">
+              <Tooltip title="キャンセル">
+                <IconButton onClick={() => { setCurrent(null); setCount(0); focusInput(); }}>
+                  <CloseIcon />
+                </IconButton>
+              </Tooltip>
               <Button
                 fullWidth
                 variant="contained"
@@ -362,7 +366,7 @@ export default function Stocktake() {
               <Stack key={i} direction="row" spacing={1} alignItems="center" sx={{ fontSize: "0.85rem" }}>
                 <Chip
                   size="small"
-                  label={l.mode === "adjust" ? "棚卸し" : "入庫"}
+                  label={l.mode === "adjust" ? "棚卸" : "入庫"}
                   color={l.mode === "adjust" ? "warning" : "success"}
                 />
                 <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>{l.name}</Typography>
@@ -378,7 +382,7 @@ export default function Stocktake() {
         <DialogTitle>既存の品目と紐づける</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            バーコード <strong>{notFound}</strong> を選択した品目に登録します。次回からはスキャンだけで認識されます。
+            JANコード <strong>{notFound}</strong> を選択した品目に登録します。次回からはスキャンだけで認識されます。
           </Typography>
           <TextField
             autoFocus
@@ -389,7 +393,7 @@ export default function Stocktake() {
             onChange={(e) => setLinkFilter(e.target.value)}
             sx={{ mb: 2 }}
           />
-          <Stack spacing={1} sx={{ maxHeight: 360, overflowY: "auto" }}>
+          <Stack spacing={1} sx={{ overflowY: "auto" }}>
             {filteredForLink.map((item) => (
               <Card
                 key={item.id}
@@ -399,7 +403,7 @@ export default function Stocktake() {
               >
                 <CardContent sx={{ py: 1, "&:last-child": { pb: 1 } }}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }}>📦</Avatar>
+                    <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                     <Box sx={{ minWidth: 0, flexGrow: 1 }}>
                       <Typography fontWeight={600} noWrap>{item.name}</Typography>
                       <Typography variant="caption" color="text.secondary" noWrap component="div">

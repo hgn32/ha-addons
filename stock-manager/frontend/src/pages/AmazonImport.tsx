@@ -11,11 +11,9 @@ import {
   Button,
   Chip,
   CircularProgress,
-  FormControlLabel,
   LinearProgress,
   Paper,
   Stack,
-  Switch,
   Table,
   TableBody,
   TableCell,
@@ -43,7 +41,7 @@ export default function AmazonImport() {
   const [savingCookie, setSavingCookie] = useState(false);
   const [notifyTesting, setNotifyTesting] = useState(false);
   const [manageItem, setManageItem] = useState<AmazonQueueItem | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [enrichRetrying, setEnrichRetrying] = useState(false);
   const logBoxRef = useRef<HTMLDivElement>(null);
 
   // クロール実行中か（UI操作 or バックグラウンド/定期実行のどちらでも）
@@ -53,10 +51,9 @@ export default function AmazonImport() {
   const loadSettings = useCallback(async () => {
     setSettings(await api.get<AmazonSettings>("/api/amazon/settings"));
   }, []);
-  const loadQueue = useCallback(async (all?: boolean) => {
-    const s = all !== undefined ? all : showAll;
-    setQueue(await api.get<AmazonQueueItem[]>(`/api/amazon/queue?status=${s ? "all" : "pending"}`));
-  }, [showAll]);
+  const loadQueue = useCallback(async () => {
+    setQueue(await api.get<AmazonQueueItem[]>("/api/amazon/queue?status=pending"));
+  }, []);
   const loadLogs = useCallback(async () => {
     setLogs(await api.get<AmazonLogEntry[]>("/api/amazon/logs"));
   }, []);
@@ -123,7 +120,7 @@ export default function AmazonImport() {
     setCrawling(true);
     try {
       const s = await api.post<AmazonCrawlSummary>("/api/amazon/crawl", { full });
-      toast(`取得 ${s.fetched}件（自動 ${s.auto} / 要確認 ${s.queued} / スキップ ${s.skipped}）`);
+      toast(`取得 ${s.fetched}件（確認待ち ${s.queued} / スキップ ${s.skipped}）`);
       await Promise.all([loadQueue(), loadSettings(), loadLogs(), reloadProducts(), reloadInventory(), reloadTransactions()]);
     } catch (e) {
       toast((e as Error).message, "error");
@@ -158,10 +155,24 @@ export default function AmazonImport() {
     }
   };
 
-  const ignore = async (item: AmazonQueueItem) => {
+  const enrichRetry = async () => {
+    setEnrichRetrying(true);
     try {
-      await api.post(`/api/amazon/queue/${item.id}/ignore`);
-      toast(`「${item.product_name}」を在庫管理しない（無視）に設定しました`);
+      const r = await api.post<{ total: number; success: number }>("/api/amazon/enrich-retry", {});
+      toast(`補完リトライ完了: ${r.success}/${r.total}件成功`);
+      await loadQueue();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setEnrichRetrying(false);
+    }
+  };
+
+  const enrichFailedCount = queue.filter(q => q.enrich_failed).length;
+
+  const skip = async (item: AmazonQueueItem) => {
+    try {
+      await api.post(`/api/amazon/queue/${item.id}/skip`, {});
       await loadQueue();
     } catch (e) {
       toast((e as Error).message, "error");
@@ -218,6 +229,7 @@ export default function AmazonImport() {
             multiline
             minRows={2}
             placeholder="cURL コマンドをそのまま貼り付け、または Cookie の値のみ貼り付け"
+            slotProps={{ htmlInput: { style: { resize: "vertical" } } }}
           />
           <Button variant="contained" disabled={!cookie.trim() || savingCookie} onClick={saveCookie}>
             Cookieを保存
@@ -230,32 +242,37 @@ export default function AmazonImport() {
         <Typography variant="h6" mb={1}>
           2. 購入履歴を取得
         </Typography>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button
-            variant="contained"
-            startIcon={running ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
-            disabled={!settings?.cookie_set || running}
-            onClick={() => crawl(false)}
-          >
-            {running ? "取得中..." : "差分取得"}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<SyncIcon />}
-            disabled={!settings?.cookie_set || running}
-            onClick={() => crawl(true)}
-          >
-            90日分取込
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            startIcon={notifyTesting ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveIcon />}
-            disabled={notifyTesting}
-            onClick={notifyTest}
-          >
-            通知テスト
-          </Button>
+        <Stack spacing={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              variant="contained"
+              sx={{ flexShrink: 0 }}
+              startIcon={running ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
+              disabled={!settings?.cookie_set || running}
+              onClick={() => crawl(false)}
+            >
+              {running ? "取得中..." : "差分取得"}
+            </Button>
+            <Button
+              variant="outlined"
+              sx={{ flexShrink: 0 }}
+              startIcon={<SyncIcon />}
+              disabled={!settings?.cookie_set || running}
+              onClick={() => crawl(true)}
+            >
+              90日分取込
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              sx={{ flexShrink: 0 }}
+              startIcon={notifyTesting ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveIcon />}
+              disabled={notifyTesting}
+              onClick={notifyTest}
+            >
+              通知テスト
+            </Button>
+          </Stack>
           <Typography variant="body2" color="text.secondary">
             前回同期: {settings?.last_sync ? new Date(settings.last_sync).toLocaleString("ja-JP") : "未実行"}
             {settings?.cron ? ` / 定期実行: ${settings.cron}` : ""}
@@ -285,8 +302,9 @@ export default function AmazonImport() {
             fontSize: "0.75rem",
             p: 1.5,
             borderRadius: 1,
-            height: 260,
+            minHeight: 260,
             overflowY: "auto",
+            resize: "vertical",
             whiteSpace: "pre-wrap",
             wordBreak: "break-all",
           }}
@@ -312,25 +330,34 @@ export default function AmazonImport() {
 
       {/* --- 4. 取込待ちリスト --- */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
-          <Typography variant="h6">
+        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={1} mb={1}>
+          <Typography variant="h6" sx={{ flexShrink: 0 }}>
             4. 取込待ちリスト（{queue.length}件）
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <FormControlLabel
-              control={<Switch size="small" checked={showAll} onChange={(e) => { setShowAll(e.target.checked); loadQueue(e.target.checked); }} />}
-              label="全件表示（自動処理済み含む）"
-            />
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            {enrichFailedCount > 0 && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="warning"
+                disabled={enrichRetrying}
+                startIcon={enrichRetrying ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
+                onClick={enrichRetry}
+                sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+              >
+                補完リトライ ({enrichFailedCount})
+              </Button>
+            )}
             <Button
               size="small"
               color="error"
               variant="outlined"
+              sx={{ flexShrink: 0 }}
               onClick={async () => {
-                if (!confirm("取込履歴と同期日時をリセットします。次回クロール時に過去90日分が再取込されます。よろしいですか？")) return;
+                if (!confirm("取込待ちリストをすべて削除します。同期日時は保持されるため、次回クロールは差分取得になります。よろしいですか？")) return;
                 await api.del("/api/amazon/queue");
                 await loadQueue();
-                await loadSettings();
-                toast("取込履歴をリセットしました。「今すぐ取得」で再取込してください。");
+                toast("取込待ちリストをクリアしました。");
               }}
             >
               履歴リセット
@@ -338,20 +365,15 @@ export default function AmazonImport() {
           </Stack>
         </Stack>
         <Typography variant="body2" color="text.secondary" mb={2}>
-          マスタに一致した品目は自動で在庫加算済みです。未登録の品目をここで振り分けます。
+          購入履歴を取り込む品目を1件ずつ確認します。在庫に追加するか、削除するかを選択してください。
         </Typography>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: "auto" }}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 56 }} />
+                <TableCell sx={{ width: 48, p: 1 }} />
                 <TableCell>品目名</TableCell>
-                <TableCell>ASIN</TableCell>
-                <TableCell>購入日</TableCell>
-                <TableCell align="right">数量</TableCell>
-                <TableCell align="right">単価</TableCell>
-                <TableCell>状態</TableCell>
-                <TableCell align="right" />
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -362,49 +384,50 @@ export default function AmazonImport() {
                       src={q.image_url.startsWith("http") ? q.image_url : q.image_url ? imageUrl(q.image_url) : ""}
                       variant="rounded"
                       sx={{ width: 40, height: 40 }}
+                      slotProps={{ img: { style: { objectFit: "contain" } } }}
                     >
                       📦
                     </Avatar>
                   </TableCell>
-                  <TableCell>{q.product_name}</TableCell>
-                  <TableCell>{q.asin}</TableCell>
-                  <TableCell>{new Date(q.purchased_at).toLocaleDateString("ja-JP")}</TableCell>
-                  <TableCell align="right">{q.quantity}</TableCell>
-                  <TableCell align="right">¥{q.unit_price.toLocaleString()}</TableCell>
                   <TableCell>
-                    <Chip
-                      size="small"
-                      label={{ pending: "要確認", auto: "自動処理済", managed: "管理中", ignored: "無視" }[q.status] ?? q.status}
-                      color={{ pending: "warning", auto: "success", managed: "primary", ignored: "default" }[q.status] as "warning" | "success" | "primary" | "default" ?? "default"}
-                    />
+                    <Typography variant="body2" component="span">
+                      {q.product_name}
+                      {q.enrich_failed && (
+                        <Chip size="small" label="補完失敗" color="warning" variant="outlined" sx={{ ml: 0.5, height: 16, fontSize: "0.6rem", verticalAlign: "middle" }} />
+                      )}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      {q.asin} · {new Date(q.purchased_at).toLocaleDateString("ja-JP")} · {q.quantity}個
+                    </Typography>
                   </TableCell>
-                  <TableCell align="right">
-                    {q.status === "pending" && (
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <TableCell sx={{ p: 1 }}>
+                    <Stack direction="column" spacing={0.5} alignItems="stretch">
                         <Button
                           size="small"
                           variant="contained"
                           startIcon={<InventoryIcon />}
+                          sx={{ whiteSpace: "nowrap" }}
                           onClick={() => setManageItem(q)}
                         >
-                          在庫管理する
+                          追加
                         </Button>
                         <Button
                           size="small"
                           color="inherit"
+                          variant="outlined"
                           startIcon={<BlockIcon />}
-                          onClick={() => ignore(q)}
+                          sx={{ whiteSpace: "nowrap" }}
+                          onClick={() => skip(q)}
                         >
-                          管理しない
+                          削除
                         </Button>
                       </Stack>
-                    )}
                   </TableCell>
                 </TableRow>
               ))}
               {queue.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                  <TableCell colSpan={3} align="center" sx={{ py: 4, color: "text.secondary" }}>
                     取込待ちの品目はありません
                   </TableCell>
                 </TableRow>

@@ -6,17 +6,15 @@ import { IMAGES_DIR } from "../paths";
 
 const router = Router();
 
-// 全マスタデータ削除（緊急用）
-// Product / Transaction / Category / Location / Supplier / AmazonQueue / AmazonIgnoredAsin を全削除。
-// Setting（Cookie・last_sync等）は残す。
+// DB全初期化（全テーブル削除）
 router.delete("/admin/all-data", async (_req, res) => {
   await prisma.transaction.deleteMany({});
   await prisma.amazonQueue.deleteMany({});
-  await prisma.amazonIgnoredAsin.deleteMany({});
   await prisma.product.deleteMany({});
   await prisma.category.deleteMany({});
   await prisma.location.deleteMany({});
   await prisma.supplier.deleteMany({});
+  await prisma.setting.deleteMany({});
 
   // 画像ファイルも削除
   try {

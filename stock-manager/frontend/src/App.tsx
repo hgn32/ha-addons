@@ -21,7 +21,7 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AmazonImport from "./pages/AmazonImport";
 import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
@@ -52,7 +52,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: "dashboard", label: "ダッシュボード", icon: <DashboardIcon />, section: "メイン" },
-  { key: "stocktake", label: "簡単棚卸し", icon: <QrCodeScannerIcon />, section: "メイン" },
+  { key: "stocktake", label: "棚卸", icon: <QrCodeScannerIcon />, section: "メイン" },
   { key: "transactions", label: "在庫履歴", icon: <HistoryIcon />, section: "メイン" },
   { key: "products", label: "品目", icon: <SellIcon />, section: "マスタ" },
   { key: "categories", label: "品目カテゴリ", icon: <CategoryIcon />, section: "マスタ" },
@@ -61,13 +61,24 @@ const NAV: NavItem[] = [
   { key: "amazon", label: "Amazon取込", icon: <CloudDownloadIcon />, section: "インポート" },
 ];
 
+const getPageFromHash = (): Page => {
+  const hash = window.location.hash.replace("#", "") as Page;
+  return NAV.some((n) => n.key === hash) ? hash : "dashboard";
+};
+
 export default function App() {
-  const [page, setPage] = useState<Page>("dashboard");
+  const [page, setPage] = useState<Page>(getPageFromHash);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ナビ選択時はモバイルのドロワーを閉じる
+  useEffect(() => {
+    const handler = () => setPage(getPageFromHash());
+    window.addEventListener("hashchange", handler);
+    return () => window.removeEventListener("hashchange", handler);
+  }, []);
+
   const navigate = (p: Page) => {
     setPage(p);
+    window.location.hash = p;
     setMobileOpen(false);
   };
 
@@ -110,7 +121,7 @@ export default function App() {
           sx={{ mb: 1 }}
           onClick={async () => {
             const input = window.prompt(
-              '全マスタデータ（品目・品目カテゴリ・置き場・購入先・履歴・取込履歴）を削除します。\n\n確認のため「全削除」と入力してください。'
+              'DB全初期化を実行します。全データ（Cookie・設定含む）が削除されます。\n\n確認のため「全削除」と入力してください。'
             );
             if (input !== "全削除") return;
             await fetch("./api/admin/all-data", { method: "DELETE" });
@@ -176,7 +187,7 @@ export default function App() {
 
       <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, minHeight: "100vh", width: { md: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
         <Toolbar />
-        {page === "dashboard" && <Dashboard onNavigate={setPage} />}
+        {page === "dashboard" && <Dashboard onNavigate={navigate} />}
         {page === "stocktake" && <Stocktake />}
         {page === "transactions" && <Transactions />}
         {page === "products" && <Products />}
