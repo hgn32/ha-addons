@@ -336,7 +336,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                 <Box>
                   <LinearProgress sx={{ mb: 1 }} />
                   <Typography variant="body2" color="text.secondary">
-                    JANコードからAmazon商品を検索しています…（情報を取得するまでしばらくお待ちください）
+                    AmazonをJANコードで検索しています…
                   </Typography>
                 </Box>
               )}
