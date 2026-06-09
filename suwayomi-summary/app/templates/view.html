@@ -42,6 +42,33 @@
   .badge-dup { display: inline-block; background: #fbbf24; color: #78350f;
                padding: 1px 6px; border-radius: 3px; font-size: 0.72rem;
                margin-left: 0.4rem; font-weight: 600; }
+
+  @media (prefers-color-scheme: dark) {
+    body { background: #111; color: #e5e7eb; }
+    a.back { color: #93c5fd; }
+    .summary { background: #1f2937; color: #d1d5db; }
+    .summary strong { color: #f9fafb; }
+    .tab-btn { background: #1e293b; color: #9ca3af; }
+    .tab-btn.active { background: #2563eb; color: #fff; }
+    .tabs { border-bottom-color: #2563eb; }
+    table.dataTable { color: #e5e7eb; }
+    table.dataTable td, table.dataTable th { border-color: #374151; }
+    table.dataTable thead th { background: #1e293b; color: #d1d5db; }
+    table.dataTable.stripe tbody tr.odd > * { box-shadow: inset 0 0 0 9999px rgba(255,255,255,0.03); }
+    table.dataTable tbody tr:hover > * { box-shadow: inset 0 0 0 9999px rgba(255,255,255,0.07); }
+    table.dataTable tr.dup td { background: #78350f !important; color: #fef3c7; }
+    td.alias-title.empty { color: #6b7280; }
+    td.broken { color: #fca5a5; }
+    .yes { color: #34d399; }
+    .no  { color: #6b7280; }
+    .badge-broken { background: #450a0a; color: #fca5a5; }
+    .badge-dup { background: #92400e; color: #fde68a; }
+    .dataTables_wrapper { color: #d1d5db; }
+    .dataTables_wrapper select, .dataTables_wrapper input { background: #1f2937; color: #e5e7eb; border-color: #374151; }
+    .dataTables_paginate .paginate_button { color: #93c5fd !important; }
+    .dataTables_paginate .paginate_button.current { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; }
+    .dataTables_paginate .paginate_button:hover { background: #1e40af !important; color: #fff !important; border-color: #1e40af !important; }
+  }
 </style>
 </head>
 <body>
