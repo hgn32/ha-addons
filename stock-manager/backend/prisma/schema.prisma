@@ -47,6 +47,8 @@ model Product {
   note        String        @default("")
   photo       String        @default("")
   quantity    Int           @default(0)
+  // 在庫警告のしきい値。在庫がこの数になると「警告」、下回ると「エラー」表示。
+  warn_quantity Int         @default(1)
   sort_order  Int           @default(0)
   created_at  DateTime      @default(now())
   asins        ProductAsin[]

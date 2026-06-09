@@ -29,6 +29,7 @@ import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { InventoryItem, Transaction } from "../types";
 import type { Page } from "../App";
+import { getStockStatus, stockBorderSx, StockStatusChip } from "../components/StockStatus";
 
 // --- 次回購入想定日の計算 ---
 function estimateNextPurchase(productId: string, stock: number, txs: Transaction[]): Date | null {
@@ -368,20 +369,22 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
         >
           {displayed.map((item) => {
             const next = nextPurchaseMap.get(item.id) ?? null;
-            const low = item.quantity <= 1;
+            const status = getStockStatus(item.quantity, item.warn_quantity);
+            const qtyColor = status === "error" ? "error.main" : status === "warning" ? "warning.main" : "text.primary";
             return (
-              <Card key={item.id} sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              <Card key={item.id} sx={{ height: "100%", display: "flex", flexDirection: "column", ...stockBorderSx(status) }}>
                   <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
                     <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
                       <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                       <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
                           <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>{item.name}</Typography>
-                          <Typography fontWeight={700} color={low ? "error.main" : "text.primary"} sx={{ flexShrink: 0 }}>
+                          <Typography fontWeight={700} color={qtyColor} sx={{ flexShrink: 0 }}>
                             {item.quantity}
                           </Typography>
                         </Stack>
                         <Box sx={{ mt: 0.5, mb: 0.5, flexGrow: 1 }}>
+                          <StockStatusChip status={status} />
                           {item.volume && (
                             <Chip label={item.volume} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                           )}

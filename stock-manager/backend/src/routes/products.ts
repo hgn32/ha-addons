@@ -13,6 +13,7 @@ const EDITABLE: string[] = [
   "name",
   "volume",
   "piece_count",
+  "warn_quantity",
   "maker",
   "jan_code",
   "amazon_asin",
@@ -115,6 +116,11 @@ router.put("/products/reorder", async (req, res) => {
 
 function coerce(field: string, value: string): string | number {
   if (field === "piece_count") return Math.max(1, parseInt(value, 10) || 1);
+  // 警告しきい値: 0以上の整数。未入力/不正値は既定の1にフォールバックする。
+  if (field === "warn_quantity") {
+    const n = parseInt(value, 10);
+    return Number.isNaN(n) ? 1 : Math.max(0, n);
+  }
   return String(value ?? "").trim();
 }
 

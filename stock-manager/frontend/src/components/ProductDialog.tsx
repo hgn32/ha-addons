@@ -75,6 +75,12 @@ const schema = yup.object({
   name: yup.string().required("名は必須です"),
   volume: yup.string().default(""),
   piece_count: yup.number().integer().min(1).default(1),
+  warn_quantity: yup
+    .number()
+    .transform((value, original) => (original === "" || original === null || Number.isNaN(value) ? 1 : value))
+    .integer()
+    .min(0)
+    .default(1),
   maker: yup.string().default(""),
   jan_code: yup.string().default(""),
   amazon_asin: yup.string().default(""),
@@ -111,7 +117,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", volume: "", piece_count: 1, maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
+    defaultValues: { name: "", volume: "", piece_count: 1, warn_quantity: 1, maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
   });
 
   useEffect(() => {
@@ -121,6 +127,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
         name: product?.name ?? "",
         volume: product?.volume ?? "",
         piece_count: product?.piece_count ?? 1,
+        warn_quantity: product?.warn_quantity ?? 1,
         maker: product?.maker ?? "",
         jan_code: product?.jan_code ?? initialJan ?? "",
         amazon_asin: product?.amazon_asin ?? "",
@@ -380,6 +387,14 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                       {...register("piece_count", { valueAsNumber: true })}
                     />
                   </Stack>
+                  <TextField
+                    label="警告在庫数"
+                    type="number"
+                    sx={{ width: 200 }}
+                    slotProps={{ htmlInput: { min: 0 } }}
+                    helperText="在庫がこの数で警告、下回るとエラー表示"
+                    {...register("warn_quantity", { valueAsNumber: true })}
+                  />
                   <TextField label="メーカー" fullWidth {...register("maker")} slotProps={shrinkLabel(watchedMaker)} />
                   <Stack direction="row" spacing={1} alignItems="center">
                     <TextField label="JANコード（主）" fullWidth {...register("jan_code")} slotProps={shrinkLabel(watchedJan)} />

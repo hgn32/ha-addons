@@ -36,6 +36,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { api, imageUrl } from "../api";
 import AddFab from "../components/AddFab";
 import ProductDialog from "../components/ProductDialog";
+import { getStockStatus, stockBorderSx, StockBadge, type StockStatusLevel } from "../components/StockStatus";
 import { useStore } from "../store";
 import { Product } from "../types";
 
@@ -43,11 +44,13 @@ interface CardProps {
   product: Product;
   categoryLabel: string;
   lastPurchased: string;
+  quantity: number;
+  status: StockStatusLevel;
   onEdit: () => void;
   onRemove: () => void;
 }
 
-function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit, onRemove }: CardProps) {
+function SortableProductCard({ product: p, categoryLabel, lastPurchased, quantity, status, onEdit, onRemove }: CardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -56,7 +59,7 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
   };
 
   return (
-    <Card ref={setNodeRef} style={style} sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <Card ref={setNodeRef} style={style} sx={{ height: "100%", display: "flex", flexDirection: "column", ...stockBorderSx(status) }}>
       <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
         <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
           <Avatar
@@ -81,6 +84,7 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
               </Box>
             </Stack>
             <Box sx={{ mt: 0.5, mb: 0.5, flexGrow: 1 }}>
+              <StockBadge status={status} quantity={quantity} />
               {p.volume && (
                 <Chip label={p.volume} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
               )}
@@ -123,7 +127,7 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, onEdit,
 }
 
 export default function Products() {
-  const { products, transactions, categoryName, reloadProducts, reloadInventory, toast } = useStore();
+  const { products, transactions, categoryName, stockOf, reloadProducts, reloadInventory, toast } = useStore();
   const [localProducts, setLocalProducts] = useState<Product[]>([]);
   const [dialog, setDialog] = useState<{ open: boolean; product: Product | null }>({
     open: false,
@@ -208,12 +212,15 @@ export default function Products() {
               const lastPurchased = lastDate
                 ? new Date(lastDate).toLocaleDateString("ja-JP")
                 : "";
+              const quantity = stockOf(p.id);
               return (
                 <SortableProductCard
                   key={p.id}
                   product={p}
                   categoryLabel={categoryName(p.category_id)}
                   lastPurchased={lastPurchased}
+                  quantity={quantity}
+                  status={getStockStatus(quantity, p.warn_quantity)}
                   onEdit={() => setDialog({ open: true, product: p })}
                   onRemove={() => remove(p)}
                 />

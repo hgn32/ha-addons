@@ -25,6 +25,7 @@ import { useMemo, useState } from "react";
 import type { Page } from "../App";
 import { imageUrl } from "../api";
 import StockDialog, { StockMode } from "../components/StockDialog";
+import { getStockStatus, StockStatusChip } from "../components/StockStatus";
 import { useStore } from "../store";
 
 export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => void }) {
@@ -75,7 +76,10 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
               </TableRow>
             </TableHead>
             <TableBody>
-              {filtered.map((item) => (
+              {filtered.map((item) => {
+                const status = getStockStatus(item.quantity, item.warn_quantity);
+                const qtyColor = status === "error" ? "error.main" : status === "warning" ? "warning.main" : "text.primary";
+                return (
                 <TableRow key={item.id} hover>
                   <TableCell>
                     <Stack direction="row" spacing={1.5} alignItems="center">
@@ -95,9 +99,12 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
                   <TableCell>{categoryName(item.category_id)}</TableCell>
                   <TableCell>{locationName(item.location_id)}</TableCell>
                   <TableCell align="right">
-                    <Typography fontWeight={700} color={item.quantity <= 1 ? "error.main" : "text.primary"}>
-                      {item.quantity}
-                    </Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
+                      <StockStatusChip status={status} />
+                      <Typography fontWeight={700} color={qtyColor}>
+                        {item.quantity}
+                      </Typography>
+                    </Stack>
                   </TableCell>
                   <TableCell align="right">
                     <Button startIcon={<HistoryIcon />} onClick={() => viewHistory(item.id)}>
@@ -105,7 +112,8 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
