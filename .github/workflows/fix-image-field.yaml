@@ -1,0 +1,43 @@
+name: Fix image field on main
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/config.json"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    name: Rename _image to image in config.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Replace _image with image
+        id: fix
+        run: |
+          changed=false
+          for f in $(find . -name config.json -not -path '*/.git/*'); do
+            if grep -q '"_image"' "$f"; then
+              sed -i 's/"_image"/"image"/g' "$f"
+              echo "Fixed: $f"
+              changed=true
+            fi
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Commit fix
+        if: steps.fix.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "*/config.json"
+          git commit -m "chore: restore image field in config.json (was _image)"
+          git push
