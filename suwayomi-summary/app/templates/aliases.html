@@ -52,6 +52,33 @@
   .info { background: #eff6ff; color: #1e40af; padding: 0.5rem 1rem;
           border-radius: 4px; margin: 0.5rem 0 1rem; font-size: 0.85rem; }
   tr.hidden { display: none; }
+
+  @media (prefers-color-scheme: dark) {
+    body { background: #111; color: #e5e7eb; }
+    a.back { color: #93c5fd; }
+    .meta { color: #9ca3af; }
+    .meta code { background: #374151; color: #c7d2fe; }
+    .saved { background: #064e3b; color: #6ee7b7; }
+    .info { background: #1e3a5f; color: #93c5fd; }
+    .toolbar input[type=search] { background: #1f2937; color: #e5e7eb; border-color: #374151; }
+    button { background: #2563eb; }
+    button:hover { background: #1d4ed8; }
+    button.secondary { background: #4b5563; }
+    button.secondary:hover { background: #374151; }
+    button.danger { color: #fca5a5; }
+    button.danger:hover { background: #450a0a; }
+    .save-bar { background: #1a1a1a; border-top-color: #374151; }
+    .save-bar .stats { color: #9ca3af; }
+    th, td { border-bottom-color: #374151; }
+    th { background: #1e293b; color: #d1d5db; }
+    input.cell { background: #1f2937; color: #e5e7eb; border-color: #374151; }
+    input.cell:focus { border-color: #2563eb; }
+    input.cell.uncertain { background: #431407; }
+    tr.unused td { background: #1a1f2e; }
+    tr.unused input.cell { color: #9ca3af; }
+    .badge-unused { background: #374151; color: #9ca3af; }
+    td.idx { color: #6b7280; }
+  }
 </style>
 </head>
 <body data-has-context="{% if has_backup_context %}1{% else %}0{% endif %}">
