@@ -25,7 +25,7 @@ import { useMemo, useState } from "react";
 import type { Page } from "../App";
 import { imageUrl } from "../api";
 import StockDialog, { StockMode } from "../components/StockDialog";
-import { getStockStatus, StockStatusChip } from "../components/StockStatus";
+import { getStockStatus, stockColor } from "../components/StockStatus";
 import { useStore } from "../store";
 
 export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => void }) {
@@ -78,7 +78,6 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
             <TableBody>
               {filtered.map((item) => {
                 const status = getStockStatus(item.quantity, item.warn_quantity);
-                const qtyColor = status === "error" ? "error.main" : status === "warning" ? "warning.main" : "text.primary";
                 return (
                 <TableRow key={item.id} hover>
                   <TableCell>
@@ -99,12 +98,9 @@ export default function Inventory({ onNavigate }: { onNavigate: (p: Page) => voi
                   <TableCell>{categoryName(item.category_id)}</TableCell>
                   <TableCell>{locationName(item.location_id)}</TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
-                      <StockStatusChip status={status} />
-                      <Typography fontWeight={700} color={qtyColor}>
-                        {item.quantity}
-                      </Typography>
-                    </Stack>
+                    <Typography fontWeight={700} color={stockColor(status)}>
+                      {item.quantity}
+                    </Typography>
                   </TableCell>
                   <TableCell align="right">
                     <Button startIcon={<HistoryIcon />} onClick={() => viewHistory(item.id)}>

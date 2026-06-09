@@ -36,7 +36,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { api, imageUrl } from "../api";
 import AddFab from "../components/AddFab";
 import ProductDialog from "../components/ProductDialog";
-import { getStockStatus, stockBorderSx, StockBadge, type StockStatusLevel } from "../components/StockStatus";
+import { getStockStatus, stockBorderSx, stockColor, type StockStatusLevel } from "../components/StockStatus";
 import { useStore } from "../store";
 import { Product } from "../types";
 
@@ -75,6 +75,9 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, quantit
               <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>
                 {p.name}
               </Typography>
+              <Typography fontWeight={700} color={stockColor(status)} sx={{ flexShrink: 0, mr: 1 }}>
+                {quantity}
+              </Typography>
               <Box
                 {...attributes}
                 {...listeners}
@@ -84,7 +87,6 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, quantit
               </Box>
             </Stack>
             <Box sx={{ mt: 0.5, mb: 0.5, flexGrow: 1 }}>
-              <StockBadge status={status} quantity={quantity} />
               {p.volume && (
                 <Chip label={p.volume} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
               )}
