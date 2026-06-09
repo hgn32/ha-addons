@@ -1,6 +1,6 @@
 import CssBaseline from "@mui/material/CssBaseline";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
-import React from "react";
+import { createTheme, ThemeProvider, useMediaQuery } from "@mui/material";
+import React, { useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import "@fontsource/roboto/300.css";
 import "@fontsource/roboto/400.css";
@@ -10,16 +10,22 @@ import App from "./App";
 import ErrorBoundary from "./ErrorBoundary";
 import { StoreProvider } from "./store";
 
-const theme = createTheme({
-  palette: {
-    primary: { main: "#2563eb" },
-    background: { default: "#f4f6f9" },
-  },
-  shape: { borderRadius: 10 },
-});
+function Root() {
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: prefersDark ? "dark" : "light",
+          primary: { main: "#2563eb" },
+          background: { default: prefersDark ? "#111827" : "#f4f6f9" },
+        },
+        shape: { borderRadius: 10 },
+      }),
+    [prefersDark]
+  );
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+  return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ErrorBoundary>
@@ -28,5 +34,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </StoreProvider>
       </ErrorBoundary>
     </ThemeProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <Root />
   </React.StrictMode>
 );
