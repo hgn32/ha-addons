@@ -35,11 +35,17 @@ router.post("/inventory/add", async (req, res) => {
   // by_piece=true（既定・後方互換）: 数量を員数で換算して加算（セット買い）
   // by_piece=false: 入力値をそのまま実数量として加算（バラ買い・使用後の登録など）
   const byPiece = req.body.by_piece !== false;
+  // piece_count: スキャンしたJAN/ASINごとの員数を明示指定する場合の上書き値。
+  // 未指定なら品目の員数を使う。
+  const overridePiece =
+    req.body.piece_count != null && req.body.piece_count !== ""
+      ? Math.max(1, parseInt(req.body.piece_count, 10) || 1)
+      : null;
   if (!(qty > 0)) return res.status(400).json({ detail: "数量は1以上で指定してください" });
   try {
     const product = await prisma.product.findUnique({ where: { id: product_id } });
     if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
-    const pieceCount = product.piece_count || 1;
+    const pieceCount = overridePiece ?? (product.piece_count || 1);
     const actualQty = byPiece ? qty * pieceCount : qty;
     const updated = await prisma.product.update({
       where: { id: product_id },

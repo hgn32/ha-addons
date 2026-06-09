@@ -76,6 +76,8 @@ export default function Stocktake() {
   const [cameraOn, setCameraOn] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [current, setCurrent] = useState<InventoryItem | null>(null);
+  // スキャンしたコードに設定された員数（追加入庫時の換算に使う）。
+  const [scannedPiece, setScannedPiece] = useState(1);
   const [count, setCount] = useState(0);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,9 +111,11 @@ export default function Stocktake() {
       lastScanRef.current = { code, t: now };
 
       try {
-        const product = await api.get<InventoryItem>(`/api/products/by-barcode/${encodeURIComponent(code)}`);
+        const product = await api.get<InventoryItem & { scanned_piece_count?: number }>(`/api/products/by-barcode/${encodeURIComponent(code)}`);
         setNotFound(null);
         beep(true);
+        // スキャンしたコードの員数（主JAN→品目の員数 / 追加JAN→そのコードの員数）。
+        setScannedPiece(Math.max(1, product.scanned_piece_count ?? product.piece_count ?? 1));
         const cur = currentRef.current;
         if (cur && cur.id === product.id) {
           // 同じ品目を連続スキャン → カウントを1つ増やす
@@ -144,19 +148,21 @@ export default function Stocktake() {
     if (!(count >= 0)) return;
     setBusy(true);
     const before = stockOf(current.id);
+    const addedQty = count * scannedPiece;
     try {
       if (mode === "adjust") {
         await api.post("/api/inventory/adjust", { product_id: current.id, quantity: count });
       } else {
-        // 実数量としてそのまま加算（員数換算しない）
-        await api.post("/api/inventory/add", { product_id: current.id, quantity: count, by_piece: false });
+        // スキャンしたコードの員数で換算して加算（員数1ならそのまま）
+        await api.post("/api/inventory/add", { product_id: current.id, quantity: count, by_piece: true, piece_count: scannedPiece });
       }
-      const after = mode === "adjust" ? count : before + count;
+      const after = mode === "adjust" ? count : before + addedQty;
       setLogs((prev) => [{ name: current.name, before, after, mode, at: Date.now() }, ...prev].slice(0, 20));
-      toast(mode === "adjust" ? `「${current.name}」を ${count} に調整しました` : `「${current.name}」に ${count} 追加しました`);
+      toast(mode === "adjust" ? `「${current.name}」を ${count} に調整しました` : `「${current.name}」に ${addedQty} 追加しました`);
       await Promise.all([reloadInventory(), reloadTransactions()]);
       setCurrent(null);
       setCount(0);
+      setScannedPiece(1);
       lastScanRef.current = { code: "", t: 0 };
       focusInput();
     } catch (e) {
@@ -178,6 +184,8 @@ export default function Stocktake() {
       setLinkOpen(false);
       setNotFound(null);
       beep(true);
+      // 紐づけ直後のコードは基本単位(員数1)。箱・ケース等の換算は品目編集で設定する。
+      setScannedPiece(1);
       setCurrent(item);
       setCount(1);
       lastScanRef.current = { code, t: Date.now() };
@@ -193,6 +201,8 @@ export default function Stocktake() {
     setNewProductOpen(false);
     setNotFound(null);
     beep(true);
+    // 新規品目の主JANは基本単位(員数1)として扱う。
+    setScannedPiece(1);
     setCurrent({ ...created, quantity: 0 });
     setCount(1);
     lastScanRef.current = { code: created.jan_code || "", t: Date.now() };
@@ -308,7 +318,9 @@ export default function Stocktake() {
                 <Typography fontWeight={700} noWrap>{current.name}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
                   <Chip size="small" label={`現在在庫: ${currentStock}`} />
-                  {current.piece_count > 1 && <Chip size="small" variant="outlined" label={`${current.piece_count}個入`} />}
+                  {mode === "add" && scannedPiece > 1 && (
+                    <Chip size="small" color="success" variant="outlined" label={`員数 ${scannedPiece}`} />
+                  )}
                 </Stack>
               </Box>
             </Stack>
@@ -333,12 +345,14 @@ export default function Stocktake() {
             <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mt: 1 }}>
               {mode === "adjust"
                 ? `在庫を ${currentStock} → ${count} に調整します`
+                : scannedPiece > 1
+                ? `在庫を ${currentStock} → ${currentStock + count * scannedPiece} に加算します（${count} × 員数${scannedPiece} = ${count * scannedPiece}個）`
                 : `在庫を ${currentStock} → ${currentStock + count} に加算します`}
             </Typography>
 
             <Stack direction="row" spacing={1} sx={{ mt: 2 }} alignItems="center">
               <Tooltip title="キャンセル">
-                <IconButton onClick={() => { setCurrent(null); setCount(0); focusInput(); }}>
+                <IconButton onClick={() => { setCurrent(null); setCount(0); setScannedPiece(1); focusInput(); }}>
                   <CloseIcon />
                 </IconButton>
               </Tooltip>

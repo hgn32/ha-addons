@@ -25,24 +25,41 @@ export interface CrawlSummary {
   last_sync: string;
 }
 
-// Find a product master entry matching the crawled item's ASIN or JAN.
+export type ProductRecord = NonNullable<Awaited<ReturnType<typeof prisma.product.findFirst>>>;
+
+export interface ProductMatch {
+  product: ProductRecord;
+  // 在庫加算時の換算員数。マッチしたコード(ASIN/JAN)ごとに設定された員数を使う。
+  pieceCount: number;
+  matchedBy: "asin" | "legacy_asin" | "jan" | "barcode";
+}
+
+const safePiece = (n: number | null | undefined): number => Math.max(1, n || 1);
+
+// Find a product master entry matching the crawled item's ASIN or JAN, along
+// with the piece count configured for the specific matched code.
 // Checks ProductAsin table first, then legacy product.amazon_asin field, then
 // JAN code (主jan_code → 追加JANコードProductBarcode).
-export async function matchProduct(asin: string, jan: string) {
+export async function matchProductWithUnit(asin: string, jan: string): Promise<ProductMatch | null> {
   if (asin) {
     const byProductAsin = await prisma.productAsin.findUnique({ where: { asin }, include: { product: true } });
-    if (byProductAsin) return byProductAsin.product;
+    if (byProductAsin) return { product: byProductAsin.product, pieceCount: safePiece(byProductAsin.piece_count), matchedBy: "asin" };
     // Legacy fallback: products created before multi-ASIN support
     const byLegacyAsin = await prisma.product.findFirst({ where: { amazon_asin: asin } });
-    if (byLegacyAsin) return byLegacyAsin;
+    if (byLegacyAsin) return { product: byLegacyAsin, pieceCount: safePiece(byLegacyAsin.piece_count), matchedBy: "legacy_asin" };
   }
   if (jan) {
     const byJan = await prisma.product.findFirst({ where: { jan_code: jan } });
-    if (byJan) return byJan;
+    if (byJan) return { product: byJan, pieceCount: safePiece(byJan.piece_count), matchedBy: "jan" };
     const byBarcode = await prisma.productBarcode.findUnique({ where: { code: jan }, include: { product: true } });
-    if (byBarcode) return byBarcode.product;
+    if (byBarcode) return { product: byBarcode.product, pieceCount: safePiece(byBarcode.piece_count), matchedBy: "barcode" };
   }
   return null;
+}
+
+// 後方互換: マッチした品目のみ返す薄いラッパ。
+export async function matchProduct(asin: string, jan: string) {
+  return (await matchProductWithUnit(asin, jan))?.product ?? null;
 }
 
 function queueData(item: CrawledItem, status: string) {
@@ -221,12 +238,13 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
     },
   });
 
-  // Register ASIN in ProductAsin table
+  // Register ASIN in ProductAsin table. このASINの員数は品目の員数を初期値にする
+  // （次回以降の自動取込でこの員数換算が使われる）。
   if (item.asin) {
     await prisma.productAsin.upsert({
       where: { asin: item.asin },
       update: { product_id: product.id },
-      create: { product_id: product.id, asin: item.asin },
+      create: { product_id: product.id, asin: item.asin, piece_count: safePiece(product.piece_count) },
     });
   }
 
@@ -245,18 +263,19 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
 }
 
 // パターンA-2「既存アイテムにマージ」: 既存マスタにASIN紐づけ + 在庫加算
-export async function manageQueueItemMerge(id: string, productId: string, quantity: number) {
+// pieceCount: 新規に紐づけるASINに設定する員数（既存の紐づけ済みASINの員数は変更しない）。
+export async function manageQueueItemMerge(id: string, productId: string, quantity: number, pieceCount?: number) {
   const item = await prisma.amazonQueue.findUnique({ where: { id } });
   if (!item) throw new Error("取込データが見つかりません");
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) throw new Error("マージ先の品目が見つかりません");
 
-  // Add ASIN association
+  // Add ASIN association. 新規紐づけ時のみ員数を設定（再取込時は既存設定を保持）。
   if (item.asin) {
     await prisma.productAsin.upsert({
       where: { asin: item.asin },
       update: { product_id: productId },
-      create: { product_id: productId, asin: item.asin },
+      create: { product_id: productId, asin: item.asin, piece_count: safePiece(pieceCount ?? product.piece_count) },
     });
   }
 
