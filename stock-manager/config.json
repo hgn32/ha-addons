@@ -3,7 +3,7 @@
   "description": "在庫管理アプリ。品目・カテゴリ・置き場・購入先の管理、在庫操作・履歴記録、Amazon購入履歴の自動取込に対応。",
   "version": "0.9.0",
   "slug": "3a30c8ec_stock_manager",
-  "_image": "ghcr.io/hgn32/stock-manager",
+  "image": "ghcr.io/hgn32/stock-manager",
   "stage": "experimental",
   "init": false,
   "arch": [
