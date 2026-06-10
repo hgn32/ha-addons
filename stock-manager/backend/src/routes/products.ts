@@ -13,6 +13,7 @@ const EDITABLE: string[] = [
   "name",
   "volume",
   "piece_count",
+  "warn_quantity",
   "maker",
   "jan_code",
   "amazon_asin",
@@ -44,13 +45,18 @@ router.get("/products", async (_req, res) => {
 router.get("/products/by-barcode/:code", async (req, res) => {
   const code = String(req.params.code ?? "").trim();
   if (!code) return res.status(400).json({ detail: "コードが空です" });
+  // scanned_piece_count: スキャンしたコードに設定された員数（入庫時の換算に使う）。
+  // 主jan_codeは基本単位(1個ずつ加算)として扱い、個別スキャン運用を維持する。
+  // 追加JANコード(箱・ケース等)は、そのコードに設定された員数で換算する。
   let product = await prisma.product.findFirst({ where: { jan_code: code } });
+  let scannedPieceCount = 1;
   if (!product) {
     const bc = await prisma.productBarcode.findUnique({ where: { code }, include: { product: true } });
     product = bc?.product ?? null;
+    if (bc) scannedPieceCount = Math.max(1, bc.piece_count || 1);
   }
   if (!product) return res.status(404).json({ detail: "該当する品目がありません" });
-  res.json(product);
+  res.json({ ...product, scanned_code: code, scanned_piece_count: scannedPieceCount });
 });
 
 // 品目に紐づくJAN/JANコード一覧を取得（主jan_codeを除く追加分）。
@@ -69,6 +75,7 @@ router.get("/products/:id/barcodes", async (req, res) => {
 router.post("/products/:id/barcodes", async (req, res) => {
   const code = String(req.body.code ?? "").trim();
   const mode = String(req.body.mode ?? "").trim();
+  const pieceCount = req.body.piece_count != null ? Math.max(1, parseInt(req.body.piece_count, 10) || 1) : 1;
   if (!code) return res.status(400).json({ detail: "コードが空です" });
   const product = await prisma.product.findUnique({ where: { id: req.params.id as string } });
   if (!product) return res.status(404).json({ detail: "品目が見つかりません" });
@@ -90,8 +97,22 @@ router.post("/products/:id/barcodes", async (req, res) => {
     const updated = await prisma.product.update({ where: { id: product.id }, data: { jan_code: code } });
     return res.json(updated);
   }
-  const row = await prisma.productBarcode.create({ data: { product_id: product.id, code } });
+  const row = await prisma.productBarcode.create({ data: { product_id: product.id, code, piece_count: pieceCount } });
   res.status(201).json(row);
+});
+
+// 追加JANコードの員数を更新
+router.patch("/products/barcodes/:barcodeId", async (req, res) => {
+  const pieceCount = Math.max(1, parseInt(req.body.piece_count, 10) || 1);
+  try {
+    const row = await prisma.productBarcode.update({
+      where: { id: req.params.barcodeId as string },
+      data: { piece_count: pieceCount },
+    });
+    res.json(row);
+  } catch {
+    res.status(404).json({ detail: "Not found" });
+  }
 });
 
 // 追加JANコードを削除
@@ -115,6 +136,11 @@ router.put("/products/reorder", async (req, res) => {
 
 function coerce(field: string, value: string): string | number {
   if (field === "piece_count") return Math.max(1, parseInt(value, 10) || 1);
+  // 警告しきい値: 0以上の整数。未入力/不正値は既定の1にフォールバックする。
+  if (field === "warn_quantity") {
+    const n = parseInt(value, 10);
+    return Number.isNaN(n) ? 1 : Math.max(0, n);
+  }
   return String(value ?? "").trim();
 }
 

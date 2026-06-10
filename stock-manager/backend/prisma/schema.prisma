@@ -47,6 +47,8 @@ model Product {
   note        String        @default("")
   photo       String        @default("")
   quantity    Int           @default(0)
+  // 在庫警告のしきい値。在庫がこの数になると「警告」、下回ると「エラー」表示。
+  warn_quantity Int         @default(1)
   sort_order  Int           @default(0)
   created_at  DateTime      @default(now())
   asins        ProductAsin[]
@@ -55,12 +57,14 @@ model Product {
 }
 
 // One product can be associated with multiple ASINs (e.g. same item re-listed or capacity variants)
+// piece_count: このASINで1個購入したときに加算する実在庫数（容量違い・まとめ買い対応）。
 model ProductAsin {
-  id         String   @id @default(uuid())
-  product_id String
-  asin       String   @unique
-  created_at DateTime @default(now())
-  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  product_id  String
+  asin        String   @unique
+  piece_count Int      @default(1)
+  created_at  DateTime @default(now())
+  product     Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([product_id])
 }
@@ -69,11 +73,12 @@ model ProductAsin {
 // jan_code field stays for display/CSV; extra barcodes linked via the
 // 棚卸 screen are stored here so scans resolve to the right product.
 model ProductBarcode {
-  id         String   @id @default(uuid())
-  product_id String
-  code       String   @unique
-  created_at DateTime @default(now())
-  product    Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  product_id  String
+  code        String   @unique
+  piece_count Int      @default(1)
+  created_at  DateTime @default(now())
+  product     Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
   @@index([product_id])
 }

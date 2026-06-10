@@ -29,6 +29,7 @@ import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
 import { InventoryItem, Transaction } from "../types";
 import type { Page } from "../App";
+import { getStockStatus, stockBorderSx, stockColor } from "../components/StockStatus";
 
 // --- 次回購入想定日の計算 ---
 function estimateNextPurchase(productId: string, stock: number, txs: Transaction[]): Date | null {
@@ -294,7 +295,7 @@ function QuickStockDialog({ item, mode, onClose }: { item: InventoryItem | null;
   );
 }
 
-type SortKey = "stock_asc" | "stock_desc" | "name_asc";
+type SortKey = "alert" | "stock_asc" | "stock_desc" | "name_asc";
 
 // --- Dashboard ---
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -304,7 +305,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
   const [dialogMode, setDialogMode] = useState<"add" | "use">("add");
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [filterCategory, setFilterCategory] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("stock_asc");
+  const [sortKey, setSortKey] = useState<SortKey>("alert");
 
   const nextPurchaseMap = useMemo(() => {
     const m = new Map<string, Date | null>();
@@ -319,7 +320,18 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
       ? inventory.filter((i) => i.category_id === filterCategory)
       : [...inventory];
 
+    // アラート順: エラー → 警告 → 通常 の順。同じ状態内は在庫が少ない順。
+    const alertRank = (i: InventoryItem) => {
+      const s = getStockStatus(i.quantity, i.warn_quantity);
+      return s === "error" ? 0 : s === "warning" ? 1 : 2;
+    };
     list.sort((a, b) => {
+      if (sortKey === "alert") {
+        const r = alertRank(a) - alertRank(b);
+        if (r !== 0) return r;
+        if (a.quantity !== b.quantity) return a.quantity - b.quantity;
+        return a.name.localeCompare(b.name, "ja");
+      }
       if (sortKey === "stock_asc") return a.quantity - b.quantity;
       if (sortKey === "stock_desc") return b.quantity - a.quantity;
       return a.name.localeCompare(b.name, "ja");
@@ -347,6 +359,7 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
           >
+            <MenuItem value="alert">アラート順</MenuItem>
             <MenuItem value="stock_asc">在庫 ▲</MenuItem>
             <MenuItem value="stock_desc">在庫 ▼</MenuItem>
             <MenuItem value="name_asc">名前順</MenuItem>
@@ -368,16 +381,16 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
         >
           {displayed.map((item) => {
             const next = nextPurchaseMap.get(item.id) ?? null;
-            const low = item.quantity <= 1;
+            const status = getStockStatus(item.quantity, item.warn_quantity);
             return (
-              <Card key={item.id} sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              <Card key={item.id} sx={{ height: "100%", display: "flex", flexDirection: "column", ...stockBorderSx(status) }}>
                   <CardContent sx={{ flexGrow: 1, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
                     <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
                       <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                       <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
                         <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
                           <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>{item.name}</Typography>
-                          <Typography fontWeight={700} color={low ? "error.main" : "text.primary"} sx={{ flexShrink: 0 }}>
+                          <Typography fontWeight={700} color={stockColor(status)} sx={{ flexShrink: 0 }}>
                             {item.quantity}
                           </Typography>
                         </Stack>

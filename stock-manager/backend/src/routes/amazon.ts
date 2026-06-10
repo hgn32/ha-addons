@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { prisma } from "../db";
 import { getCookie, getCronSchedule, getSetting, setSetting } from "../amazon/config";
 import { clearLogs, getLogs } from "../amazon/logger";
-import { manageQueueItemNew, manageQueueItemMerge, matchProduct, runAmazonCrawl, isCrawlRunning, retryEnrichFailed } from "../amazon/service";
+import { manageQueueItemNew, manageQueueItemMerge, matchProductWithUnit, runAmazonCrawl, isCrawlRunning, retryEnrichFailed } from "../amazon/service";
 import { notifyHA } from "../amazon/notify";
 import { getBrowser } from "../amazon/crawler";
 
@@ -127,11 +127,12 @@ router.get("/amazon/queue", async (req, res) => {
   });
   const enriched = await Promise.all(
     items.map(async (item) => {
-      const product = await matchProduct(item.asin, item.jan_code);
+      const match = await matchProductWithUnit(item.asin, item.jan_code);
       return {
         ...item,
-        matched_product: product
-          ? { id: product.id, name: product.name, piece_count: product.piece_count, quantity: product.quantity, photo: product.photo }
+        // piece_count はマッチしたコード(ASIN/JAN)に設定された員数。員数換算に使う。
+        matched_product: match
+          ? { id: match.product.id, name: match.product.name, piece_count: match.pieceCount, quantity: match.product.quantity, photo: match.product.photo }
           : null,
       };
     })
@@ -155,7 +156,9 @@ router.post("/amazon/queue/:id/manage", async (req, res) => {
     let product;
     if (mode === "merge") {
       if (!product_id) return res.status(400).json({ detail: "product_id is required for merge" });
-      product = await manageQueueItemMerge(req.params.id as string, product_id as string, qty);
+      // 紐づけるASINに設定する員数（任意）。
+      const pieceCount = overrides.piece_count != null ? Math.max(1, parseInt(overrides.piece_count, 10) || 1) : undefined;
+      product = await manageQueueItemMerge(req.params.id as string, product_id as string, qty, pieceCount);
     } else {
       product = await manageQueueItemNew(req.params.id as string, overrides, qty);
     }
@@ -174,19 +177,34 @@ router.get("/products/:id/asins", async (req, res) => {
   res.json(asins);
 });
 
-// ASINを追加
+// ASINを追加（員数を任意指定）
 router.post("/products/:id/asins", async (req, res) => {
   const asin = String(req.body.asin ?? "").trim().toUpperCase();
   if (!asin) return res.status(400).json({ detail: "asin is required" });
+  const pieceCount = req.body.piece_count != null ? Math.max(1, parseInt(req.body.piece_count, 10) || 1) : 1;
   try {
     const row = await prisma.productAsin.upsert({
       where: { asin },
-      update: { product_id: req.params.id as string },
-      create: { product_id: req.params.id as string, asin },
+      update: { product_id: req.params.id as string, piece_count: pieceCount },
+      create: { product_id: req.params.id as string, asin, piece_count: pieceCount },
     });
     res.status(201).json(row);
   } catch (e) {
     res.status(400).json({ detail: (e as Error).message });
+  }
+});
+
+// ASINの員数を更新
+router.patch("/products/asins/:asinId", async (req, res) => {
+  const pieceCount = Math.max(1, parseInt(req.body.piece_count, 10) || 1);
+  try {
+    const row = await prisma.productAsin.update({
+      where: { id: req.params.asinId as string },
+      data: { piece_count: pieceCount },
+    });
+    res.json(row);
+  } catch {
+    res.status(404).json({ detail: "Not found" });
   }
 });
 

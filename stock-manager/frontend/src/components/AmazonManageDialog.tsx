@@ -108,6 +108,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
           mode: "merge",
           product_id: matched.id,
           quantity: addQty,
+          piece_count: matched.piece_count,
         });
         toast(`「${matched.name}」に ${addQty} 追加しました`);
       } else if (tab === 0) {
@@ -125,6 +126,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
           mode: "merge",
           product_id: mergeTarget.id,
           quantity: addQty,
+          piece_count: mergeTarget.piece_count,
         });
         toast(`「${mergeTarget.name}」にASINを紐づけ、在庫を ${addQty} 追加しました`);
       }

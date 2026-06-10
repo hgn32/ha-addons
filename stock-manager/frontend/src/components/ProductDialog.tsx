@@ -2,7 +2,6 @@ import {
   Avatar,
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -53,6 +52,37 @@ function stripMakerPrefix(name: string, maker: string): string {
 // Amazon画像は縦長など様々なアスペクト比のため、Avatarでも切り取らず全体を表示する。
 const containImgSlotProps = { img: { style: { objectFit: "contain" as const } } };
 
+// JAN/ASINごとの員数を編集するインライン入力。フォーカスを外す or Enterで保存する。
+function PieceCountInput({ value, onSave }: { value: number; onSave: (n: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+  const commit = () => {
+    const n = Math.max(1, parseInt(draft, 10) || 1);
+    setDraft(String(n));
+    if (n !== value) onSave(n);
+  };
+  return (
+    <TextField
+      label="員数"
+      type="number"
+      size="small"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        }
+      }}
+      slotProps={{ htmlInput: { min: 1 } }}
+      sx={{ width: 84, flexShrink: 0 }}
+    />
+  );
+}
+
 interface Props {
   open: boolean;
   product: Product | null;
@@ -64,17 +94,25 @@ interface Props {
 interface ProductAsin {
   id: string;
   asin: string;
+  piece_count: number;
 }
 
 interface ProductBarcode {
   id: string;
   code: string;
+  piece_count: number;
 }
 
 const schema = yup.object({
   name: yup.string().required("名は必須です"),
   volume: yup.string().default(""),
   piece_count: yup.number().integer().min(1).default(1),
+  warn_quantity: yup
+    .number()
+    .transform((value, original) => (original === "" || original === null || Number.isNaN(value) ? 1 : value))
+    .integer()
+    .min(0)
+    .default(1),
   maker: yup.string().default(""),
   jan_code: yup.string().default(""),
   amazon_asin: yup.string().default(""),
@@ -97,8 +135,10 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
   const [tab, setTab] = useState(0);
   const [asins, setAsins] = useState<ProductAsin[]>([]);
   const [newAsin, setNewAsin] = useState("");
+  const [newAsinPiece, setNewAsinPiece] = useState("1");
   const [barcodes, setBarcodes] = useState<ProductBarcode[]>([]);
   const [newBarcode, setNewBarcode] = useState("");
+  const [newBarcodePiece, setNewBarcodePiece] = useState("1");
 
   const {
     register,
@@ -111,7 +151,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", volume: "", piece_count: 1, maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
+    defaultValues: { name: "", volume: "", piece_count: 1, warn_quantity: 1, maker: "", jan_code: "", amazon_asin: "", amazon_url: "", category_id: "", location_id: "", note: "" },
   });
 
   useEffect(() => {
@@ -121,6 +161,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
         name: product?.name ?? "",
         volume: product?.volume ?? "",
         piece_count: product?.piece_count ?? 1,
+        warn_quantity: product?.warn_quantity ?? 1,
         maker: product?.maker ?? "",
         jan_code: product?.jan_code ?? initialJan ?? "",
         amazon_asin: product?.amazon_asin ?? "",
@@ -132,7 +173,9 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
       setFile(null);
       setFetchUrl("");
       setNewAsin("");
+      setNewAsinPiece("1");
       setNewBarcode("");
+      setNewBarcodePiece("1");
       if (product) {
         api.get<ProductAsin[]>(`/api/products/${product.id}/asins`).then(setAsins).catch(() => setAsins([]));
         api.get<ProductBarcode[]>(`/api/products/${product.id}/barcodes`).then(setBarcodes).catch(() => setBarcodes([]));
@@ -234,12 +277,26 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
   const addAsin = async () => {
     if (!product || !newAsin.trim()) return;
     try {
-      const row = await api.post<ProductAsin>(`/api/products/${product.id}/asins`, { asin: newAsin.trim().toUpperCase() });
-      setAsins((prev) => [...prev, row]);
+      const row = await api.post<ProductAsin>(`/api/products/${product.id}/asins`, {
+        asin: newAsin.trim().toUpperCase(),
+        piece_count: Math.max(1, parseInt(newAsinPiece, 10) || 1),
+      });
+      setAsins((prev) => [...prev.filter((a) => a.id !== row.id), row]);
       setNewAsin("");
+      setNewAsinPiece("1");
       toast("ASINを追加しました");
     } catch (e) {
       toast((e as Error).message || "エラーが発生しました", "error");
+    }
+  };
+
+  // ASINごとの員数を更新（在庫加算時の換算に使う）
+  const updateAsinPiece = async (asinId: string, pieceCount: number) => {
+    setAsins((prev) => prev.map((a) => (a.id === asinId ? { ...a, piece_count: pieceCount } : a)));
+    try {
+      await api.patch(`/api/products/asins/${asinId}`, { piece_count: pieceCount });
+    } catch (e) {
+      toast((e as Error).message || "員数の更新に失敗しました", "error");
     }
   };
 
@@ -258,13 +315,28 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
   const addBarcode = async () => {
     if (!product || !newBarcode.trim()) return;
     try {
-      await api.post(`/api/products/${product.id}/barcodes`, { code: newBarcode.trim(), mode: "additional" });
+      await api.post(`/api/products/${product.id}/barcodes`, {
+        code: newBarcode.trim(),
+        mode: "additional",
+        piece_count: Math.max(1, parseInt(newBarcodePiece, 10) || 1),
+      });
       const list = await api.get<ProductBarcode[]>(`/api/products/${product.id}/barcodes`);
       setBarcodes(list);
       setNewBarcode("");
+      setNewBarcodePiece("1");
       toast("JANコードを追加しました");
     } catch (e) {
       toast((e as Error).message || "エラーが発生しました", "error");
+    }
+  };
+
+  // JANコードごとの員数を更新（スキャン入庫時の換算に使う）
+  const updateBarcodePiece = async (barcodeId: string, pieceCount: number) => {
+    setBarcodes((prev) => prev.map((b) => (b.id === barcodeId ? { ...b, piece_count: pieceCount } : b)));
+    try {
+      await api.patch(`/api/products/barcodes/${barcodeId}`, { piece_count: pieceCount });
+    } catch (e) {
+      toast((e as Error).message || "員数の更新に失敗しました", "error");
     }
   };
 
@@ -380,6 +452,14 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                       {...register("piece_count", { valueAsNumber: true })}
                     />
                   </Stack>
+                  <TextField
+                    label="警告在庫数"
+                    type="number"
+                    sx={{ width: 200 }}
+                    slotProps={{ htmlInput: { min: 0 } }}
+                    helperText="在庫がこの数で警告、下回るとエラー表示"
+                    {...register("warn_quantity", { valueAsNumber: true })}
+                  />
                   <TextField label="メーカー" fullWidth {...register("maker")} slotProps={shrinkLabel(watchedMaker)} />
                   <Stack direction="row" spacing={1} alignItems="center">
                     <TextField label="JANコード（主）" fullWidth {...register("jan_code")} slotProps={shrinkLabel(watchedJan)} />
@@ -468,23 +548,30 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 色違い等で複数のJANコードがある場合に追加します。ここに登録したコードはJANコードスキャン時にこの品目として認識されます。
+                員数は、そのJANコードをスキャンして入庫した際に1スキャンあたり加算する実在庫数です。
               </Typography>
               <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
-                <Typography variant="caption" color="text.secondary" display="block">主JANコード（「基本情報」タブで編集）</Typography>
+                <Typography variant="caption" color="text.secondary" display="block">主JANコード（「基本情報」タブで編集）— スキャン入庫は1個ずつ加算</Typography>
                 <Typography fontWeight={600}>{watchedJan || "未設定"}</Typography>
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>追加のJANコード</Typography>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                <Stack spacing={1}>
                   {barcodes.length === 0 && (
                     <Typography variant="body2" color="text.disabled">追加のJANコードはありません</Typography>
                   )}
                   {barcodes.map((b) => (
-                    <Chip key={b.id} label={b.code} onDelete={() => removeBarcode(b.id)} deleteIcon={<DeleteIcon />} />
+                    <Stack key={b.id} direction="row" spacing={1} alignItems="center">
+                      <Typography sx={{ flexGrow: 1, fontFamily: "monospace", wordBreak: "break-all" }}>{b.code}</Typography>
+                      <PieceCountInput value={b.piece_count} onSave={(n) => updateBarcodePiece(b.id, n)} />
+                      <IconButton color="error" size="small" onClick={() => removeBarcode(b.id)} aria-label="削除">
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
                   ))}
-                </Box>
+                </Stack>
               </Box>
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="flex-start">
                 <TextField
                   label="JANコード追加"
                   placeholder="例: 4901234567890"
@@ -493,6 +580,15 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   onChange={(e) => setNewBarcode(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBarcode(); } }}
                   fullWidth
+                />
+                <TextField
+                  label="員数"
+                  type="number"
+                  size="small"
+                  value={newBarcodePiece}
+                  onChange={(e) => setNewBarcodePiece(e.target.value)}
+                  slotProps={{ htmlInput: { min: 1 } }}
+                  sx={{ width: 84, flexShrink: 0 }}
                 />
                 <IconButton color="primary" onClick={addBarcode} disabled={!newBarcode.trim()}>
                   <AddIcon />
@@ -505,21 +601,25 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
             <Stack spacing={2} sx={{ mt: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 紐づいたASINはAmazonクロール時に自動でこの品目に在庫加算されます。
+                員数は、そのASINを1つ購入したときに加算する実在庫数です（容量違い・まとめ買いの換算に使用）。
               </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {asins.length === 0 && (
-                  <Typography variant="body2" color="text.disabled">ASINが登録されていません</Typography>
-                )}
-                {asins.map((a) => (
-                  <Chip
-                    key={a.id}
-                    label={a.asin}
-                    onDelete={() => removeAsin(a.id)}
-                    deleteIcon={<DeleteIcon />}
-                  />
-                ))}
+              <Box>
+                <Stack spacing={1}>
+                  {asins.length === 0 && (
+                    <Typography variant="body2" color="text.disabled">ASINが登録されていません</Typography>
+                  )}
+                  {asins.map((a) => (
+                    <Stack key={a.id} direction="row" spacing={1} alignItems="center">
+                      <Typography sx={{ flexGrow: 1, fontFamily: "monospace", wordBreak: "break-all" }}>{a.asin}</Typography>
+                      <PieceCountInput value={a.piece_count} onSave={(n) => updateAsinPiece(a.id, n)} />
+                      <IconButton color="error" size="small" onClick={() => removeAsin(a.id)} aria-label="削除">
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  ))}
+                </Stack>
               </Box>
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="flex-start">
                 <TextField
                   label="ASIN追加"
                   placeholder="B0XXXXXXXXXX"
@@ -527,6 +627,15 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   value={newAsin}
                   onChange={(e) => setNewAsin(e.target.value)}
                   fullWidth
+                />
+                <TextField
+                  label="員数"
+                  type="number"
+                  size="small"
+                  value={newAsinPiece}
+                  onChange={(e) => setNewAsinPiece(e.target.value)}
+                  slotProps={{ htmlInput: { min: 1 } }}
+                  sx={{ width: 84, flexShrink: 0 }}
                 />
                 <IconButton color="primary" onClick={addAsin} disabled={!newAsin.trim()}>
                   <AddIcon />
