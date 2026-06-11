@@ -1,0 +1,56 @@
+name: Version guard
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Require version bump for changed apps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check that changed apps have a version bump
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          shopt -s nullglob
+          if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
+            echo "No base commit to compare against; skipping."
+            exit 0
+          fi
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "Base commit ${BASE_SHA} not found (force push?); skipping."
+            exit 0
+          fi
+          base=$(git merge-base "${BASE_SHA}" HEAD)
+          status=0
+          for cfg in */config.json; do
+            app="${cfg%/config.json}"
+            changed=$(git diff --name-only "${base}" HEAD -- "${app}/" | grep -v '\.md$' || true)
+            [[ -z "${changed}" ]] && continue
+            if ! git cat-file -e "${base}:${cfg}" 2>/dev/null; then
+              echo "${app}: new app, skipping version check"
+              continue
+            fi
+            old_version=$(git show "${base}:${cfg}" | jq -r '.version')
+            new_version=$(jq -r '.version' "${cfg}")
+            if [[ "${old_version}" == "${new_version}" ]]; then
+              echo "::error file=${cfg}::${app} has changes but version is still ${new_version}. Bump the version in config.json so a new image is built and Home Assistant offers the update."
+              status=1
+            else
+              echo "${app}: ${old_version} -> ${new_version}"
+            fi
+          done
+          exit "${status}"

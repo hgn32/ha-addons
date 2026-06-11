@@ -10,6 +10,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Rebuild a specific app (empty = all apps)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -27,6 +33,7 @@ jobs:
 
       - name: Get changed files
         id: changed_files
+        if: github.event_name != 'workflow_dispatch'
         uses: tj-actions/changed-files@v47
 
       - name: Find app directories
@@ -38,9 +45,25 @@ jobs:
         env:
           APPS: ${{ steps.apps.outputs.addons }}
           CHANGED_FILES: ${{ steps.changed_files.outputs.all_changed_files }}
+          REQUESTED_APP: ${{ inputs.app }}
         run: |
           changed_apps=()
-          if [[ "${CHANGED_FILES}" =~ \.github/workflows/(builder|build-app)\.yaml ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if [[ -n "${REQUESTED_APP}" ]]; then
+              for app in ${APPS}; do
+                if [[ "${app}" == "${REQUESTED_APP}" ]]; then
+                  changed_apps=("${app}")
+                  break
+                fi
+              done
+              if [[ ${#changed_apps[@]} -eq 0 ]]; then
+                echo "::error::Unknown app '${REQUESTED_APP}'. Available: ${APPS}"
+                exit 1
+              fi
+            else
+              changed_apps=(${APPS})
+            fi
+          elif [[ "${CHANGED_FILES}" =~ \.github/workflows/(builder|build-app)\.yaml ]]; then
             changed_apps=(${APPS})
           else
             for app in ${APPS}; do
@@ -74,5 +97,5 @@ jobs:
     uses: ./.github/workflows/build-app.yaml
     with:
       app: ${{ matrix.app }}
-      publish: ${{ github.event_name == 'push' }}
+      publish: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     secrets: inherit
