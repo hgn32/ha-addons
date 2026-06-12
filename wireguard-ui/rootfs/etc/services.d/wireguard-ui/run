@@ -31,10 +31,9 @@ subnet_ranges=$(try_config_or_default 'subnet_ranges | join("; ")?')
 default_interface_addresses="$(try_config_or_default 'default_interface_addresses | join(",")?')"
 
 # login credentials used when single_user_mode is false;
-# they seed the user database on first start only
-WGUI_USERNAME=$(try_config_or_default 'username' 'wireguardadmin')
-WGUI_PASSWORD=$(try_config_or_default 'password' 'adminwireguard')
-export WGUI_USERNAME WGUI_PASSWORD
+# they seed the user database on first start only, change them in the web UI
+export WGUI_USERNAME=wireguardadmin
+export WGUI_PASSWORD=adminwireguard
 
 # settings directly passed to WireGuard UI without additional validation
 EMAIL_FROM_ADDRESS=$(try_config_or_default 'email_from_address')

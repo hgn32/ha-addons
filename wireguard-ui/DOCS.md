@@ -37,9 +37,8 @@ presented with a login page when visiting WireGuard UI web UI.
 * Default username: `wireguardadmin`
 * Default password: `adminwireguard`
 
-The defaults can be overridden with the `username` / `password` add-on options
-**before the first start**.  After the user database is created they have no
-effect; manage users from the web UI instead.
+These defaults only seed the user database on the very first start.  After that,
+manage users (including the password) from the web UI.
 
 You are advised to change the password after log in and set up more users as you
 see fit.

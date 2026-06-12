@@ -4,20 +4,7 @@ configuration:
     name: Single User Mode
     description: >-
       All users in Home Assistant access via single user admin.  If disabled,
-      default user/password is `wireguardadmin`/`adminwireguard` (or the
-      `username`/`password` options below).
-  username:
-    name: Username
-    description: >-
-      Web UI login user created on first start when Single User Mode is
-      disabled.  Default: `wireguardadmin`.  After first start, manage users
-      from the web UI instead.
-  password:
-    name: Password
-    description: >-
-      Web UI login password created on first start when Single User Mode is
-      disabled.  Default: `adminwireguard`.  After first start, manage users
-      from the web UI instead.
+      default user/password is `wireguardadmin`/`adminwireguard`.
   default_client_endpoint:
     name: Default Client Endpoint
     description: >-
