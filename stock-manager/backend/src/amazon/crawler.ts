@@ -188,7 +188,7 @@ export function parseOrderHistory(html: string): CrawledItem[] {
 // Chromiumをシングルトンで保持（フィンガープリント一貫性 + 起動コスト削減）
 let _browser: PuppeteerBrowser | null = null;
 
-const CHROME_PROFILE_DIR = "/config/stock_manager_3a30c8ec/chrome-profile";
+const CHROME_PROFILE_DIR = "/config/stock_manager/chrome-profile";
 
 // フィンガープリントに不要なキャッシュ系ディレクトリを起動前に削除
 function cleanChromeCache(): void {
