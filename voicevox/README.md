@@ -1,6 +1,6 @@
 # VOICEVOX Engine
 
-VOICEVOX音声合成エンジンをHome Assistantアドオンとして動作させます。
+音声合成エンジン [VOICEVOX Engine](https://github.com/VOICEVOX/voicevox_engine) を Home Assistant アドオンとして動作させます。
 
 ## アーキテクチャ対応
 
