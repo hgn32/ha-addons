@@ -66,9 +66,9 @@ random_password() (
 
 # Run wireguard-ui
 # wireguard-ui creates databases in `./db`
-# State lives in the Home Assistant config dir, visible to the user as
-# /config/wireguard-ui (mounted at /homeassistant inside the container).
-state_dir=/homeassistant/wireguard-ui
+# State lives in the Home Assistant config dir, mounted at /config
+# inside the container (same folder as configuration.yaml).
+state_dir=/config/wireguard-ui
 mkdir -p "${state_dir}"
 # migrate state from older versions which stored it in /data
 if [ -d /data/db ] && [ ! -d "${state_dir}/db" ]; then
