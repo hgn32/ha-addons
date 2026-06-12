@@ -1,7 +1,7 @@
 {
   "name": "WireGuard UI",
   "description": "WireGuard VPN サーバー + Web 管理画面 (ngoduykhanh/wireguard-ui)",
-  "version": "0.3",
+  "version": "0.4",
   "slug": "W84TAz2O3_wireguard_ui",
   "url": "https://github.com/ngoduykhanh/wireguard-ui",
   "init": false,
@@ -45,7 +45,6 @@
     "default_interface_addresses": [
       "match(^([0-9]{1,3}\\.){3}[0-9]{1,3}/[1-3]?[0-9]$)?"
     ],
-    "clear_session_on_boot": "bool?",
     "subnet_ranges": [
       "match(^[^:]+: ?(,?([0-9]{1,3}\\.){3}[0-9]{1,3}/[1-3]?[0-9])+$)?"
     ],
@@ -55,30 +54,9 @@
     "dmz_subnet_allow": [
       "match(^((((default_route_ip|([0-9]{1,3}\\.){3}[0-9]{1,3}(/[1-3]?[0-9])?)\\|?){1,2}([0-9,:]+/(tcp|udp|icmp|any))?))$)?"
     ],
-    "dmz_subnet_related": "bool?",
-    "isolated_subnet": [
-      "match(^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]+$)?"
-    ],
-    "isolated_subnet_allow": [
-      "match(^((((default_route_ip|([0-9]{1,3}\\.){3}[0-9]{1,3}(/[1-3]?[0-9])?)\\|?){1,2}([0-9,:]+/(tcp|udp|icmp|any))?))$)?"
-    ],
-    "isolated_subnet_related": "bool?",
     "default_client_dns": "str?",
     "default_client_endpoint": "str?",
-    "log_level": "list(trace|debug|info|notice|warning|error|fatal)?",
-    "email_from_address": "str?",
-    "email_from_name": "str?",
-    "sendgrid_api_key": "password?",
-    "smtp_hostname": "match(^([-a-zA-Z0-9.]{0,253}|[0-9a-f:.]*)$)?",
-    "smtp_port": "int(0,65535)?",
-    "smtp_username": "str?",
-    "smtp_password": "password?",
-    "smtp_auth_type": "list(PLAIN|LOGIN|NONE)?",
-    "smtp_encryption": "list(NONE|SSL|SSLTLS|TLS|STARTTLS)?",
-    "smtp_helo": "match(^([-a-zA-Z0-9.]{0,253}|[0-9a-f:.]*)$)?",
-    "telegram_token": "password?",
-    "telegram_allow_conf_request": "bool?",
-    "telegram_flood_wait": "int(0,)?"
+    "log_level": "list(trace|debug|info|notice|warning|error|fatal)?"
   },
   "_image": "ghcr.io/hgn32/wireguard-ui"
 }
