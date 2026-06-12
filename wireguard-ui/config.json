@@ -62,5 +62,5 @@
     "default_client_endpoint": "str?",
     "log_level": "list(trace|debug|info|notice|warning|error|fatal)?"
   },
-  "_image": "ghcr.io/hgn32/wireguard-ui"
+  "image": "ghcr.io/hgn32/wireguard-ui"
 }
