@@ -4,11 +4,6 @@
 WireGuard VPN サーバー + Web 管理画面のアドオンです。クライアントの追加・削除・
 QR コード発行・設定ファイルダウンロードをすべてブラウザから行えます。
 
-構成・初期値は
-[samrocketman/addons-homeassistant の wireguard-ui アドオン](https://github.com/samrocketman/addons-homeassistant/tree/main/wireguard-ui)
-を参考にしていますが、設定項目はよく使うものだけに絞っています
-(ビルドはパッチ適用版ではなく公式 v0.6.2 バイナリを使用)。
-
 - 管理画面は **HA の Ingress 経由**でアクセス(ポート公開なし、HA のログインで保護)
 - WireGuard サーバー本体は `51820/udp`(ホスト側ポートは変更可)
 - スマホの WireGuard アプリは QR コードを読むだけで接続設定完了

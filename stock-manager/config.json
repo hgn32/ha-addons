@@ -4,7 +4,6 @@
   "version": "0.9.1",
   "slug": "stock_manager",
   "image": "ghcr.io/hgn32/stock-manager",
-  "stage": "experimental",
   "init": false,
   "arch": [
     "amd64",
