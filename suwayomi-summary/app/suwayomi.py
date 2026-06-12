@@ -41,16 +41,23 @@ def _graphql(
     variables: dict | None = None,
 ) -> dict:
     url = base_url.rstrip("/") + GRAPHQL_PATH
+    # ID/PWD未設定なら認証ヘッダなしでアクセスする（BASIC認証無効なサーバ向け）
+    auth = (username, password) if (username or password) else None
     try:
         resp = httpx.post(
             url,
             json={"query": query, "variables": variables or {}},
-            auth=(username, password),
+            auth=auth,
             timeout=_TIMEOUT,
         )
     except httpx.HTTPError as e:
         raise SuwayomiError(f"Suwayomi Server に接続できません ({url}): {e}") from e
     if resp.status_code in (401, 403):
+        if auth is None:
+            raise SuwayomiError(
+                f"Suwayomi Server が認証を要求しています (HTTP {resp.status_code})。"
+                "アドオンの「設定」タブで ID / パスワードを設定してください。"
+            )
         raise SuwayomiError(
             f"Suwayomi Server の認証に失敗しました (HTTP {resp.status_code})。"
             "ID / パスワードを確認してください。"

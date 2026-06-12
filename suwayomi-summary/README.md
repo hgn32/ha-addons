@@ -38,18 +38,20 @@ Suwayomi / Mihon / Tachiyomi の `.tachibk` バックアップを Home Assistant
 チャプターをすべて削除できます（ライブラリの漫画・既読状態は残ります）。
 実行後、削除した章数が表示されます。
 
-Suwayomi Server の GraphQL API (`/api/graphql`) を **BASIC認証** で呼び出すため、
+Suwayomi Server の GraphQL API (`/api/graphql`) を **BASIC認証** で呼び出します。
 アドオンの **設定** タブで以下を設定してください。ID / パスワードが未設定の場合は
-トップページに警告が表示され、ボタンは無効になります。
+トップページに警告が表示されますが、実行は可能です（認証ヘッダなしでアクセスします。
+BASIC認証が有効なサーバでは失敗します）。
 
 | 設定 | 内容 | デフォルト |
 |---|---|---|
-| `suwayomi_url` | Suwayomi Server の URL | `http://172.30.32.1:4567`（同一ホストの Suwayomi Server アドオン） |
+| `suwayomi_url` | Suwayomi Server の URL | `http://c450e419-suwayomi-server:4567`（同一HA上の Suwayomi Server アドオン） |
 | `suwayomi_username` | BASIC認証のID | （空） |
 | `suwayomi_password` | BASIC認証のパスワード | （空） |
 
-`172.30.32.1` はアドオンコンテナから見た HA ホストのアドレスです。Suwayomi Server が
-別マシンにある場合などは `http://192.168.x.x:4567` のように変更してください。
+`c450e419-suwayomi-server` は同じ HA にインストールした Suwayomi Server アドオンの
+ホスト名です。Suwayomi Server が別マシンにある場合などは `http://192.168.x.x:4567`
+のように変更してください。
 
 スタンドアロン起動時は環境変数 `SUWAYOMI_URL` / `SUWAYOMI_USERNAME` /
 `SUWAYOMI_PASSWORD` で指定できます（アドオン設定より優先）。

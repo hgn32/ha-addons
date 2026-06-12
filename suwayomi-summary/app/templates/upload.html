@@ -57,16 +57,14 @@
   <section>
     <h2>Suwayomi Server: DL済みチャプターの削除</h2>
     <p class="meta">接続先: <code>{{ suwayomi_url or "未設定" }}</code></p>
-    {% if suwayomi_missing %}
-    <p class="warn">⚠ Suwayomi Server の {{ suwayomi_missing | join(" / ") }} が未設定です。
-      アドオンの「設定」タブで <code>suwayomi_url</code> /
+    {% if suwayomi_missing_auth %}
+    <p class="warn">⚠ BASIC認証の {{ suwayomi_missing_auth | join(" / ") }} が未設定のため、
+      認証なしでアクセスします。認証が有効なサーバではアドオンの「設定」タブで
       <code>suwayomi_username</code> / <code>suwayomi_password</code> を設定してください。</p>
-    <button type="button" class="danger" disabled>全DL済みを削除</button>
-    {% else %}
+    {% endif %}
     <p>Suwayomi Server 上のダウンロード済みチャプターをすべて削除します。
       ライブラリの漫画・既読状態は残ります。</p>
     <button type="button" id="delete-downloads-btn" class="danger">全DL済みを削除</button>
-    {% endif %}
     <p id="delete-downloads-result" hidden></p>
   </section>
 
@@ -122,7 +120,7 @@
 <script>
 (function () {
   const btn = document.getElementById("delete-downloads-btn");
-  if (!btn) return;  // 未設定時はボタンが disabled で描画されるので何もしない
+  if (!btn) return;
   const result = document.getElementById("delete-downloads-result");
   btn.addEventListener("click", async () => {
     if (!confirm("Suwayomi Server 上のDL済みチャプターをすべて削除します。\nこの操作は取り消せません。よろしいですか？")) {

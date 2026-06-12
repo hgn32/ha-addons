@@ -15,7 +15,7 @@
     "config:rw"
   ],
   "options": {
-    "suwayomi_url": "http://172.30.32.1:4567",
+    "suwayomi_url": "http://c450e419-suwayomi-server:4567",
     "suwayomi_username": "",
     "suwayomi_password": ""
   },

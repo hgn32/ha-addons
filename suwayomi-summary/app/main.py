@@ -97,11 +97,12 @@ def get_suwayomi_config() -> dict[str, str]:
     }
 
 
-def suwayomi_missing_settings(cfg: dict[str, str]) -> list[str]:
-    """Names (for display) of unset Suwayomi connection settings."""
+def suwayomi_missing_auth(cfg: dict[str, str]) -> list[str]:
+    """Names (for display) of unset Suwayomi auth settings.
+
+    Warning only — deletion still runs, just without an Authorization header.
+    """
     missing = []
-    if not cfg["url"]:
-        missing.append("URL")
     if not cfg["username"]:
         missing.append("ID")
     if not cfg["password"]:
@@ -200,7 +201,7 @@ def index(request: Request) -> HTMLResponse:
             "aliases_file": str(ALIASES_FILE),
             "aliases_count": len(load_aliases()),
             "suwayomi_url": suwayomi_cfg["url"],
-            "suwayomi_missing": suwayomi_missing_settings(suwayomi_cfg),
+            "suwayomi_missing_auth": suwayomi_missing_auth(suwayomi_cfg),
         },
     )
 
@@ -209,14 +210,12 @@ def index(request: Request) -> HTMLResponse:
 def delete_all_downloads() -> JSONResponse:
     """Delete every downloaded chapter on the Suwayomi Server."""
     cfg = get_suwayomi_config()
-    missing = suwayomi_missing_settings(cfg)
-    if missing:
+    if not cfg["url"]:
         return JSONResponse(
             {
                 "ok": False,
-                "error": "Suwayomi Server の設定が未完了です（未設定: "
-                + " / ".join(missing)
-                + "）。アドオンの「設定」タブで設定してください。",
+                "error": "Suwayomi Server の URL が未設定です。"
+                "アドオンの「設定」タブで設定してください。",
             },
             status_code=400,
         )
