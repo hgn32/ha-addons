@@ -1,12 +1,19 @@
-# Web UI for managing a WireGuard VPN server
+# WireGuard VPN server + web management UI for Home Assistant
 # https://github.com/ngoduykhanh/wireguard-ui
-# Official image (alpine) ships wg-ui binary, wireguard-tools, iptables, jq
-FROM ngoduykhanh/wireguard-ui:0.6.2
+# The wg-ui binary is taken from the official multi-arch image (static, CGO disabled)
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
+FROM ngoduykhanh/wireguard-ui:0.6.2 AS wgui
 
-COPY run.sh /run.sh
-RUN chmod a+x /run.sh
+FROM ${BUILD_FROM}
 
-EXPOSE 5000/tcp 51820/udp
+RUN apk add --no-cache \
+        inotify-tools \
+        iptables \
+        nginx \
+        wireguard-tools \
+    && mkdir -p /etc/wireguard /var/log/nginx \
+    && touch /var/log/nginx/error.log
 
-ENTRYPOINT []
-CMD [ "/run.sh" ]
+COPY --from=wgui /app/wg-ui /usr/local/bin/wg-ui
+
+COPY rootfs /

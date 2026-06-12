@@ -1,0 +1,127 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck disable=SC2191
+# ==============================================================================
+# Home Assistant Add-on: WireGuard UI
+# Runs the Wireguard UI
+# Ported from https://github.com/samrocketman/addons-homeassistant
+# ==============================================================================
+
+# shellcheck disable=SC1091
+source /usr/local/share/service-functions.sh
+
+declare clear_session_on_boot
+declare dns
+declare endpoint
+declare port
+declare single_user
+declare user_loglevel
+declare subnet_ranges
+declare default_interface_addresses
+# WGUI_SERVER_INTERFACE_ADDRESSES="10.252.1.0/24,10.252.2.0/24" -e SUBNET_RANGES="Home:10.252.1.0/24; DMZ Zone: 10.252.2.0/24"
+
+bashio::log.info 'Starting Wireguard UI...'
+
+clear_session_on_boot=$(try_config_or_default 'clear_session_on_boot')
+dns=$(try_config_or_default 'default_client_dns')
+endpoint=$(try_config_or_default 'default_client_endpoint')
+port=$(try_port_or_default '51820/udp' '51820/udp')
+single_user=$(try_config_or_default 'single_user_mode')
+user_loglevel=$(try_config_or_default 'log_level' 'debug')
+subnet_ranges=$(try_config_or_default 'subnet_ranges | join("; ")?')
+default_interface_addresses="$(try_config_or_default 'default_interface_addresses | join(",")?')"
+
+# login credentials used when single_user_mode is false;
+# they seed the user database on first start only
+WGUI_USERNAME=$(try_config_or_default 'username' 'wireguardadmin')
+WGUI_PASSWORD=$(try_config_or_default 'password' 'adminwireguard')
+export WGUI_USERNAME WGUI_PASSWORD
+
+# settings directly passed to WireGuard UI without additional validation
+EMAIL_FROM_ADDRESS=$(try_config_or_default 'email_from_address')
+EMAIL_FROM_NAME=$(try_config_or_default 'email_from_name')
+SENDGRID_API_KEY=$(try_config_or_default 'sendgrid_api_key')
+SMTP_HOSTNAME=$(try_config_or_default 'smtp_hostname')
+SMTP_PORT=$(try_config_or_default 'smtp_port')
+SMTP_USERNAME=$(try_config_or_default 'smtp_username')
+SMTP_PASSWORD=$(try_config_or_default 'smtp_password')
+SMTP_AUTH_TYPE=$(try_config_or_default 'smtp_auth_type')
+SMTP_ENCRYPTION=$(try_config_or_default 'smtp_encryption')
+SMTP_HELO=$(try_config_or_default 'smtp_helo')
+TELEGRAM_TOKEN=$(try_config_or_default 'telegram_token')
+TELEGRAM_ALLOW_CONF_REQUEST=$(try_config_or_default 'telegram_allow_conf_request')
+TELEGRAM_FLOOD_WAIT=$(try_config_or_default 'telegram_flood_wait')
+
+# wireguard-ui will SHA512 checksum the contents of the random password and use
+# that as the password to encrypt sessions.
+random_password() (
+  set +eo pipefail
+  local chars='-;.~,.<>[]{}!@#$%^&*()_+=`0-9a-zA-Z'
+  if [ -n "${1:-}" ]; then
+    chars="${1}"
+  fi
+  # tr will exit with 141 because its stdout is cut short by head
+  tr -dc -- "${chars}" 2> /dev/null < /dev/urandom | \
+    head -c128 || [ "$?" -eq 141 ]
+  echo
+)
+
+# Run wireguard-ui
+# wireguard-ui creates databases in `./db`
+# /data is a persistent path in the container
+cd /data || exit 1
+# missing state dir causes login loops
+[ -d db ] || mkdir db
+if [ "${clear_session_on_boot:-}" = true ]; then
+  rm -f session-key
+fi
+if [ ! -f session-key ] || [ -z "$(<session-key)" ]; then
+  random_password > session-key
+  echo "Generated new session encryption key." >&2
+fi
+export SESSION_SECRET_FILE=session-key
+# customizations from home assistant
+WGUI_DEFAULT_CLIENT_ALLOWED_IPS="0.0.0.0/0,::/0"
+if [ -z "${dns:-}" ]; then
+  WGUI_DNS="$(ip route | awk '$1 == "default" { print $3 }')"
+else
+  WGUI_DNS="${dns}"
+fi
+WGUI_ENDPOINT_ADDRESS="${endpoint}:${port%/*}"
+# HA log levels: trace|debug|info|notice|warning|error|fatal
+# Supported log levels: debug|info|warn|error|off
+case "${user_loglevel:-}" in
+  fatal)
+    WGUI_LOG_LEVEL=off
+    ;;
+  warning)
+    WGUI_LOG_LEVEL=warn
+    ;;
+  info|error)
+    WGUI_LOG_LEVEL="${user_loglevel}"
+    ;;
+  trace|debug|*)
+    WGUI_LOG_LEVEL=debug
+    ;;
+esac
+SUBNET_RANGES="${subnet_ranges:-}"
+WGUI_MTU=1420
+WGUI_PERSISTENT_KEEPALIVE=0
+WGUI_SERVER_INTERFACE_ADDRESSES="${default_interface_addresses}"
+WGUI_SERVER_LISTEN_PORT="${port%/*}"
+export SUBNET_RANGES WGUI_DEFAULT_CLIENT_ALLOWED_IPS WGUI_DNS
+export WGUI_ENDPOINT_ADDRESS WGUI_LOG_LEVEL WGUI_MTU WGUI_PERSISTENT_KEEPALIVE
+export WGUI_SERVER_INTERFACE_ADDRESSES WGUI_SERVER_LISTEN_PORT
+
+# contact settings set from home assistant config
+export EMAIL_FROM_ADDRESS EMAIL_FROM_NAME SENDGRID_API_KEY SMTP_AUTH_TYPE
+export SMTP_ENCRYPTION SMTP_HELO SMTP_HOSTNAME SMTP_PASSWORD SMTP_PORT
+export SMTP_USERNAME TELEGRAM_ALLOW_CONF_REQUEST TELEGRAM_FLOOD_WAIT
+export TELEGRAM_TOKEN
+wgui_args=( -bind-address "127.0.0.1:8080" )
+if [ "${single_user:-}" = true ]; then
+  wgui_args+=( -disable-login )
+fi
+[ -n "${SMTP_PORT:-}" ] || unset SMTP_PORT
+[ -n "${TELEGRAM_ALLOW_CONF_REQUEST:-}" ] || unset TELEGRAM_ALLOW_CONF_REQUEST
+[ -n "${TELEGRAM_FLOOD_WAIT:-}" ] || unset TELEGRAM_FLOOD_WAIT
+exec /usr/local/bin/wg-ui "${wgui_args[@]}"

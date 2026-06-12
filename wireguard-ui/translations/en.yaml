@@ -1,0 +1,144 @@
+---
+configuration:
+  single_user_mode:
+    name: Single User Mode
+    description: >-
+      All users in Home Assistant access via single user admin.  If disabled,
+      default user/password is `wireguardadmin`/`adminwireguard` (or the
+      `username`/`password` options below).
+  username:
+    name: Username
+    description: >-
+      Web UI login user created on first start when Single User Mode is
+      disabled.  Default: `wireguardadmin`.  After first start, manage users
+      from the web UI instead.
+  password:
+    name: Password
+    description: >-
+      Web UI login password created on first start when Single User Mode is
+      disabled.  Default: `adminwireguard`.  After first start, manage users
+      from the web UI instead.
+  default_client_endpoint:
+    name: Default Client Endpoint
+    description: >-
+      The public endpoint WireGuard clients will attempt to connect.  This option only
+      provides initial default.  Prefer the Web UI auto-discovery.
+  default_client_dns:
+    name: Default Client DNS
+    description: >-
+      Primary DNS for WireGuard clients when connected to the server.
+      This option only provides initial default.  Home Assistant
+      internal DNS is default.
+  log_level:
+    name: Log Level
+    description: This option sets the log level of WireGuard UI.
+  clear_session_on_boot:
+    name: Clear sessions on reboot
+    description: Changes key used to encrypt session tokens.  Existing sessions will invalidate on reboot.
+  subnet_ranges:
+    name: Subnet Ranges
+    description: >-
+      The list of address subdivision ranges. Format: `SR Name:10.0.1.0/24;
+      SR2:10.0.2.0/24,10.0.3.0/24`.  Each CIDR must be inside one of the server
+      interfaces.
+  dmz_subnet:
+    name: DMZ Subnets
+    description: >-
+      A WireGuard CIDR network considered a demilitarized zone.  Hosts may only
+      access the internet and not local networks.  Exceptions to restricted
+      access can be created from DMZ Allowances.
+  dmz_subnet_allow:
+    name: DMZ Allowances
+    description: >-
+      These are a set of rules which can allow specific communications to
+      internal networks allowed from the DMZ.  See Documentation tab for
+      details.
+  dmz_subnet_related:
+    name: DMZ Related Traffic
+    description: >-
+      Allow all ESTABLISHED and RELATED traffic out of the DMZ Subnet.
+  isolated_subnet:
+    name: Isolated Subnets
+    description: >-
+      A WireGuard CIDR network considered an isolated network.  Isolated
+      networks are similar to DMZ except no internet access when all traffic is
+      routed through VPN.  Hosts cannot reach each other.  See documentation
+      for Isolated Allowances for further configuration.
+  isolated_subnet_allow:
+    name: Isolated Allowances
+    description: >-
+      These are a set of rules which can allow specific communications to
+      internal networks allowed from the Isolated Subnets.  See Documentation
+      tab for details.
+  isolated_subnet_related:
+    name: Isolated Related Traffic
+    description: >-
+      Allow all ESTABLISHED and RELATED traffic out of the Isolated Subnet.
+  default_interface_addresses:
+    name: Default Interface Addresses
+    description: >-
+      Initial WireGuard interface addresses.  This field only affects first
+      time setup.
+  email_from_address:
+    name: Email FROM Address
+    description: >-
+      The sender email address when sending an email.
+  email_from_name:
+    name: Email sender name
+    description: >-
+      The sender name when sending an email.
+      Default: `WireGuard UI`.
+  sendgrid_api_key:
+    name: SendGrid API Key
+    description: >-
+      Send WireGuard emails via SendGrid API instead of defining SMTP settings.
+  smtp_hostname:
+    name: SMTP host name
+    description: >-
+      SMTP host to send emails.
+  smtp_port:
+    name: SMTP port
+    description: >-
+      SMTP port for sending emails.
+      Default: `25`.
+  smtp_username:
+    name: SMTP username
+    description: >-
+      SMTP username for authenticating to send emails.
+  smtp_password:
+    name: SMTP password
+    description: >-
+      SMTP password for authenticating to send emails.
+  smtp_auth_type:
+    name: SMTP auth type
+    description: >-
+      The SMTP authentication type.
+      Default: `NONE`.
+  smtp_encryption:
+    name: SMTP encryption
+    description: >-
+      Dictates connection security negotiation with SMTP server.
+      SMTP authentication security type.  This dictates how authentication is
+      negotiated with the SMTP server.
+      Default: `STARTTLS`.
+  smtp_helo:
+    name: SMTP HELO
+    description: >-
+      Hostname to use for the HELO message.  `smtp-relay.gmail.com` needs this
+      set to anything but `localhost`.  Value limited to RFC2181.
+      Default: `localhost`.
+  telegram_token:
+    name: Telegram Token
+    description: >-
+      Telegram bot token for distributing configs to clients.
+  telegram_allow_conf_request:
+    name: Allow conf request from Telegram
+    description: >-
+      Allow users to get configs from the bot by sending a message.
+  telegram_flood_wait:
+    name: Telegram Flood Wait
+    description: >-
+      Time in minutes before the next conf request is processed.
+      Default: `60`.
+network:
+  51820/udp: WireGuard Server Port.  This must match the WireGuard UI setting.
