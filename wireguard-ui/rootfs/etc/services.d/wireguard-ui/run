@@ -66,8 +66,19 @@ random_password() (
 
 # Run wireguard-ui
 # wireguard-ui creates databases in `./db`
-# /data is a persistent path in the container
-cd /data || exit 1
+# State lives in the Home Assistant config dir, visible to the user as
+# /config/wireguard-ui (mounted at /homeassistant inside the container).
+state_dir=/homeassistant/wireguard-ui
+mkdir -p "${state_dir}"
+# migrate state from older versions which stored it in /data
+if [ -d /data/db ] && [ ! -d "${state_dir}/db" ]; then
+  cp -a /data/db "${state_dir}/db"
+  if [ -f /data/session-key ]; then
+    cp -a /data/session-key "${state_dir}/session-key"
+  fi
+  bashio::log.info "Migrated WireGuard UI data from /data to ${state_dir}."
+fi
+cd "${state_dir}" || exit 1
 # missing state dir causes login loops
 [ -d db ] || mkdir db
 if [ "${clear_session_on_boot:-}" = true ]; then
