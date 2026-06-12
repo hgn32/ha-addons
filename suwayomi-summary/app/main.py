@@ -7,9 +7,10 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from . import suwayomi
 from .decoder import (
     build_manga_table,
     build_source_table,
@@ -26,6 +27,10 @@ _PROJECT_ROOT = _HERE.parent
 # Overridable via env vars for non-HA / standalone use.
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/config/suwayomi")).resolve()
 ALIASES_FILE = Path(os.environ.get("ALIASES_FILE", "/config/suwayomi/aliases.json")).resolve()
+
+# HA Supervisor writes the add-on options here. Used for the Suwayomi Server
+# connection settings; env vars (standalone use) take precedence.
+OPTIONS_FILE = Path(os.environ.get("OPTIONS_FILE", "/data/options.json"))
 
 # Initial content for aliases.json when it doesn't exist yet.
 # Loaded from app/default_aliases.json (126 entries derived from a sample backup).
@@ -65,6 +70,44 @@ _last_seen_normalized_titles: set[str] = set()
 
 
 # --- helpers ---
+
+def get_suwayomi_config() -> dict[str, str]:
+    """Suwayomi Server connection settings (BASIC auth).
+
+    Env vars SUWAYOMI_URL / SUWAYOMI_USERNAME / SUWAYOMI_PASSWORD take
+    precedence; otherwise the HA add-on options (/data/options.json) are used.
+    """
+    opts: dict = {}
+    try:
+        with open(OPTIONS_FILE, encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            opts = loaded
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    def pick(env_key: str, opt_key: str) -> str:
+        value = os.environ.get(env_key) or opts.get(opt_key) or ""
+        return value.strip() if isinstance(value, str) else ""
+
+    return {
+        "url": pick("SUWAYOMI_URL", "suwayomi_url").rstrip("/"),
+        "username": pick("SUWAYOMI_USERNAME", "suwayomi_username"),
+        "password": pick("SUWAYOMI_PASSWORD", "suwayomi_password"),
+    }
+
+
+def suwayomi_missing_settings(cfg: dict[str, str]) -> list[str]:
+    """Names (for display) of unset Suwayomi connection settings."""
+    missing = []
+    if not cfg["url"]:
+        missing.append("URL")
+    if not cfg["username"]:
+        missing.append("ID")
+    if not cfg["password"]:
+        missing.append("パスワード")
+    return missing
+
 
 def load_aliases() -> dict[str, str]:
     """Read the aliases JSON file. Returns {} on any problem."""
@@ -147,6 +190,7 @@ def _render_view(request: Request, blob: bytes, filename: str) -> HTMLResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
+    suwayomi_cfg = get_suwayomi_config()
     return templates.TemplateResponse(
         request,
         "upload.html",
@@ -155,8 +199,37 @@ def index(request: Request) -> HTMLResponse:
             "backup_dir": str(BACKUP_DIR),
             "aliases_file": str(ALIASES_FILE),
             "aliases_count": len(load_aliases()),
+            "suwayomi_url": suwayomi_cfg["url"],
+            "suwayomi_missing": suwayomi_missing_settings(suwayomi_cfg),
         },
     )
+
+
+@app.post("/downloads/delete-all")
+def delete_all_downloads() -> JSONResponse:
+    """Delete every downloaded chapter on the Suwayomi Server."""
+    cfg = get_suwayomi_config()
+    missing = suwayomi_missing_settings(cfg)
+    if missing:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Suwayomi Server の設定が未完了です（未設定: "
+                + " / ".join(missing)
+                + "）。アドオンの「設定」タブで設定してください。",
+            },
+            status_code=400,
+        )
+    try:
+        ids = suwayomi.fetch_downloaded_chapter_ids(
+            cfg["url"], cfg["username"], cfg["password"]
+        )
+        deleted = suwayomi.delete_downloaded_chapters(
+            cfg["url"], cfg["username"], cfg["password"], ids
+        )
+    except suwayomi.SuwayomiError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=502)
+    return JSONResponse({"ok": True, "found": len(ids), "deleted": deleted})
 
 
 @app.post("/upload", response_class=HTMLResponse)

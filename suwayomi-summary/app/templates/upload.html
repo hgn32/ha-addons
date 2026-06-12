@@ -26,6 +26,13 @@
   td.actions { text-align: right; }
   .empty { color: #888; font-style: italic; }
   .meta { font-size: 0.82rem; color: #666; }
+  button.danger { background: #dc2626; }
+  button.danger:hover { background: #b91c1c; }
+  button:disabled { background: #9ca3af; cursor: not-allowed; }
+  .warn { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24;
+          border-radius: 4px; padding: 0.5rem 0.8rem; font-size: 0.88rem; }
+  .result-ok { color: #047857; font-weight: 600; }
+  .result-err { color: #b91c1c; font-weight: 600; }
 
   @media (prefers-color-scheme: dark) {
     body { background: #111; color: #e5e7eb; }
@@ -37,11 +44,31 @@
     th { background: #1e293b; }
     .empty { color: #6b7280; }
     .meta { color: #9ca3af; }
+    button:disabled { background: #4b5563; color: #9ca3af; }
+    .warn { background: #78350f; color: #fef3c7; border-color: #b45309; }
+    .result-ok { color: #34d399; }
+    .result-err { color: #f87171; }
   }
 </style>
 </head>
 <body>
   <h1>tachibk viewer</h1>
+
+  <section>
+    <h2>Suwayomi Server: DL済みチャプターの削除</h2>
+    <p class="meta">接続先: <code>{{ suwayomi_url or "未設定" }}</code></p>
+    {% if suwayomi_missing %}
+    <p class="warn">⚠ Suwayomi Server の {{ suwayomi_missing | join(" / ") }} が未設定です。
+      アドオンの「設定」タブで <code>suwayomi_url</code> /
+      <code>suwayomi_username</code> / <code>suwayomi_password</code> を設定してください。</p>
+    <button type="button" class="danger" disabled>全DL済みを削除</button>
+    {% else %}
+    <p>Suwayomi Server 上のダウンロード済みチャプターをすべて削除します。
+      ライブラリの漫画・既読状態は残ります。</p>
+    <button type="button" id="delete-downloads-btn" class="danger">全DL済みを削除</button>
+    {% endif %}
+    <p id="delete-downloads-result" hidden></p>
+  </section>
 
   <section>
     <h2>1. アップロードして解析</h2>
@@ -91,5 +118,40 @@
     <p>JSON 形式 <code>{"生のタイトル": "表示用名前"}</code>。</p>
     <p><a href="aliases"><button type="button">Webで編集する</button></a> （ファイルを直接編集してもOK）</p>
   </section>
+
+<script>
+(function () {
+  const btn = document.getElementById("delete-downloads-btn");
+  if (!btn) return;  // 未設定時はボタンが disabled で描画されるので何もしない
+  const result = document.getElementById("delete-downloads-result");
+  btn.addEventListener("click", async () => {
+    if (!confirm("Suwayomi Server 上のDL済みチャプターをすべて削除します。\nこの操作は取り消せません。よろしいですか？")) {
+      return;
+    }
+    btn.disabled = true;
+    result.hidden = false;
+    result.className = "meta";
+    result.textContent = "削除中…（チャプター数によっては時間がかかります）";
+    try {
+      const resp = await fetch("downloads/delete-all", { method: "POST" });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.ok) {
+        result.className = "result-ok";
+        result.textContent = data.found === 0
+          ? "DL済みチャプターはありませんでした（削除した章数: 0）"
+          : `削除した章数: ${data.deleted}（DL済み ${data.found} 章中）`;
+      } else {
+        result.className = "result-err";
+        result.textContent = "エラー: " + (data.error || `HTTP ${resp.status}`);
+      }
+    } catch (e) {
+      result.className = "result-err";
+      result.textContent = "エラー: " + e;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
 </body>
 </html>
