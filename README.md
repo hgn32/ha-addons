@@ -26,6 +26,10 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 Suwayomi / Mihon の `.tachibk` バックアップファイルを Web ブラウザで閲覧できるビューワーです。
 
+### [WireGuard UI](./wireguard-ui)
+
+[wireguard-ui](https://github.com/ngoduykhanh/wireguard-ui) による WireGuard VPN サーバー + Web 管理画面アドオンです。クライアントの追加や QR コード発行をブラウザから行えます。
+
 ### [VOICEVOX Engine](./voicevox)
 
 [VOICEVOX](https://voicevox.hiroshiba.jp/) 音声合成エンジンを Home Assistant アドオンとして動作させます。HA の TTS（音声読み上げ）として使うには、companion インテグレーション **[hgn32/ha-voicevox-tts](https://github.com/hgn32/ha-voicevox-tts)** を HACS でインストールしてください。アドオン起動時に自動検知されます。
