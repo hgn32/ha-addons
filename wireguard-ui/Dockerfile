@@ -1,7 +1,8 @@
 # WireGuard VPN server + web management UI for Home Assistant
 # https://github.com/ngoduykhanh/wireguard-ui
 # The wg-ui binary is taken from the official multi-arch image (static, CGO disabled)
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
+ARG BUILD_ARCH=amd64
+ARG BUILD_FROM=ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
 FROM ngoduykhanh/wireguard-ui:0.6.2 AS wgui
 
 FROM ${BUILD_FROM}
