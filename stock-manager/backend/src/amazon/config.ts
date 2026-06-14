@@ -50,7 +50,7 @@ export function getCronSchedule(): string {
   return (
     process.env.AMAZON_CRON?.trim() ||
     String(readHaOptions().amazon_cron ?? "").trim() ||
-    "0 6 * * *"
+    "0 18 * * *"
   );
 }
 

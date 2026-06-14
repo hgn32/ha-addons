@@ -3,7 +3,7 @@ import { getCookie, getCronSchedule } from "./config";
 import { runAmazonCrawl } from "./service";
 import { notifyHA } from "./notify";
 
-// Schedule the periodic differential crawl (default 毎日 6:00 UTC).
+// Schedule the periodic differential crawl (default 毎日 18:00 UTC = 03:00 JST).
 export function startAmazonCron(): void {
   const schedule = getCronSchedule();
   if (!cron.validate(schedule)) {
