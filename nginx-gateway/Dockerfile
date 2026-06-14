@@ -19,6 +19,9 @@ RUN set -e \
   && chmod +x /usr/local/bin/geoipupdate \
   && rm -rf /tmp/geoipupdate*
 
+# 定期更新に busybox crond を使うため、ベースイメージに存在することを確認する
+RUN command -v crond >/dev/null || (echo "crond not found in base image" && exit 1)
+
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
