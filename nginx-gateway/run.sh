@@ -10,7 +10,7 @@ fi
 mkdir -p /etc/nginx
 ln -sf /share/nginx/nginx.conf /etc/nginx/nginx.conf
 
-# GeoIP.conf のパスを決定（アドオン設定があれば生成、無ければ /share/nginx/GeoIP.conf）
+# アドオン設定（geoip_account_id + geoip_license_key）から /tmp/GeoIP.conf を生成する
 GEOIP_CONF=""
 if bashio::config.has_value 'geoip_account_id' && bashio::config.has_value 'geoip_license_key'; then
   ACCOUNT_ID=$(bashio::config 'geoip_account_id')
@@ -22,8 +22,6 @@ EditionIDs GeoLite2-Country
 DatabaseDirectory /var/lib/geoip
 GEOIP
   GEOIP_CONF=/tmp/GeoIP.conf
-elif [ -f /share/nginx/GeoIP.conf ]; then
-  GEOIP_CONF=/share/nginx/GeoIP.conf
 fi
 
 if [ -n "${GEOIP_CONF}" ]; then
@@ -82,6 +80,8 @@ EOF
   else
     bashio::log.info "geoip_update_schedule is empty; scheduled GeoIP updates disabled"
   fi
+else
+  bashio::log.warning "geoip_account_id/geoip_license_key 未設定のため GeoIP DB を取得しません（GeoIP 機能は無効）"
 fi
 
 bashio::log.info "version:"
