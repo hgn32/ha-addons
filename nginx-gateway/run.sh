@@ -19,7 +19,7 @@ if bashio::config.has_value 'geoip_account_id' && bashio::config.has_value 'geoi
 AccountID ${ACCOUNT_ID}
 LicenseKey ${LICENSE_KEY}
 EditionIDs GeoLite2-Country
-DatabaseDirectory /share/nginx
+DatabaseDirectory /var/lib/geoip
 GEOIP
   GEOIP_CONF=/tmp/GeoIP.conf
 elif [ -f /share/nginx/GeoIP.conf ]; then
@@ -27,6 +27,9 @@ elif [ -f /share/nginx/GeoIP.conf ]; then
 fi
 
 if [ -n "${GEOIP_CONF}" ]; then
+  # mmdb はバックアップ対象外のコンテナ内 /var/lib/geoip に保存（再起動時に再取得される）
+  mkdir -p /var/lib/geoip
+
   # 起動時に1回更新（従来どおり。初回失敗は set -e で起動を中断）
   geoipupdate -f "${GEOIP_CONF}"
 
