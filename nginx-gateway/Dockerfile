@@ -9,7 +9,7 @@ RUN apk add --no-cache \
     curl \
     tzdata
 
-ENV GEOIPUPDATE_VERSION=7.0.0
+ENV GEOIPUPDATE_VERSION=7.1.0
 RUN set -e \
   && cd /tmp \
   && curl -L -o geoipupdate.tar.gz \
