@@ -23,10 +23,11 @@ from .decoder import (
 _HERE = Path(__file__).parent
 _PROJECT_ROOT = _HERE.parent
 
-# Default paths for Home Assistant add-on (map: ["config:rw"]).
+# Default paths for the integrated Suwayomi Server add-on. The summary viewer
+# shares the same addon_config dir (/config) as the Suwayomi server itself.
 # Overridable via env vars for non-HA / standalone use.
-BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/config/suwayomi")).resolve()
-ALIASES_FILE = Path(os.environ.get("ALIASES_FILE", "/config/suwayomi/aliases.json")).resolve()
+BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/config")).resolve()
+ALIASES_FILE = Path(os.environ.get("ALIASES_FILE", "/config/aliases.json")).resolve()
 
 # HA Supervisor writes the add-on options here. Used for the Suwayomi Server
 # connection settings; env vars (standalone use) take precedence.

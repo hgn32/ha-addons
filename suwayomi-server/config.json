@@ -1,7 +1,7 @@
 {
   "name": "Suwayomi Server",
-  "description": "Self-hosted manga server compatible with Mihon",
-  "version": "0.9",
+  "description": "Self-hosted manga server compatible with Mihon (.tachibk バックアップビューア内蔵)",
+  "version": "0.10",
   "slug": "suwayomi_server",
   "init": false,
   "arch": [
@@ -14,10 +14,14 @@
     "4567/tcp": 4567
   },
   "ports_description": {
-    "4567/tcp": "http interface"
+    "4567/tcp": "Suwayomi Server web UI"
   },
   "boot": "auto",
   "tmpfs": false,
+  "ingress": true,
+  "ingress_port": 8099,
+  "panel_icon": "mdi:book-open-variant",
+  "panel_title": "Suwayomi Summary",
   "map": [
     {
       "type": "addon_config",
@@ -26,5 +30,15 @@
     },
     "media:rw"
   ],
+  "options": {
+    "suwayomi_url": "http://localhost:4567",
+    "suwayomi_username": "",
+    "suwayomi_password": ""
+  },
+  "schema": {
+    "suwayomi_url": "url",
+    "suwayomi_username": "str?",
+    "suwayomi_password": "password?"
+  },
   "image": "ghcr.io/hgn32/suwayomi-server"
 }
