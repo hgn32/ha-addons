@@ -1,6 +1,6 @@
 {
   "name": "Guacamole",
-  "description": "軽量版 Apache Guacamole（クライアントレス・リモートデスクトップゲートウェイ）。guacd + Tomcat + 内蔵 PostgreSQL を 1 コンテナで実行します。",
+  "description": "軽量版 Apache Guacamole。guacd + Tomcat + PostgreSQL",
   "version": "1.6.0-2",
   "slug": "guacamole",
   "url": "https://guacamole.apache.org/",

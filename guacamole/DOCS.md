@@ -59,7 +59,7 @@ PostgreSQL 認証のみ**が有効です。`extensions` に名前を列挙した
 
 各拡張固有の設定（LDAP のサーバ等）は `guacamole.properties` に追記してください。
 
-### 拡張 jar の所在（イメージ同梱だが /config に展開される）
+### 拡張 jar の所在（イメージ同梱だが /config で利用指定）
 
 拡張 jar は**イメージにビルド時同梱**されています（`/app/guacamole/extensions-available`）。
 ベースイメージは起動時の初期化で `GUACAMOLE_HOME` を `/config/guacamole` とし、同梱物を

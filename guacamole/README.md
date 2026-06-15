@@ -1,16 +1,7 @@
 # Guacamole
 
-[Apache Guacamole](https://guacamole.apache.org/) は、ブラウザだけで RDP / VNC / SSH / Telnet に接続できるクライアントレス・リモートデスクトップゲートウェイです。本アドオンは [alexbelgium/hassio-addons](https://github.com/alexbelgium/hassio-addons/tree/master/guacamole) を参考にしつつ、**軽量化**して再構成したものです。
-
-実体（guacd + Tomcat + Guacamole + 内蔵 PostgreSQL）は upstream の [`abesnier/guacamole`](https://github.com/MaxWaldorf/guacamole) をそのまま利用し、Home Assistant 連携に必要な薄いレイヤだけを足しています。
-
-## 参考アドオンとの違い（軽量化ポイント）
-
-- 大量のデバイス割当（GPU / video / 各種ストレージ）を**全廃**
-- alexbelgium の重いテンプレート層（nginx-extras / syslog / automodules / banner 等）を**不採用**
-- 拡張（プラグイン）は既定で**最小限（コアの PostgreSQL 認証のみ）**。必要なものだけ設定で有効化
-- ベースを軽量な **alpine** ビルド（`1.6.0-alpine-pg16`）に固定
-- **ログイン画面のバイパス**（HA ingress 経由の自動ログイン）に対応
+[Apache Guacamole](https://guacamole.apache.org/) は、ブラウザだけで RDP / VNC / SSH / Telnet に接続できるクライアントレス・リモートデスクトップゲートウェイです。
+[`abesnier/guacamole`](https://github.com/MaxWaldorf/guacamole) をそのまま利用し、Home Assistant 連携に必要なレイヤだけを足しています。
 
 ## 主な機能
 
