@@ -34,14 +34,14 @@
 
 ## データの保存先
 
-`startup_script_org.sh` により、設定・データベース・拡張機能は `/config/suwayomi/` 配下にシンボリックリンクで永続化されます。
+`startup_script_org.sh` により、設定・データベース・拡張機能はアドオン専用の設定ディレクトリ（コンテナ内 `/config`、ホスト実体 `/addon_configs/<slug>/`、バックアップ対象）にシンボリックリンクで永続化されます。
 
-| 種類 | HA 上のパス |
+| 種類 | コンテナ内パス |
 |---|---|
-| サーバー設定 | `/config/suwayomi/server.conf` |
-| オプション | `/config/suwayomi/options.json` |
-| データベース | `/config/suwayomi/database.mv.db` |
-| 拡張機能 | `/config/suwayomi/extensions/` |
+| サーバー設定 | `/config/server.conf` |
+| オプション | `/config/options.json` |
+| データベース | `/config/database.mv.db` |
+| 拡張機能 | `/config/extensions/` |
 
 ## Mihon との連携
 

@@ -68,7 +68,7 @@ random_password() (
 # wireguard-ui creates databases in `./db`
 # State lives in the dedicated add-on config dir, mounted at /config
 # inside the container (host path /addon_configs/<slug>, included in backups).
-state_dir=/config/wireguard-ui
+state_dir=/config
 mkdir -p "${state_dir}"
 # migrate state from older versions which stored it in /data
 if [ -d /data/db ] && [ ! -d "${state_dir}/db" ]; then

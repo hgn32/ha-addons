@@ -2,7 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
-export const DATA_DIR = process.env.DATA_DIR || "/config/stock_manager";
+export const DATA_DIR = process.env.DATA_DIR || "/config";
 export const IMAGES_DIR = path.join(DATA_DIR, "images");
 
 export function ensureDirs(): void {
