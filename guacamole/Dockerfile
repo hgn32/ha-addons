@@ -25,12 +25,17 @@ COPY rootfs/ /
 
 # スクリプト/サービスへ実行権限付与・必要ディレクトリ作成・既定 auth ヘッダ(クリア)生成。
 # nginx / cron / restore は /etc/services.d 配下の s6 サービスとして起動する。
+# syslogd 修正: HA コンテナは /dev が読み取り専用で /dev/log にバインドできない。
+# alexbelgium と同じ手法で s6-socklog を /tmpsock/syslog へリダイレクト。
 RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && find /etc/services.d -type f -name run -exec chmod +x {} \; \
     && mkdir -p /etc/nginx/includes /etc/crontabs /var/lib/nginx/tmp /run/nginx \
-    && printf 'proxy_set_header X-WEBAUTH-USER "";\n' > /etc/nginx/includes/auth_header.conf
+    && printf 'proxy_set_header X-WEBAUTH-USER "";\n' > /etc/nginx/includes/auth_header.conf \
+    && mkdir -p /tmpsock \
+    && sed -i 's|s6-socklog -d3 -U -t3000|s6-socklog -d3 -U -t3000 -x /tmpsock/syslog|g' \
+       /etc/s6-overlay/s6-rc.d/syslogd/run
 
-ENV TZ=UTC S6_LOGGING=0
+ENV TZ=UTC
 
 # ベースの ENTRYPOINT(/init, s6-overlay) を HA 用ラッパに差し替える。
 # ラッパは設定反映後、最後に /init を exec して s6 が全サービスを起動する。
