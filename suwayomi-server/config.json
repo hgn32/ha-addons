@@ -1,7 +1,7 @@
 {
   "name": "Suwayomi Server",
   "description": "Self-hosted manga server compatible with Mihon",
-  "version": "0.8",
+  "version": "0.9",
   "slug": "suwayomi_server",
   "init": false,
   "arch": [
@@ -19,7 +19,11 @@
   "boot": "auto",
   "tmpfs": false,
   "map": [
-    "config:rw",
+    {
+      "type": "addon_config",
+      "read_only": false,
+      "path": "/config"
+    },
     "media:rw"
   ],
   "image": "ghcr.io/hgn32/suwayomi-server"
