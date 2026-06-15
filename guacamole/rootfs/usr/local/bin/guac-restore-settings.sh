@@ -4,11 +4,12 @@
 # 安全装置: 既存の接続定義が1件でもあれば何もしない（データ消失防止）。
 set -uo pipefail
 # shellcheck source=/dev/null
-source /usr/local/bin/guac-lib.sh
+. /usr/local/bin/guac-lib.sh
 [ -f /etc/guacamole-ha.env ] && . /etc/guacamole-ha.env
 
-DUMP=/config/settings/guacamole_settings.sql.gz
-VERF=/config/settings/guacamole_settings.version
+BDIR="$(backup_dir)"
+DUMP="$BDIR/guacamole_settings.sql.gz"
+VERF="$BDIR/guacamole_settings.version"
 
 # ha-run.sh が「新規 DB かつダンプあり」と判断したときだけフラグを立てる
 [ -f /tmp/guac_do_restore ] || { exit 0; }

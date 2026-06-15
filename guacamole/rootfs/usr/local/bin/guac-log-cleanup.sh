@@ -4,7 +4,7 @@
 # 実行タイミング(cron)と保持日数はアドオン設定で保持される。
 set -uo pipefail
 # shellcheck source=/dev/null
-source /usr/local/bin/guac-lib.sh
+. /usr/local/bin/guac-lib.sh
 [ -f /etc/guacamole-ha.env ] && . /etc/guacamole-ha.env
 
 RET="${LOG_RETENTION_DAYS:-30}"

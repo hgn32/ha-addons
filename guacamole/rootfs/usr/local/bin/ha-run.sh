@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Home Assistant 用エントリポイント。
-# アドオン設定を反映し、最後に upstream の /startup.sh を exec する。
+# アドオン設定を反映し、最後に s6-overlay の /init を exec する。
 set -e
 # shellcheck source=/dev/null
-source /usr/local/bin/guac-lib.sh
+. /usr/local/bin/guac-lib.sh
 
 OPTIONS=/data/options.json
 log "Starting Guacamole add-on (lightweight wrapper)"
@@ -17,9 +17,10 @@ EXT_LIST="$(jq -r '((.extensions // []) | join(","))' "$OPTIONS" 2>/dev/null || 
 TZ_OPT="$(jqget tz)";                       [ -z "$TZ_OPT" ] && TZ_OPT="UTC"
 AUTO_LOGIN="$(jqget ingress_auto_login)";   [ -z "$AUTO_LOGIN" ] && AUTO_LOGIN="true"
 AUTO_LOGIN_USER="$(jqget ingress_auto_login_user)"; [ -z "$AUTO_LOGIN_USER" ] && AUTO_LOGIN_USER="guacadmin"
-LOG_SCHED="$(jqget log_cleanup_schedule)"
+BACKUP_SCHED="$(jqget backup_schedule)"
 LOG_RET="$(jqget log_retention_days)";      [[ "$LOG_RET" =~ ^[0-9]+$ ]] || LOG_RET=30
 AUTO_RESTORE="$(jqget auto_restore_settings)"; [ -z "$AUTO_RESTORE" ] && AUTO_RESTORE="true"
+BACKUP_DIR="$(backup_dir)"
 
 export TZ="$TZ_OPT"
 
@@ -50,7 +51,7 @@ export EXTENSIONS="$EXT_LIST"
 log "Extensions to enable: ${EXTENSIONS:-<none (postgresql-jdbc core only)>}"
 
 # ---- 新規/リストア DB の検出 ------------------------------------------------
-mkdir -p /config/settings
+mkdir -p "$BACKUP_DIR"
 rm -f /tmp/guac_do_restore
 if [ ! -f /config/postgres/PG_VERSION ]; then
     log "No existing PostgreSQL cluster found (fresh install or restored backup)"
@@ -61,9 +62,9 @@ if [ ! -f /config/postgres/PG_VERSION ]; then
         log "Removing stale guacamole.properties so the DB password is regenerated consistently"
         rm -f "$GUAC_PROP_CONFIG"
     fi
-    if [ "$AUTO_RESTORE" = "true" ] && [ -f /config/settings/guacamole_settings.sql.gz ]; then
+    if [ "$AUTO_RESTORE" = "true" ] && [ -f "$BACKUP_DIR/guacamole_settings.sql.gz" ]; then
         touch /tmp/guac_do_restore
-        log "Settings backup detected; will import it into the fresh DB after initialization"
+        log "Settings backup detected (${BACKUP_DIR}); will import it into the fresh DB after initialization"
     fi
 fi
 
@@ -73,21 +74,34 @@ LOG_RETENTION_DAYS=${LOG_RET}
 GUAC_VER=${GUAC_VER:-}
 EOF
 
-# ---- DB 内ログ削除 cron -----------------------------------------------------
+# ---- 定期メンテナンス cron（ログ削除 → 設定バックアップ） -------------------
+# 1 本のスケジュールで「ログのクリーンナップ → 設定バックアップ」をまとめて実行する。
+# HA のバックアップ時刻の少し前に合わせて指定すると、クリーンナップ済みの最新ダンプが
+# スナップショットに含まれる（backup_pre フックでも同じ処理が走る）。
 mkdir -p /etc/crontabs
-if [ -n "$LOG_SCHED" ]; then
-    echo "$LOG_SCHED /usr/local/bin/guac-log-cleanup.sh >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
-    log "In-DB log cleanup scheduled (UTC): '${LOG_SCHED}', retention=${LOG_RET} day(s)"
+if [ -n "$BACKUP_SCHED" ]; then
+    echo "$BACKUP_SCHED /usr/local/bin/guac-backup.sh >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
+    log "Scheduled maintenance (UTC): '${BACKUP_SCHED}' = log cleanup (retention=${LOG_RET}d) + settings backup -> ${BACKUP_DIR}"
 else
     : > /etc/crontabs/root
-    log "log_cleanup_schedule is empty; in-DB log cleanup disabled"
+    log "backup_schedule is empty; scheduled cleanup+backup disabled (HA backup_pre still runs the same set)"
 fi
 
-# 設定リストアは supervisord の一回限りプログラム(guac-restore)が担当する。
-# upstream の /startup.sh は初期化中に一時 PostgreSQL を TCP で起動するため、
-# ここでバックグラウンド実行すると一時インスタンスへ書き込む競合が起きうる。
-# supervisord 配下なら本番 PostgreSQL 起動後に走るため安全。
+# 設定リストアは s6 サービス(guac-restore)が担当する。
+# DB の準備完了はリストア側スクリプトが待つため、ここでは可否フラグを立てるだけにする。
+# upstream の guacamole サービスが PostgreSQL 起動・スキーマ適用を済ませてから取り込むため、
+# 一時インスタンスへの書き込み競合は起きない。
 # 実行可否は /tmp/guac_do_restore フラグで制御する（上で設定済み）。
 
-log "Handing over to upstream Guacamole startup"
-exec /startup.sh
+# ベースイメージの init は s6-overlay(/init)。最後にこれへ処理を渡し、
+# s6 が postgres / guacd / tomcat と nginx / cron / restore を起動する。
+log "Handing over to s6-overlay (/init)"
+if [ -x /init ]; then
+    exec /init
+elif [ -x /startup.sh ]; then
+    # 旧来の startup.sh 方式イメージ向けフォールバック
+    exec /startup.sh
+else
+    log "FATAL: no init found in image (neither /init nor /startup.sh)"
+    exit 1
+fi

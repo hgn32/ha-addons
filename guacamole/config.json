@@ -1,7 +1,7 @@
 {
   "name": "Guacamole",
   "description": "軽量版 Apache Guacamole（クライアントレス・リモートデスクトップゲートウェイ）。guacd + Tomcat + 内蔵 PostgreSQL を 1 コンテナで実行します。",
-  "version": "1.6.0-1",
+  "version": "1.6.0-2",
   "slug": "guacamole",
   "url": "https://guacamole.apache.org/",
   "init": false,
@@ -24,7 +24,7 @@
     }
   ],
   "backup": "hot",
-  "backup_pre": "/usr/local/bin/guac-backup-pre.sh",
+  "backup_pre": "/usr/local/bin/guac-backup.sh",
   "backup_exclude": [
     "*/postgres*",
     "*/extensions*",
@@ -33,15 +33,16 @@
     "*/db_check",
     "*/recordings",
     "*/logs",
-    "*/.guacamole_settings.sql.gz.tmp"
+    "*/.guacamole_settings.sql.gz*.tmp"
   ],
   "options": {
     "extensions": [],
     "ingress_auto_login": true,
     "ingress_auto_login_user": "guacadmin",
     "tz": "UTC",
-    "log_cleanup_schedule": "0 18 * * *",
+    "backup_schedule": "0 18 * * *",
     "log_retention_days": 30,
+    "backup_path": "/config/guacamole",
     "backup_database": true,
     "auto_restore_settings": true
   },
@@ -52,8 +53,9 @@
     "ingress_auto_login": "bool",
     "ingress_auto_login_user": "str",
     "tz": "str?",
-    "log_cleanup_schedule": "str?",
+    "backup_schedule": "str?",
     "log_retention_days": "int(0,)?",
+    "backup_path": "str?",
     "backup_database": "bool",
     "auto_restore_settings": "bool"
   },

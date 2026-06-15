@@ -1,0 +1,10 @@
+#!/usr/bin/with-contenv sh
+# 設定の自動リストア（新規/空 DB のときだけ）。
+# ha-run.sh が /tmp/guac_do_restore を作成したときに限り実際の取り込みを行う。
+# upstream の guacamole サービスが PostgreSQL 起動とスキーマ適用を済ませてから
+# 走るよう、スクリプト側で DB の準備完了を待つ（順序依存を持たせない）。
+echo "[guacamole] Restore service: checking for settings to import"
+/usr/local/bin/guac-restore-settings.sh
+
+# 一度だけ実行すればよい。s6 の再起動ループを避けるため以降は待機する。
+exec tail -f /dev/null
