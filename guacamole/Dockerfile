@@ -33,7 +33,9 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && printf 'proxy_set_header X-WEBAUTH-USER "";\n' > /etc/nginx/includes/auth_header.conf \
     && mkdir -p /tmpsock \
     && sed -i 's|s6-socklog -d3 -U -t3000|s6-socklog -d3 -U -t3000 -x /tmpsock/syslog|g' \
-       /etc/s6-overlay/s6-rc.d/syslogd/run
+       /etc/s6-overlay/s6-rc.d/syslogd/run \
+    && find /etc/cont-init.d -name '*.sh' \
+       -exec sed -i 's|cp -rn /app/guacamole |cp -rn /app/guacamole/* |g' {} \;
 
 ENV TZ=UTC
 
