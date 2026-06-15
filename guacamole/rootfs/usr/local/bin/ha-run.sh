@@ -28,9 +28,11 @@ export TZ="$TZ_OPT"
 # HA の addon_config マウントで /config/ がボリューム化されると、イメージに焼かれた
 # guacamole.properties が隠蔽される。postgres は localhost に trust 認証のため
 # パスワード値は問わないが、ファイル自体が必要。存在しない場合のみ既定値で生成する。
+mkdir -p /config/guacamole/extensions /config/guacamole/lib
+cp -rn /app/guacamole/. /config/guacamole/ 2>/dev/null || true
+
 if [ ! -f "$GUAC_PROP_CONFIG" ]; then
     log "guacamole.properties not found; creating with defaults"
-    mkdir -p "$(dirname "$GUAC_PROP_CONFIG")"
     cat > "$GUAC_PROP_CONFIG" <<'EOF'
 postgresql-hostname: 127.0.0.1
 postgresql-port: 5432
