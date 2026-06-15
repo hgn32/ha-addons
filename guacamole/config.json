@@ -1,0 +1,61 @@
+{
+  "name": "Guacamole",
+  "description": "軽量版 Apache Guacamole（クライアントレス・リモートデスクトップゲートウェイ）。guacd + Tomcat + 内蔵 PostgreSQL を 1 コンテナで実行します。",
+  "version": "1.6.0-1",
+  "slug": "guacamole",
+  "url": "https://guacamole.apache.org/",
+  "init": false,
+  "arch": [
+    "amd64",
+    "aarch64"
+  ],
+  "startup": "application",
+  "boot": "auto",
+  "ingress": true,
+  "ingress_port": 8099,
+  "panel_icon": "mdi:remote-desktop",
+  "panel_title": "Guacamole",
+  "host_network": false,
+  "map": [
+    {
+      "type": "addon_config",
+      "read_only": false,
+      "path": "/config"
+    }
+  ],
+  "backup": "hot",
+  "backup_pre": "/usr/local/bin/guac-backup-pre.sh",
+  "backup_exclude": [
+    "*/postgres*",
+    "*/extensions*",
+    "*/lib",
+    "*/schema",
+    "*/db_check",
+    "*/recordings",
+    "*/logs",
+    "*/.guacamole_settings.sql.gz.tmp"
+  ],
+  "options": {
+    "extensions": [],
+    "ingress_auto_login": true,
+    "ingress_auto_login_user": "guacadmin",
+    "tz": "UTC",
+    "log_cleanup_schedule": "0 18 * * *",
+    "log_retention_days": 30,
+    "backup_database": true,
+    "auto_restore_settings": true
+  },
+  "schema": {
+    "extensions": [
+      "list(auth-totp|auth-duo|auth-header|auth-json|auth-ldap|auth-quickconnect|auth-ban|display-statistics|history-recording-storage|auth-sso-openid|auth-sso-saml|auth-sso-cas|auth-jdbc-mysql|auth-jdbc-sqlserver|vault-ksm)"
+    ],
+    "ingress_auto_login": "bool",
+    "ingress_auto_login_user": "str",
+    "tz": "str?",
+    "log_cleanup_schedule": "str?",
+    "log_retention_days": "int(0,)?",
+    "backup_database": "bool",
+    "auto_restore_settings": "bool"
+  },
+  "_image": "ghcr.io/hgn32/guacamole"
+}
