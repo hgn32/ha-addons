@@ -30,7 +30,7 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && mkdir -p /etc/nginx/includes /etc/crontabs /var/lib/nginx/tmp /run/nginx \
     && printf 'proxy_set_header X-WEBAUTH-USER "";\n' > /etc/nginx/includes/auth_header.conf
 
-ENV TZ=UTC
+ENV TZ=UTC S6_LOGGING=0
 
 # ベースの ENTRYPOINT(/init, s6-overlay) を HA 用ラッパに差し替える。
 # ラッパは設定反映後、最後に /init を exec して s6 が全サービスを起動する。
