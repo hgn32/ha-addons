@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # 「設定だけ」を論理ダンプして <backup_path>/guacamole_settings.sql.gz に保存する。
 # 接続情報・ユーザ等の設定は PostgreSQL 内に保存されるため、これがバックアップ
 # 対象の「設定」となる。履歴(ログ)テーブルのデータは除外する。
@@ -7,7 +7,7 @@
 # 出力先(backup_path)はアドオン設定で変更でき、既定は /config/guacamole。
 # cron(guac-backup.sh) と HA の backup_pre フックの双方から呼ばれる。
 # 注意: backup_pre が非 0 終了するとバックアップ自体が失敗するため、常に 0 で抜ける。
-set -uo pipefail
+set -u
 # shellcheck source=/dev/null
 . /usr/local/bin/guac-lib.sh
 [ -f /etc/guacamole-ha.env ] && . /etc/guacamole-ha.env

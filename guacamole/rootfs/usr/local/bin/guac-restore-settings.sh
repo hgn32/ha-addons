@@ -1,8 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # 新規/空の DB に対してのみ、バックアップした設定ダンプを取り込む。
 # ha-run.sh が /tmp/guac_do_restore を作成したときだけ起動される。
 # 安全装置: 既存の接続定義が1件でもあれば何もしない（データ消失防止）。
-set -uo pipefail
+set -u
 # shellcheck source=/dev/null
 . /usr/local/bin/guac-lib.sh
 [ -f /etc/guacamole-ha.env ] && . /etc/guacamole-ha.env

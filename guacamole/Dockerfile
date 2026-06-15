@@ -14,8 +14,8 @@ FROM abesnier/guacamole:1.6.0-alpine-pg16
 # HA 連携に必要な最小限のパッケージのみ追加。
 # - nginx … ingress 用リバースプロキシ
 # - jq    … アドオン設定(/data/options.json)の読み取り
-# - bash  … 各ラッパスクリプトの実行に必要（alpine ベースには非同梱のため明示追加）
-RUN apk add --no-cache nginx jq bash
+# スクリプトは busybox ash(/bin/sh) で動作するため bash は不要。
+RUN apk add --no-cache nginx jq
 
 # 定期ログ削除/バックアップに busybox crond を使うため、存在をビルド時に確認する
 RUN command -v crond >/dev/null || (echo "crond not found in base image" && exit 1)

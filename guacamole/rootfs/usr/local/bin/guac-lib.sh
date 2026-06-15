@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # 共通ヘルパ（ha-run.sh / backup / restore / log-cleanup から source される）
-# shellcheck shell=bash
 
 # guacamole.properties の場所
 GUAC_PROP_TEMPLATE="/app/guacamole/guacamole.properties"   # イメージ同梱のひな形

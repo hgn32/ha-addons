@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Home Assistant 用エントリポイント。
 # アドオン設定を反映し、最後に s6-overlay の /init を exec する。
 set -e
@@ -18,7 +18,7 @@ TZ_OPT="$(jqget tz)";                       [ -z "$TZ_OPT" ] && TZ_OPT="UTC"
 AUTO_LOGIN="$(jqget ingress_auto_login)";   [ -z "$AUTO_LOGIN" ] && AUTO_LOGIN="true"
 AUTO_LOGIN_USER="$(jqget ingress_auto_login_user)"; [ -z "$AUTO_LOGIN_USER" ] && AUTO_LOGIN_USER="guacadmin"
 BACKUP_SCHED="$(jqget backup_schedule)"
-LOG_RET="$(jqget log_retention_days)";      [[ "$LOG_RET" =~ ^[0-9]+$ ]] || LOG_RET=30
+LOG_RET="$(jqget log_retention_days)";      case "$LOG_RET" in ''|*[!0-9]*) LOG_RET=30 ;; esac
 AUTO_RESTORE="$(jqget auto_restore_settings)"; [ -z "$AUTO_RESTORE" ] && AUTO_RESTORE="true"
 BACKUP_DIR="$(backup_dir)"
 
