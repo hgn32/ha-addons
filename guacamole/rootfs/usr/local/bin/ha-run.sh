@@ -24,13 +24,35 @@ BACKUP_DIR="$(backup_dir)"
 
 export TZ="$TZ_OPT"
 
-# ---- guacamole.properties の存在確保 ----------------------------------------
-# HA の addon_config マウントで /config/ がボリューム化されると、イメージに焼かれた
-# guacamole.properties が隠蔽される。postgres は localhost に trust 認証のため
-# パスワード値は問わないが、ファイル自体が必要。存在しない場合のみ既定値で生成する。
-mkdir -p /config/guacamole/extensions /config/guacamole/lib
-cp -rn /app/guacamole/. /config/guacamole/ 2>/dev/null || true
-
+# ---- GUACAMOLE_HOME (/config/guacamole) を確実に展開 ------------------------
+# HA の addon_config マウントで /config がボリューム化されると、イメージ同梱の
+# /app/guacamole が /config/guacamole に複製されない。さらに busybox cp は
+# `src/.` 記法を扱えず（黙って失敗する）、既存ディレクトリへの再コピーでネストも
+# 起こす。そのためエントリ単位で明示的に複製する。
+mkdir -p /config/guacamole/extensions
+# 静的データ（イメージ同梱の最新で更新。ネスト回避のため一旦削除してから複製）
+for d in extensions-available lib schema; do
+    [ -d "/app/guacamole/$d" ] || continue
+    rm -rf "/config/guacamole/$d"
+    cp -r "/app/guacamole/$d" "/config/guacamole/$d"
+done
+# 常時必須のコア拡張(postgresql-jdbc 等)の jar を extensions/ に確保（既存は温存）
+for j in /app/guacamole/extensions/*.jar; do
+    [ -f "$j" ] && cp -n "$j" /config/guacamole/extensions/
+done
+# DB 認証コア(postgresql-jdbc)が extensions/ に無ければ extensions-available から補完。
+# これが無いと全ログインが "no specific failure recorded" で失敗する。
+if ! ls /config/guacamole/extensions/*jdbc-postgresql*.jar >/dev/null 2>&1; then
+    for j in /app/guacamole/extensions-available/*jdbc-postgresql*.jar; do
+        [ -f "$j" ] && cp -n "$j" /config/guacamole/extensions/
+    done
+fi
+# トップレベルのファイル(guacamole.properties 等)は無ければ複製
+for f in /app/guacamole/*; do
+    [ -f "$f" ] || continue
+    [ -e "/config/guacamole/$(basename "$f")" ] || cp "$f" /config/guacamole/
+done
+# それでも properties が無ければ最低限の既定で生成（postgres は trust 認証）
 if [ ! -f "$GUAC_PROP_CONFIG" ]; then
     log "guacamole.properties not found; creating with defaults"
     cat > "$GUAC_PROP_CONFIG" <<'EOF'

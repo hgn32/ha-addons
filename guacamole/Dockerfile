@@ -27,6 +27,9 @@ COPY rootfs/ /
 # nginx / cron / restore は /etc/services.d 配下の s6 サービスとして起動する。
 # syslogd 修正: HA コンテナは /dev が読み取り専用で /dev/log にバインドできない。
 # alexbelgium と同じ手法で s6-socklog を /tmpsock/syslog へリダイレクト。
+# 30-defaults の `cp -rn /app/guacamole /config` は busybox では `/.` 記法が使えず
+# 既存ディレクトリでネストも起こすため無効化し、/config/guacamole への展開は
+# ha-run.sh がエントリ単位で確実に行う。
 RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && find /etc/services.d -type f -name run -exec chmod +x {} \; \
     && mkdir -p /etc/nginx/includes /etc/crontabs /var/lib/nginx/tmp /run/nginx \
@@ -34,8 +37,7 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && mkdir -p /tmpsock \
     && sed -i 's|s6-socklog -d3 -U -t3000|s6-socklog -d3 -U -t3000 -x /tmpsock/syslog|g' \
        /etc/s6-overlay/s6-rc.d/syslogd/run \
-    && find /etc/cont-init.d -name '*.sh' \
-       -exec sed -i 's|cp -rn /app/guacamole /config|cp -rn /app/guacamole/. /config/guacamole|g' {} \;
+    && sed -i 's|cp -rn /app/guacamole /config|true|' /etc/cont-init.d/30-defaults.sh
 
 ENV TZ=UTC
 
