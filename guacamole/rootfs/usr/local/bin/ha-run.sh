@@ -24,6 +24,24 @@ BACKUP_DIR="$(backup_dir)"
 
 export TZ="$TZ_OPT"
 
+# ---- guacamole.properties の存在確保 ----------------------------------------
+# HA の addon_config マウントで /config/ がボリューム化されると、イメージに焼かれた
+# guacamole.properties が隠蔽される。postgres は localhost に trust 認証のため
+# パスワード値は問わないが、ファイル自体が必要。存在しない場合のみ既定値で生成する。
+if [ ! -f "$GUAC_PROP_CONFIG" ]; then
+    log "guacamole.properties not found; creating with defaults"
+    mkdir -p "$(dirname "$GUAC_PROP_CONFIG")"
+    cat > "$GUAC_PROP_CONFIG" <<'EOF'
+postgresql-hostname: 127.0.0.1
+postgresql-port: 5432
+postgresql-database: guacamole_db
+postgresql-username: guacamole
+postgresql-password: guacamole
+guacd-hostname: 127.0.0.1
+guacd-port: 4822
+EOF
+fi
+
 # ---- ログイン画面バイパス（ingress 自動ログイン） ---------------------------
 # 信頼プロキシ（nginx）が付与する X-WEBAUTH-USER ヘッダで auth-header 拡張により
 # 自動認証する。HA ingress は HA 認証済みなので Guacamole 側ログインは冗長。
@@ -55,13 +73,6 @@ mkdir -p "$BACKUP_DIR"
 rm -f /tmp/guac_do_restore
 if [ ! -f /config/postgres/PG_VERSION ]; then
     log "No existing PostgreSQL cluster found (fresh install or restored backup)"
-    # リストアで戻った guacamole.properties は旧クラスタのパスワードを保持しており
-    # 新規クラスタと不一致になる。削除して再生成させ整合させる
-    # （接続先などの設定はひな形から同値で再生成される）。
-    if [ -f "$GUAC_PROP_CONFIG" ]; then
-        log "Removing stale guacamole.properties so the DB password is regenerated consistently"
-        rm -f "$GUAC_PROP_CONFIG"
-    fi
     if [ "$AUTO_RESTORE" = "true" ] && [ -f "$BACKUP_DIR/guacamole_settings.sql.gz" ]; then
         touch /tmp/guac_do_restore
         log "Settings backup detected (${BACKUP_DIR}); will import it into the fresh DB after initialization"
