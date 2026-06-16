@@ -20,6 +20,14 @@ ln -s /config/database.trace.db /home/suwayomi/.local/share/Tachidesk/database.t
 rm -rf /home/suwayomi/.local/share/Tachidesk/extensions
 ln -s /config/extensions /home/suwayomi/.local/share/Tachidesk/extensions
 
+###### backups
+# Suwayomi writes automated backups (.tachibk) under <dataDir>/backups.
+# Persist them under /config/backups so they survive restarts AND so the
+# integrated Summary viewer's "サーバ上のフォルダから選択" lists them.
+mkdir -p /config/backups
+rm -rf /home/suwayomi/.local/share/Tachidesk/backups
+ln -s /config/backups /home/suwayomi/.local/share/Tachidesk/backups
+
 ###### ls
 echo "---------- ls:/config ----------"
 ls -la /config
@@ -29,9 +37,9 @@ ls -la /home/suwayomi/.local/share/Tachidesk/
 ###### Summary viewer (ingress :8099)
 # Runs alongside the Suwayomi server in the same container, sharing /config.
 # Reachable Suwayomi API is on localhost:4567 (overridable via add-on options).
+# BACKUP_DIR points at the Suwayomi server's backup folder (/config/backups).
 echo "---------- start summary viewer (:8099) ----------"
-mkdir -p /config
-BACKUP_DIR=/config \
+BACKUP_DIR=/config/backups \
 ALIASES_FILE=/config/aliases.json \
 OPTIONS_FILE=/data/options.json \
 /opt/summary/venv/bin/uvicorn app.main:app \

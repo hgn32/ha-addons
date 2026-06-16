@@ -40,7 +40,10 @@
 **Suwayomi Summary** パネル（ingress）から、`.tachibk` / `.proto.gz` バックアップの
 内容表示や、ダウンロード済みチャプターの一括削除などを行えます。
 
-- バックアップ/変換テーブルの保存先: `/config`（本体と共有、`/config/aliases.json`）
+- 「サーバ上のフォルダから選択」が参照するのは Suwayomi 本体のバックアップ出力先
+  `/config/backups`（本体の `~/.local/share/Tachidesk/backups` を symlink で永続化）。
+  自動バックアップや手動で置いた `.tachibk` / `.proto.gz` がここに一覧表示されます。
+- 変換テーブルは `/config/aliases.json`
 - Suwayomi Server への接続は同一コンテナ内の `localhost:4567` を既定で使用します。
   BASIC 認証を有効にしている場合のみ、アドオンの **設定** タブで
   `suwayomi_username` / `suwayomi_password` を設定してください。
