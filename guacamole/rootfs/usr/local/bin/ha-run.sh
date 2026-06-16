@@ -97,6 +97,12 @@ mkdir -p "$BACKUP_DIR"
 rm -f /tmp/guac_do_restore
 if [ ! -f /config/postgres/PG_VERSION ]; then
     log "No existing PostgreSQL cluster found (fresh install or restored backup)"
+    if [ -d /app/guacamole-db-template ]; then
+        log "Copying pre-initialized DB template to /config/postgres (skips initdb+schema ~10s)"
+        cp -r /app/guacamole-db-template /config/postgres
+        chown -R postgres:postgres /config/postgres
+        chmod 700 /config/postgres
+    fi
     if [ "$AUTO_RESTORE" = "true" ] && [ -f "$BACKUP_DIR/guacamole_settings.sql.gz" ]; then
         touch /tmp/guac_do_restore
         log "Settings backup detected (${BACKUP_DIR}); will import it into the fresh DB after initialization"
