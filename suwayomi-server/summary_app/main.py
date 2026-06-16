@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import socket
 from datetime import datetime
 from pathlib import Path
 
@@ -23,10 +25,53 @@ from .decoder import (
 _HERE = Path(__file__).parent
 _PROJECT_ROOT = _HERE.parent
 
-# Default paths for Home Assistant add-on (map: ["config:rw"]).
+# Default paths for the integrated Suwayomi Server add-on. The summary viewer
+# shares the same addon_config dir (/config) as the Suwayomi server itself.
 # Overridable via env vars for non-HA / standalone use.
-BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/config/suwayomi")).resolve()
-ALIASES_FILE = Path(os.environ.get("ALIASES_FILE", "/config/suwayomi/aliases.json")).resolve()
+BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/config/backups")).resolve()
+ALIASES_FILE = Path(os.environ.get("ALIASES_FILE", "/config/aliases.json")).resolve()
+
+# Path shown in the UI. The actual scan path (BACKUP_DIR) is the in-container
+# mount (/config/backups); from Home Assistant the same folder is visible as
+# /addon_configs/<slug>/backups, which is what users edit via File editor/Samba.
+# We resolve the real <slug> at runtime so the UI shows a concrete path.
+
+
+def _detect_addon_slug() -> str | None:
+    """Best-effort detection of the add-on's /addon_configs folder name.
+
+    1. Read the host bind-mount source of /config from /proc/self/mountinfo
+       (authoritative; the source root ends with addon_configs/<slug>).
+    2. Fall back to the container hostname (HA names it <repo>-<slug> with
+       dashes; the folder uses underscores).
+    """
+    try:
+        with open("/proc/self/mountinfo", encoding="utf-8") as f:
+            for line in f:
+                parts = line.split()
+                # mountinfo: ID PARENT MAJ:MIN ROOT MOUNTPOINT ...
+                if len(parts) >= 5 and parts[4] == "/config":
+                    m = re.search(r"addon_configs/([^/]+)", parts[3])
+                    if m:
+                        return m.group(1)
+    except OSError:
+        pass
+    host = os.environ.get("HOSTNAME") or socket.gethostname()
+    return host.replace("-", "_") if host else None
+
+
+def _resolve_display_backup_dir() -> str:
+    override = os.environ.get("DISPLAY_BACKUP_DIR")
+    if override:
+        return override
+    slug = _detect_addon_slug()
+    if slug and str(BACKUP_DIR).startswith("/config"):
+        suffix = str(BACKUP_DIR)[len("/config"):]
+        return f"/addon_configs/{slug}{suffix}"
+    return str(BACKUP_DIR)
+
+
+DISPLAY_BACKUP_DIR = _resolve_display_backup_dir()
 
 # HA Supervisor writes the add-on options here. Used for the Suwayomi Server
 # connection settings; env vars (standalone use) take precedence.
@@ -197,7 +242,7 @@ def index(request: Request) -> HTMLResponse:
         "upload.html",
         {
             "files": list_backup_files(),
-            "backup_dir": str(BACKUP_DIR),
+            "backup_dir": DISPLAY_BACKUP_DIR,
             "aliases_file": str(ALIASES_FILE),
             "aliases_count": len(load_aliases()),
             "suwayomi_url": suwayomi_cfg["url"],
