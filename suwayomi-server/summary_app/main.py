@@ -29,6 +29,11 @@ _PROJECT_ROOT = _HERE.parent
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", "/config/backups")).resolve()
 ALIASES_FILE = Path(os.environ.get("ALIASES_FILE", "/config/aliases.json")).resolve()
 
+# Path shown in the UI. The actual scan path (BACKUP_DIR) is the in-container
+# mount (/config/backups); from Home Assistant the same folder is visible as
+# /addon_configs/<slug>/backups, which is what users edit via File editor/Samba.
+DISPLAY_BACKUP_DIR = os.environ.get("DISPLAY_BACKUP_DIR") or str(BACKUP_DIR)
+
 # HA Supervisor writes the add-on options here. Used for the Suwayomi Server
 # connection settings; env vars (standalone use) take precedence.
 OPTIONS_FILE = Path(os.environ.get("OPTIONS_FILE", "/data/options.json"))
@@ -198,7 +203,7 @@ def index(request: Request) -> HTMLResponse:
         "upload.html",
         {
             "files": list_backup_files(),
-            "backup_dir": str(BACKUP_DIR),
+            "backup_dir": DISPLAY_BACKUP_DIR,
             "aliases_file": str(ALIASES_FILE),
             "aliases_count": len(load_aliases()),
             "suwayomi_url": suwayomi_cfg["url"],
