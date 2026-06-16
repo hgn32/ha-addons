@@ -25,6 +25,10 @@ ln -s /config/extensions /home/suwayomi/.local/share/Tachidesk/extensions
 # Persist them under /config/backups so they survive restarts AND so the
 # integrated Summary viewer's "サーバ上のフォルダから選択" lists them.
 mkdir -p /config/backups
+# Created as root, but the Suwayomi server runs as the 'suwayomi' user and must
+# be able to write automated backups here. Hand ownership over (fall back to a
+# permissive mode if the user/group can't be resolved).
+chown suwayomi:suwayomi /config/backups 2>/dev/null || chmod 0777 /config/backups
 rm -rf /home/suwayomi/.local/share/Tachidesk/backups
 ln -s /config/backups /home/suwayomi/.local/share/Tachidesk/backups
 
