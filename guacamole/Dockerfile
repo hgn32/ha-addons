@@ -41,6 +41,13 @@ RUN set -e; \
 USER root
 RUN chmod 700 /app/guacamole-db-template
 
+# ベースイメージの cont-init.d / s6 スクリプト内でハードコードされた postgres パスを
+# $PGDATA で上書きできるようにパッチする。ha-run.sh が export PGDATA する前提。
+RUN for f in $(find /etc/cont-init.d /etc/s6-overlay/s6-rc.d /etc/services.d -type f 2>/dev/null); do \
+        grep -q '/config/guacamole/postgres' "$f" 2>/dev/null || continue; \
+        sed -i 's|/config/guacamole/postgres|${PGDATA:-/var/lib/guac-postgres}|g' "$f"; \
+    done
+
 # rootfs（nginx 設定・各種スクリプト・s6 サービス定義）を配置
 COPY rootfs/ /
 

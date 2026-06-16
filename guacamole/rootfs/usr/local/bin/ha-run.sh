@@ -24,35 +24,17 @@ BACKUP_DIR="$(backup_dir)"
 
 export TZ="$TZ_OPT"
 
-# ---- GUACAMOLE_HOME (/config/guacamole) を確実に展開 ------------------------
-# HA の addon_config マウントで /config がボリューム化されると、イメージ同梱の
-# /app/guacamole が /config/guacamole に複製されない。さらに busybox cp は
-# `src/.` 記法を扱えず（黙って失敗する）、既存ディレクトリへの再コピーでネストも
-# 起こす。そのためエントリ単位で明示的に複製する。
-mkdir -p /config/guacamole/extensions
-# 静的データ（イメージ同梱の最新で更新。ネスト回避のため一旦削除してから複製）
-for d in extensions-available lib schema; do
-    [ -d "/app/guacamole/$d" ] || continue
-    rm -rf "/config/guacamole/$d"
-    cp -r "/app/guacamole/$d" "/config/guacamole/$d"
-done
-# 常時必須のコア拡張(postgresql-jdbc 等)の jar を extensions/ に確保（既存は温存）
-for j in /app/guacamole/extensions/*.jar; do
-    [ -f "$j" ] && cp -n "$j" /config/guacamole/extensions/
-done
-# DB 認証コア(postgresql-jdbc)が extensions/ に無ければ extensions-available から補完。
-# これが無いと全ログインが "no specific failure recorded" で失敗する。
-if ! ls /config/guacamole/extensions/*jdbc-postgresql*.jar >/dev/null 2>&1; then
-    for j in /app/guacamole/extensions-available/*jdbc-postgresql*.jar; do
-        [ -f "$j" ] && cp -n "$j" /config/guacamole/extensions/
-    done
-fi
-# トップレベルのファイル(guacamole.properties 等)は無ければ複製
-for f in /app/guacamole/*; do
-    [ -f "$f" ] || continue
-    [ -e "/config/guacamole/$(basename "$f")" ] || cp "$f" /config/guacamole/
-done
-# それでも properties が無ければ最低限の既定で生成（postgres は trust 認証）
+# ---- GUACAMOLE_HOME を揮発領域に設定 (/config 外) --------------------------------
+# guacamole.properties のみ /config/guacamole/ に永続化する。
+# extensions/lib/schema はイメージへのシンボリックリンクとし addon_configs に置かない。
+export GUACAMOLE_HOME=/var/lib/guac-home
+rm -rf "$GUACAMOLE_HOME"
+mkdir -p "$GUACAMOLE_HOME/extensions"
+ln -sf /app/guacamole/extensions-available "$GUACAMOLE_HOME/extensions-available"
+ln -sf /app/guacamole/lib                  "$GUACAMOLE_HOME/lib"
+ln -sf /app/guacamole/schema               "$GUACAMOLE_HOME/schema"
+
+mkdir -p /config/guacamole
 if [ ! -f "$GUAC_PROP_CONFIG" ]; then
     log "guacamole.properties not found; creating with defaults"
     cat > "$GUAC_PROP_CONFIG" <<'EOF'
@@ -64,6 +46,17 @@ postgresql-password: guacamole
 guacd-hostname: 127.0.0.1
 guacd-port: 4822
 EOF
+fi
+ln -sf "$GUAC_PROP_CONFIG" "$GUACAMOLE_HOME/guacamole.properties"
+
+# コア拡張 (postgresql-jdbc) は必須
+for j in /app/guacamole/extensions/*.jar; do
+    [ -f "$j" ] && cp -n "$j" "$GUACAMOLE_HOME/extensions/"
+done
+if ! ls "$GUACAMOLE_HOME/extensions/"*jdbc-postgresql*.jar >/dev/null 2>&1; then
+    for j in /app/guacamole/extensions-available/*jdbc-postgresql*.jar; do
+        [ -f "$j" ] && cp -n "$j" "$GUACAMOLE_HOME/extensions/"
+    done
 fi
 
 # ---- ログイン画面バイパス（ingress 自動ログイン） ---------------------------
@@ -92,21 +85,21 @@ fi
 export EXTENSIONS="$EXT_LIST"
 log "Extensions to enable: ${EXTENSIONS:-<none (postgresql-jdbc core only)>}"
 
-# ---- 新規/リストア DB の検出 ------------------------------------------------
+# ---- 揮発 DB: 毎起動テンプレートから再構築 (addon_configs に postgres を置かない) -----
+# PGDATA は /config 外の /var/lib/guac-postgres。設定は dump/restore で永続化する。
 mkdir -p "$BACKUP_DIR"
+export PGDATA=/var/lib/guac-postgres
+rm -rf "$PGDATA"
+cp -r /app/guacamole-db-template "$PGDATA"
+chown -R postgres:postgres "$PGDATA"
+log "Volatile DB: template copied to ${PGDATA}"
+
 rm -f /tmp/guac_do_restore
-if [ ! -f /config/postgres/PG_VERSION ]; then
-    log "No existing PostgreSQL cluster found (fresh install or restored backup)"
-    if [ -d /app/guacamole-db-template ]; then
-        log "Copying pre-initialized DB template to /config/postgres (skips initdb+schema ~10s)"
-        cp -r /app/guacamole-db-template /config/postgres
-        chown -R postgres:postgres /config/postgres
-        chmod 700 /config/postgres
-    fi
-    if [ "$AUTO_RESTORE" = "true" ] && [ -f "$BACKUP_DIR/guacamole_settings.sql.gz" ]; then
-        touch /tmp/guac_do_restore
-        log "Settings backup detected (${BACKUP_DIR}); will import it into the fresh DB after initialization"
-    fi
+if [ "$AUTO_RESTORE" = "true" ] && [ -f "$BACKUP_DIR/guacamole_settings.sql.gz" ]; then
+    touch /tmp/guac_do_restore
+    log "Settings dump found at ${BACKUP_DIR}; will restore after DB startup"
+else
+    log "No settings dump or auto_restore disabled; starting fresh (guacadmin/guacadmin)"
 fi
 
 # ---- cron / backup / restore 用の環境ファイル -------------------------------
