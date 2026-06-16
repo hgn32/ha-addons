@@ -40,7 +40,6 @@ ls -la /home/suwayomi/.local/share/Tachidesk/
 # BACKUP_DIR points at the Suwayomi server's backup folder (/config/backups).
 echo "---------- start summary viewer (:8099) ----------"
 BACKUP_DIR=/config/backups \
-DISPLAY_BACKUP_DIR="/addon_configs/<slug>/backups" \
 ALIASES_FILE=/config/aliases.json \
 OPTIONS_FILE=/data/options.json \
 /opt/summary/venv/bin/uvicorn app.main:app \
