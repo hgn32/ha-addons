@@ -15,32 +15,31 @@ FROM abesnier/guacamole:1.6.0-alpine-pg16
 # - nginx … ingress 用リバースプロキシ
 # - jq    … アドオン設定(/data/options.json)の読み取り
 # スクリプトは busybox ash(/bin/sh) で動作するため bash は不要。
-RUN apk add --no-cache nginx jq su-exec
+RUN apk add --no-cache nginx jq
 
 # 定期ログ削除/バックアップに busybox crond を使うため、存在をビルド時に確認する
 RUN command -v crond >/dev/null || (echo "crond not found in base image" && exit 1)
 
 # ビルド時に PostgreSQL クラスタ初期化 + Guacamole スキーマを事前適用したテンプレートを生成。
 # 起動時に新規 DB が必要なとき cp するだけで済む（initdb+スキーマ ~10s → コピー ~1s）。
+# initdb/pg_ctl は root では動かないため USER postgres で実行し、完了後 root に戻す。
 # COPY rootfs/ より前に置くことで、スクリプト変更時にこのレイヤが再実行されない。
+RUN mkdir -p /app/guacamole-db-template && chown postgres:postgres /app/guacamole-db-template
+USER postgres
 RUN set -e; \
-    export PATH="$PATH:/usr/libexec/postgresql16:/usr/libexec/postgresql"; \
     PGDATA=/app/guacamole-db-template; \
-    mkdir -p "$PGDATA"; \
-    chown postgres:postgres "$PGDATA"; \
-    su-exec postgres initdb -D "$PGDATA" --locale=C --encoding=UTF8; \
-    printf 'local all all trust\nhost all all 127.0.0.1/32 trust\n' \
-        | su-exec postgres tee "$PGDATA/pg_hba.conf" > /dev/null; \
-    su-exec postgres pg_ctl start -D "$PGDATA" \
-        -o "-h 127.0.0.1 -p 5433 -k /tmp" -w -t 30; \
+    initdb -D "$PGDATA" --locale=C --encoding=UTF8; \
+    printf 'local all all trust\nhost all all 127.0.0.1/32 trust\n' > "$PGDATA/pg_hba.conf"; \
+    pg_ctl start -D "$PGDATA" -o "-h 127.0.0.1 -p 5433 -k /tmp" -w -t 30; \
     psql -h 127.0.0.1 -p 5433 -U postgres \
         -c "CREATE ROLE guacamole WITH LOGIN PASSWORD 'guacamole'"; \
     psql -h 127.0.0.1 -p 5433 -U postgres \
         -c "CREATE DATABASE guacamole_db OWNER guacamole ENCODING 'UTF8'"; \
     ls /app/guacamole/schema/*.sql | sort | \
         xargs -I{} psql -h 127.0.0.1 -p 5433 -U guacamole -d guacamole_db -f {}; \
-    su-exec postgres pg_ctl stop -D "$PGDATA" -m fast -w; \
-    chmod 700 "$PGDATA"
+    pg_ctl stop -D "$PGDATA" -m fast -w
+USER root
+RUN chmod 700 /app/guacamole-db-template
 
 # rootfs（nginx 設定・各種スクリプト・s6 サービス定義）を配置
 COPY rootfs/ /
