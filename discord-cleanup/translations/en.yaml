@@ -1,0 +1,19 @@
+configuration:
+  bot_token:
+    name: Bot Token
+    description: Discord bot token.
+  channel_ids:
+    name: Channel IDs
+    description: List of Discord channel IDs to clean up.
+  keep_days:
+    name: Retention Days
+    description: Number of days to keep messages.
+  run_hour:
+    name: Run Hour
+    description: Hour (0-23) to run the cleanup job daily.
+  run_minute:
+    name: Run Minute
+    description: Minute (0-59) to run the cleanup job.
+  dry_run:
+    name: Dry Run
+    description: If enabled, only logs what would be deleted without actually deleting.

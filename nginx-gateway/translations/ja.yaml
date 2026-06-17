@@ -1,0 +1,13 @@
+configuration:
+  geoip_account_id:
+    name: GeoIP アカウント ID
+    description: GeoIP データベース更新用の MaxMind アカウント ID。
+  geoip_license_key:
+    name: GeoIP ライセンスキー
+    description: GeoIP データベース更新用の MaxMind ライセンスキー。
+  geoip_update_schedule:
+    name: GeoIP 更新スケジュール
+    description: GeoIP データベースの自動更新スケジュール（cron 形式・UTC）。
+  geoip_reload_nginx:
+    name: 更新後に Nginx を再読み込み
+    description: 有効にすると GeoIP データベース更新後に Nginx を自動的に再読み込みします。

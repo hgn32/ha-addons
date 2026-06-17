@@ -1,0 +1,13 @@
+configuration:
+  geoip_account_id:
+    name: GeoIP Account ID
+    description: MaxMind account ID for GeoIP database updates.
+  geoip_license_key:
+    name: GeoIP License Key
+    description: MaxMind license key for GeoIP database updates.
+  geoip_update_schedule:
+    name: GeoIP Update Schedule
+    description: Cron expression for automatic GeoIP database updates (UTC).
+  geoip_reload_nginx:
+    name: Reload Nginx After GeoIP Update
+    description: If enabled, reloads Nginx automatically after a GeoIP database update.
