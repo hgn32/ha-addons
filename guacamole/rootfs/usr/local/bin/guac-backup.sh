@@ -9,6 +9,7 @@ set -u
 
 jqget() { jq -r --arg k "$1" 'if (.[$k] != null) then .[$k] else "" end' /data/options.json 2>/dev/null; }
 BACKUP_ENABLED="$(jqget backup_enabled)"; [ -z "$BACKUP_ENABLED" ] && BACKUP_ENABLED="true"
+VACUUM_LOGS="$(jqget vacuum_logs_on_backup)"; [ -z "$VACUUM_LOGS" ] && VACUUM_LOGS="false"
 
 if [ "$BACKUP_ENABLED" = "false" ]; then
     log "backup: disabled (backup_enabled=false); skipping"
@@ -21,6 +22,19 @@ mkdir -p "$BDIR"
 if ! wait_for_db 10 >/dev/null 2>&1; then
     log "backup: database not reachable; keeping previous dump if present"
     exit 0
+fi
+
+if [ "$VACUUM_LOGS" = "true" ]; then
+    log "backup: clearing connection history before dump..."
+    for tbl in guacamole_connection_history guacamole_user_history; do
+        if guac_psql -tAc "SELECT to_regclass('public.${tbl}') IS NOT NULL" 2>/dev/null | grep -q t; then
+            if guac_psql -c "TRUNCATE ${tbl}" 2>/tmp/guac_truncate.err; then
+                log "backup:   truncated ${tbl}"
+            else
+                log "backup:   WARN: failed to truncate ${tbl}: $(head -1 /tmp/guac_truncate.err 2>/dev/null)"
+            fi
+        fi
+    done
 fi
 
 log "backup: dumping ${PG_DATABASE} @ ${PG_HOST}:${PG_PORT} -> ${BDIR}/guacamole_db.dump"

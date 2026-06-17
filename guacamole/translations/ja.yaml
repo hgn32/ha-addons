@@ -17,6 +17,9 @@ configuration:
   backup_enabled:
     name: バックアップを有効にする
     description: HA バックアップ前に pg_dump を実行して /config/backup/ に保存します。
+  vacuum_logs_on_backup:
+    name: バックアップ前に接続履歴を削除
+    description: バックアップ前にデータベースの接続履歴テーブルを削除します。バックアップサイズが小さくなります。
   auto_restore_settings:
     name: 自動リストア
     description: 起動時に空のデータベースを検知した場合、バックアップから自動的に復元します。
