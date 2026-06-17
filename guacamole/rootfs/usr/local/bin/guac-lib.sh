@@ -42,7 +42,8 @@ guac_psql() {
     PGPASSWORD="$PG_PASSWORD" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" "$@"
 }
 
-# DB が応答可能になるまで待機（引数: 最大試行回数、既定60 = 最大約2分/フェーズ）
+# DB サーバが応答可能になるまで待機（引数: 最大試行回数、既定60 = 最大約2分/フェーズ）
+# $PG_DATABASE が未作成でも成功するよう postgres メンテナンス DB で接続確認する。
 wait_for_db() {
     _load_pg_env
     local tries="${1:-60}"
@@ -51,7 +52,7 @@ wait_for_db() {
     done
     tries="${1:-60}"
     while ! PGPASSWORD="$PG_PASSWORD" psql -h "$PG_HOST" -p "$PG_PORT" \
-              -U "$PG_USER" -d "$PG_DATABASE" -tAc 'SELECT 1' >/dev/null 2>&1; do
+              -U "$PG_USER" -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; do
         tries=$((tries - 1)); [ "$tries" -le 0 ] && return 1; sleep 2
     done
     return 0
