@@ -47,7 +47,16 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && mkdir -p /tmpsock \
     && sed -i 's|s6-socklog -d3 -U -t3000|s6-socklog -d3 -U -t3000 -x /tmpsock/syslog|g' \
        /etc/s6-overlay/s6-rc.d/syslogd/run \
-    && sed -i 's|cp -rn /app/guacamole /config|true|' /etc/cont-init.d/30-defaults.sh
+    && sed -i 's|cp -rn /app/guacamole /config|true|' /etc/cont-init.d/30-defaults.sh \
+    && script=/etc/services.d/guacamole/run \
+    && if [ -f "$script" ]; then \
+           { head -1 "$script"; \
+             printf '[ -f /etc/guacamole-ha.env ] && . /etc/guacamole-ha.env || true\n'; \
+             printf 'export PGHOST="${PG_HOST:-127.0.0.1}" PGPORT="${PG_PORT:-5432}" PGUSER="${PG_USER:-postgres}" PGPASSWORD="${PG_PASSWORD:-}" PGDATABASE="${PG_DATABASE:-guacamole_db}"\n'; \
+             tail -n +2 "$script"; } > /tmp/guac_run_patched \
+           && mv /tmp/guac_run_patched "$script" \
+           && chmod +x "$script"; \
+       fi
 
 # ベースの ENTRYPOINT(/init, s6-overlay) を HA 用ラッパに差し替える。
 # ラッパは設定反映後、最後に /init を exec して s6 が全サービスを起動する。
