@@ -11,7 +11,8 @@
 - ingress 経由の**自動ログイン**（Guacamole のログイン画面を省略）
 - 拡張プラグインを設定で追加（TOTP / LDAP / SSO / クイック接続 など）
 - 起動時にスキーマ未初期化の DB を自動検知して SQL を適用
-- HA バックアップ時に外部 PG を `pg_dump` して `/config/backup/` へ保存（On/Off 可）
+- HA バックアップ時に外部 PG を `pg_dump` して `/config/backup/` へ保存
+- HA バックアップからのリストア後に空 DB を検知して `pg_restore` で自動復元
 
 ## 対応アーキテクチャ
 
@@ -43,28 +44,38 @@
 | `pg_password` | password | （空） | 接続パスワード |
 | `pg_database` | str | `guacamole_db` | 使用するデータベース名 |
 | `backup_enabled` | bool | `true` | HA バックアップ時に pg_dump を取得して `/config/backup/` に保存する |
+| `auto_restore_settings` | bool | `true` | 空 DB を検知したとき `/config/backup/guacamole_db.dump` から自動リストアする |
 | `extensions` | list | `[]` | 有効化する拡張。例: `auth-totp`, `auth-ldap`, `auth-sso-openid`, `vault-ksm` など |
 | `ingress_auto_login` | bool | `true` | ingress 経由時に Guacamole のログイン画面をバイパスして自動ログインする |
 | `ingress_auto_login_user` | str | `guacadmin` | 自動ログインするユーザ名（DB に存在する必要あり） |
-| `tz` | str | `UTC` | タイムゾーン |
 
 > 初期ログインは `guacadmin` / `guacadmin` です。`ingress_auto_login` を有効にしたままでも、**最初に必ずパスワードを変更**してください。
 
-## バックアップの考え方
+## バックアップとリストアの流れ
 
-- **HA バックアップ時**: `backup_pre` フックで `pg_dump`（カスタム形式）を実行し、
-  `/config/backup/guacamole_db.dump` を生成してから HA スナップショットに含める
-- **バックアップされる**: `/config/backup/guacamole_db.dump`（DB 全体のダンプ）
-- **バックアップされない**: Guacamole の実行バイナリ・拡張 jar・ログ
-- `backup_enabled: false` に設定するとダンプをスキップする（外部 PG 側でバックアップを管理する場合）
+### バックアップ（自動）
 
-### ダンプのリストア
+HA バックアップ実行時に `backup_pre` フックが `pg_dump`（カスタム形式）を実行し、
+`/config/backup/guacamole_db.dump` を生成してからスナップショットに含めます。
 
-バックアップから Guacamole のデータを復元するには、外部 PG サーバに対して手動で実行します。
+- `backup_enabled: false` に設定するとダンプをスキップします
+  （外部 PG 側で別途バックアップを管理する場合など）
+
+### リストア（自動）
+
+HA バックアップからリストアした後にアドオンを起動すると:
+
+1. `/config/backup/guacamole_db.dump` がリストアされる（HA バックアップ内にある）
+2. アドオン起動時に接続定義が 0 件であることを検知
+3. `pg_restore` で自動的にデータを復元
+
+`auto_restore_settings: false` にするとこの自動復元を無効化します。
+
+### 手動リストア
 
 ```sh
 pg_restore -h <PG_HOST> -p 5432 -U postgres -d guacamole_db \
-    --no-owner --clean /config/backup/guacamole_db.dump
+    --no-owner --clean --if-exists /config/backup/guacamole_db.dump
 ```
 
 ## クイック接続（auth-quickconnect）
@@ -81,8 +92,6 @@ extensions:
   - auth-quickconnect
 ```
 
-有効化すると、Guacamole のホーム画面に **Quick Connect** の入力欄が表示されます。
-
 ### 使い方（URI の書式）
 
 ```
@@ -97,11 +106,8 @@ protocol://[ユーザ[:パスワード]@]ホスト[:ポート][?パラメータ1
 | `vnc://192.168.1.30:5900?password=secret` | VNC |
 | `telnet://10.0.0.5` | Telnet |
 
-- `?` 以降には Guacamole の接続パラメータをそのまま指定できます
-  （例: `width`, `height`, `color-depth`, `disable-audio`, `enable-wallpaper` など）。
 - クイック接続は**保存されません**（その場限り）。常用する接続は通常どおり接続定義として
   保存してください。
-- 接続先は guacd（このコンテナ）から名前解決・到達できる必要があります。
 - 自動ログイン（`ingress_auto_login`）有効時は、ログインユーザに接続を作成できる権限が必要です。
 
 詳細は [DOCS.md](./DOCS.md) を参照してください。

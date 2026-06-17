@@ -13,9 +13,9 @@ log "Starting Guacamole add-on (external PostgreSQL mode)"
 jqget() { jq -r --arg k "$1" 'if (.[$k] != null) then .[$k] else "" end' "$OPTIONS" 2>/dev/null; }
 
 EXT_LIST="$(jq -r '((.extensions // []) | join(","))' "$OPTIONS" 2>/dev/null || echo "")"
-TZ_OPT="$(jqget tz)";                       [ -z "$TZ_OPT" ] && TZ_OPT="UTC"
 AUTO_LOGIN="$(jqget ingress_auto_login)";   [ -z "$AUTO_LOGIN" ] && AUTO_LOGIN="true"
 AUTO_LOGIN_USER="$(jqget ingress_auto_login_user)"; [ -z "$AUTO_LOGIN_USER" ] && AUTO_LOGIN_USER="guacadmin"
+AUTO_RESTORE="$(jqget auto_restore_settings)"; [ -z "$AUTO_RESTORE" ] && AUTO_RESTORE="true"
 
 # ---- 外部 PostgreSQL 接続設定 -----------------------------------------------
 PG_HOST="$(jqget pg_host)"
@@ -30,10 +30,7 @@ if [ -z "$PG_HOST" ]; then
 fi
 log "PostgreSQL target: ${PG_HOST}:${PG_PORT} db=${PG_DATABASE} user=${PG_USER}"
 
-export TZ="$TZ_OPT"
-
 # ---- GUACAMOLE_HOME を揮発領域に設定 (/config 外) --------------------------------
-# guacamole.properties を含む全設定ファイルをここに生成する。
 export GUACAMOLE_HOME=/var/lib/guac-home
 rm -rf "$GUACAMOLE_HOME"
 mkdir -p "$GUACAMOLE_HOME/extensions"
@@ -42,26 +39,29 @@ ln -sf /app/guacamole/lib                  "$GUACAMOLE_HOME/lib"
 ln -sf /app/guacamole/schema               "$GUACAMOLE_HOME/schema"
 
 # ---- guacamole.properties を揮発領域に生成（/config には置かない） -------------
-cat > "$GUACAMOLE_HOME/guacamole.properties" <<EOF
-postgresql-hostname: ${PG_HOST}
-postgresql-port: ${PG_PORT}
-postgresql-database: ${PG_DATABASE}
-postgresql-username: ${PG_USER}
-postgresql-password: ${PG_PASSWORD}
-guacd-hostname: 127.0.0.1
-guacd-port: 4822
-EOF
+# NOTE: printf %s を使い、パスワード内の $ 記号が shell 変数として展開されないようにする。
+{
+    printf 'postgresql-hostname: %s\n' "$PG_HOST"
+    printf 'postgresql-port: %s\n'     "$PG_PORT"
+    printf 'postgresql-database: %s\n' "$PG_DATABASE"
+    printf 'postgresql-username: %s\n' "$PG_USER"
+    printf 'postgresql-password: %s\n' "$PG_PASSWORD"
+    printf 'guacd-hostname: 127.0.0.1\n'
+    printf 'guacd-port: 4822\n'
+} > "$GUACAMOLE_HOME/guacamole.properties"
 
 # ---- スクリプト用環境ファイル ------------------------------------------------
 # guac_psql / wait_for_db が参照する接続情報を書き出す。
-cat > /etc/guacamole-ha.env <<EOF
-GUAC_VER=${GUAC_VER:-}
-PG_HOST=${PG_HOST}
-PG_PORT=${PG_PORT}
-PG_USER=${PG_USER}
-PG_PASSWORD=${PG_PASSWORD}
-PG_DATABASE=${PG_DATABASE}
-EOF
+# PG_PASSWORD はシングルクォートでラップし、ソース時に $ が展開されないようにする。
+_sq() { printf '%s' "$1" | sed "s/'/'\\\\''/g" | { read -r v; printf "'%s'" "$v"; }; }
+{
+    printf 'GUAC_VER=%s\n'    "${GUAC_VER:-}"
+    printf 'PG_HOST=%s\n'     "$PG_HOST"
+    printf 'PG_PORT=%s\n'     "$PG_PORT"
+    printf 'PG_USER=%s\n'     "$PG_USER"
+    printf 'PG_PASSWORD=%s\n' "$(_sq "$PG_PASSWORD")"
+    printf 'PG_DATABASE=%s\n' "$PG_DATABASE"
+} > /etc/guacamole-ha.env
 
 # ---- 外部 PostgreSQL への接続確認 -------------------------------------------
 log "Waiting for PostgreSQL at ${PG_HOST}:${PG_PORT}..."
@@ -81,6 +81,35 @@ else
         guac_psql -f "$sql" >/dev/null
     done
     log "Schema initialization complete"
+fi
+
+# ---- 自動リストア（新規/空 DB にのみ適用） ----------------------------------
+# HA バックアップから /config/backup/guacamole_db.dump が復元されていれば取り込む。
+# 安全装置: 接続定義が 1 件でもあれば何もしない（データ消失防止）。
+DUMP="/config/backup/guacamole_db.dump"
+if [ "$AUTO_RESTORE" = "true" ]; then
+    if [ -f "$DUMP" ]; then
+        cnt="$(guac_psql -tAc "SELECT count(*) FROM guacamole_connection" 2>/dev/null || echo 999)"
+        cnt="$(echo "$cnt" | tr -d '[:space:]')"
+        if [ "${cnt:-999}" = "0" ]; then
+            log "Auto-restore: fresh DB + dump found; restoring from ${DUMP}..."
+            if PGPASSWORD="$PG_PASSWORD" pg_restore \
+                    -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
+                    --no-owner --clean --if-exists \
+                    "$DUMP" 2>/tmp/guac_restore.err; then
+                log "Auto-restore: completed successfully"
+            else
+                log "Auto-restore: FAILED — DB left with default content (guacadmin/guacadmin)"
+                tail -n 10 /tmp/guac_restore.err 2>/dev/null | sed 's/^/[guacamole][restore] /' || true
+            fi
+        else
+            log "Auto-restore: DB has ${cnt} connection(s); skipping (no overwrite)"
+        fi
+    else
+        log "Auto-restore: no dump found at ${DUMP}; starting fresh"
+    fi
+else
+    log "Auto-restore: disabled"
 fi
 
 # ---- ログイン画面バイパス（ingress 自動ログイン） ---------------------------
