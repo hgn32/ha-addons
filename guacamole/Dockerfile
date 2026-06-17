@@ -23,7 +23,7 @@ RUN command -v crond >/dev/null || (echo "crond not found in base image" && exit
 # ノーオペレーションに置き換え、/config/guacamole/postgres を参照する init が
 # 走らないようにする。postgres という名前の s6 サービスも念のため無効化する。
 RUN for f in $(find /etc/cont-init.d /etc/services.d /etc/s6-overlay/s6-rc.d -type f 2>/dev/null); do \
-        grep -q '/config/guacamole/postgres' "$f" 2>/dev/null || continue; \
+        grep -qE '(/config/guacamole/postgres|/run/postgresql|[Ww]aiting for postgres)' "$f" 2>/dev/null || continue; \
         printf '#!/bin/sh\nexit 0\n' > "$f" && chmod +x "$f"; \
     done; \
     for d in /etc/services.d/postgres /etc/services.d/postgresql; do \
