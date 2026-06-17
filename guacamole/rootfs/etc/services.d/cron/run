@@ -1,0 +1,5 @@
+#!/usr/bin/with-contenv sh
+# 定期メンテナンス（ログ削除 + 設定バックアップ）用の busybox crond。
+# 実行内容/スケジュールは ha-run.sh が /etc/crontabs/root に書き出す。
+echo "[guacamole] Starting crond (scheduled log cleanup + backup)"
+exec crond -f -c /etc/crontabs -L /proc/1/fd/1

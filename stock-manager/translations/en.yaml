@@ -1,0 +1,10 @@
+configuration:
+  amazon_cron:
+    name: Amazon Import Schedule
+    description: Cron expression for automatic Amazon purchase history import (UTC).
+  amazon_cookie:
+    name: Amazon Cookie
+    description: Cookie string for Amazon login session (used for purchase history import).
+  notify_service:
+    name: Notification Service
+    description: Home Assistant service to use for notifications (e.g. persistent_notification).

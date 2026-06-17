@@ -1,0 +1,25 @@
+configuration:
+  single_user_mode:
+    name: シングルユーザモード
+    description: 有効にするとログイン画面をスキップして直接アクセスできます。
+  default_interface_addresses:
+    name: VPN インターフェースアドレス
+    description: WireGuard インターフェースに割り当てる CIDR アドレス（例: 192.168.101.0/24）。
+  subnet_ranges:
+    name: サブネット範囲
+    description: "クライアントグループ用の名前付きサブネット範囲。形式: \"名前: CIDR\""
+  dmz_subnet:
+    name: DMZ サブネット
+    description: DMZ に配置するサブネット（他の VPN クライアントから分離されます）。
+  dmz_subnet_allow:
+    name: DMZ 許可ルール
+    description: "DMZ からの許可トラフィックルール。形式: \"IP またはキーワード|ポート/プロトコル\""
+  default_client_dns:
+    name: クライアントデフォルト DNS
+    description: 新規 VPN クライアントに割り当てるデフォルト DNS サーバ。
+  default_client_endpoint:
+    name: クライアントデフォルトエンドポイント
+    description: 新規 VPN クライアントに割り当てるデフォルトサーバエンドポイント（ホスト:ポート）。
+  log_level:
+    name: ログレベル
+    description: ログの詳細度。

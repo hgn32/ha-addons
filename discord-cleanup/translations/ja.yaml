@@ -1,0 +1,19 @@
+configuration:
+  bot_token:
+    name: Bot トークン
+    description: Discord Bot のトークン。
+  channel_ids:
+    name: チャンネル ID
+    description: クリーンアップ対象の Discord チャンネル ID の一覧。
+  keep_days:
+    name: メッセージ保持日数
+    description: この日数より古いメッセージを削除します。
+  run_hour:
+    name: 実行時（時）
+    description: 毎日クリーンアップを実行する時刻（0〜23）。
+  run_minute:
+    name: 実行時（分）
+    description: クリーンアップを実行する分（0〜59）。
+  dry_run:
+    name: ドライラン
+    description: 有効にすると実際の削除は行わず、削除対象をログに出力するだけにします。

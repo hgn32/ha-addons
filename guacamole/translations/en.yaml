@@ -1,0 +1,34 @@
+configuration:
+  pg_host:
+    name: PostgreSQL Host
+    description: Hostname of the external PostgreSQL server.
+  pg_port:
+    name: PostgreSQL Port
+    description: Port number of the PostgreSQL server.
+  pg_user:
+    name: PostgreSQL User
+    description: Username for the PostgreSQL connection.
+  pg_password:
+    name: PostgreSQL Password
+    description: Password for the PostgreSQL connection.
+  pg_database:
+    name: PostgreSQL Database
+    description: Database name to use for Guacamole.
+  backup_enabled:
+    name: Enable Backup
+    description: Run pg_dump before each HA backup and save to /config/backup/.
+  vacuum_logs_on_backup:
+    name: Clear History Before Backup
+    description: Truncate Guacamole connection history from the database before dumping. Reduces backup size.
+  auto_restore_settings:
+    name: Auto Restore
+    description: Automatically restore from backup when a fresh database is detected on startup.
+  extensions:
+    name: Extensions
+    description: "Guacamole extensions to enable. Examples: auth-totp, auth-ldap, auth-quickconnect."
+  ingress_auto_login:
+    name: Auto Login via Ingress
+    description: Bypass Guacamole login screen when accessed through HA ingress.
+  ingress_auto_login_user:
+    name: Auto Login User
+    description: Guacamole username to use for ingress auto login.

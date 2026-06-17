@@ -1,0 +1,10 @@
+configuration:
+  suwayomi_url:
+    name: Suwayomi サーバー URL
+    description: Suwayomi Server の URL。
+  suwayomi_username:
+    name: ユーザ名
+    description: Suwayomi Server の認証ユーザ名（未設定の場合は空白）。
+  suwayomi_password:
+    name: パスワード
+    description: Suwayomi Server の認証パスワード（未設定の場合は空白）。

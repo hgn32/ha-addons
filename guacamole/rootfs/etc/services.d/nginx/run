@@ -1,0 +1,5 @@
+#!/usr/bin/with-contenv sh
+# ingress 用 nginx（フォアグラウンド実行 / s6 管理下）。
+# 8099 で待ち受け、Tomcat(ROOT.war = Guacamole Web, :8080) へ proxy する。
+echo "[guacamole] Starting nginx (ingress :8099)"
+exec nginx -c /etc/nginx/nginx.conf

@@ -1,46 +1,25 @@
----
 configuration:
   single_user_mode:
     name: Single User Mode
-    description: >-
-      All users in Home Assistant access via single user admin.  If disabled,
-      default user/password is `wireguardadmin`/`adminwireguard`.
-  default_client_endpoint:
-    name: Default Client Endpoint
-    description: >-
-      The public endpoint WireGuard clients will attempt to connect.  This option only
-      provides initial default.  Prefer the Web UI auto-discovery.
-  default_client_dns:
-    name: Default Client DNS
-    description: >-
-      Primary DNS for WireGuard clients when connected to the server.
-      This option only provides initial default.  Home Assistant
-      internal DNS is default.
-  log_level:
-    name: Log Level
-    description: This option sets the log level of WireGuard UI.
+    description: If enabled, skips the login screen and grants direct access.
+  default_interface_addresses:
+    name: VPN Interface Addresses
+    description: CIDR addresses assigned to the WireGuard interface (e.g. 192.168.101.0/24).
   subnet_ranges:
     name: Subnet Ranges
-    description: >-
-      The list of address subdivision ranges. Format: `SR Name:10.0.1.0/24;
-      SR2:10.0.2.0/24,10.0.3.0/24`.  Each CIDR must be inside one of the server
-      interfaces.
+    description: "Named subnet ranges for client grouping. Format: \"name: CIDR\""
   dmz_subnet:
     name: DMZ Subnets
-    description: >-
-      A WireGuard CIDR network considered a demilitarized zone.  Hosts may only
-      access the internet and not local networks.  Exceptions to restricted
-      access can be created from DMZ Allowances.
+    description: Subnets to place in the DMZ (isolated from other VPN clients).
   dmz_subnet_allow:
-    name: DMZ Allowances
-    description: >-
-      These are a set of rules which can allow specific communications to
-      internal networks allowed from the DMZ.  See Documentation tab for
-      details.
-  default_interface_addresses:
-    name: Default Interface Addresses
-    description: >-
-      Initial WireGuard interface addresses.  This field only affects first
-      time setup.
-network:
-  51820/udp: WireGuard Server Port.  This must match the WireGuard UI setting.
+    name: DMZ Allow Rules
+    description: "Traffic rules allowed from DMZ. Format: \"ip_or_keyword|port/proto\""
+  default_client_dns:
+    name: Default Client DNS
+    description: Default DNS server assigned to new VPN clients.
+  default_client_endpoint:
+    name: Default Client Endpoint
+    description: Default server endpoint (host:port) assigned to new VPN clients.
+  log_level:
+    name: Log Level
+    description: Logging verbosity level.

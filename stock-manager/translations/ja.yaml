@@ -1,0 +1,10 @@
+configuration:
+  amazon_cron:
+    name: Amazon 取込スケジュール
+    description: Amazon 購入履歴の自動取込スケジュール（cron 形式・UTC）。
+  amazon_cookie:
+    name: Amazon Cookie
+    description: Amazon ログインセッションの Cookie 文字列（購入履歴取込に使用）。
+  notify_service:
+    name: 通知サービス
+    description: 通知に使用する Home Assistant サービス（例: persistent_notification）。
