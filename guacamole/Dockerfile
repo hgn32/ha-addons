@@ -49,8 +49,6 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
        /etc/s6-overlay/s6-rc.d/syslogd/run \
     && sed -i 's|cp -rn /app/guacamole /config|true|' /etc/cont-init.d/30-defaults.sh
 
-ENV TZ=UTC
-
 # ベースの ENTRYPOINT(/init, s6-overlay) を HA 用ラッパに差し替える。
 # ラッパは設定反映後、最後に /init を exec して s6 が全サービスを起動する。
 ENTRYPOINT [ "/usr/local/bin/ha-run.sh" ]
