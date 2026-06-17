@@ -72,6 +72,9 @@ fi
 log "PostgreSQL is ready"
 
 # ---- スキーマ初期化（未初期化の DB にのみ適用） --------------------------------
+# SCHEMA_FRESH=true のときだけ自動リストアを許可する。
+# 既存 DB への再起動・設定変更では SCHEMA_FRESH=false になるためリストアをスキップする。
+SCHEMA_FRESH=false
 if guac_psql -tAc "SELECT to_regclass('public.guacamole_connection') IS NOT NULL" 2>/dev/null | grep -q t; then
     log "Schema already initialized; skipping"
 else
@@ -81,30 +84,27 @@ else
         guac_psql -f "$sql" >/dev/null
     done
     log "Schema initialization complete"
+    SCHEMA_FRESH=true
 fi
 
-# ---- 自動リストア（新規/空 DB にのみ適用） ----------------------------------
-# HA バックアップから /config/backup/guacamole_db.dump が復元されていれば取り込む。
-# 安全装置: 接続定義が 1 件でもあれば何もしない（データ消失防止）。
+# ---- 自動リストア（スキーマを今回初めて適用した DB にのみ） -----------------
+# HA バックアップからリストア後にスキーマ初期化が走った場合だけ取り込む。
+# 通常の再起動（スキーマ既存）では絶対にリストアしない。
 DUMP="/config/backup/guacamole_db.dump"
 if [ "$AUTO_RESTORE" = "true" ]; then
-    if [ -f "$DUMP" ]; then
-        cnt="$(guac_psql -tAc "SELECT count(*) FROM guacamole_connection" 2>/dev/null || echo 999)"
-        cnt="$(echo "$cnt" | tr -d '[:space:]')"
-        if [ "${cnt:-999}" = "0" ]; then
-            log "Auto-restore: fresh DB + dump found; restoring from ${DUMP}..."
-            if PGPASSWORD="$PG_PASSWORD" pg_restore \
-                    -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
-                    --no-owner --clean --if-exists \
-                    "$DUMP" 2>/tmp/guac_restore.err; then
-                log "Auto-restore: completed successfully"
-            else
-                log "Auto-restore: FAILED — DB left with default content (guacadmin/guacadmin)"
-                tail -n 10 /tmp/guac_restore.err 2>/dev/null | sed 's/^/[guacamole][restore] /' || true
-            fi
+    if [ "$SCHEMA_FRESH" = "true" ] && [ -f "$DUMP" ]; then
+        log "Auto-restore: fresh schema + dump found; restoring from ${DUMP}..."
+        if PGPASSWORD="$PG_PASSWORD" pg_restore \
+                -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
+                --no-owner --clean --if-exists \
+                "$DUMP" 2>/tmp/guac_restore.err; then
+            log "Auto-restore: completed successfully"
         else
-            log "Auto-restore: DB has ${cnt} connection(s); skipping (no overwrite)"
+            log "Auto-restore: FAILED — DB left with default content (guacadmin/guacadmin)"
+            tail -n 10 /tmp/guac_restore.err 2>/dev/null | sed 's/^/[guacamole][restore] /' || true
         fi
+    elif [ "$SCHEMA_FRESH" = "false" ]; then
+        log "Auto-restore: schema already existed; skipping (regular restart)"
     else
         log "Auto-restore: no dump found at ${DUMP}; starting fresh"
     fi
