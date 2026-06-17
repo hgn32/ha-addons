@@ -63,13 +63,29 @@ _sq() { printf '%s' "$1" | sed "s/'/'\\\\''/g" | { read -r v; printf "'%s'" "$v"
     printf 'PG_DATABASE=%s\n' "$PG_DATABASE"
 } > /etc/guacamole-ha.env
 
-# ---- 外部 PostgreSQL への接続確認 -------------------------------------------
-log "Waiting for PostgreSQL at ${PG_HOST}:${PG_PORT}..."
-if ! wait_for_db 60; then
-    log "FATAL: could not connect to PostgreSQL at ${PG_HOST}:${PG_PORT} within 120 seconds"
-    exit 1
+# ---- 外部 PostgreSQL サーバ到達確認（postgres メンテナンス DB で接続） ----------
+# $PG_DATABASE はまだ存在しない可能性があるため postgres DB で疎通チェックする。
+log "Waiting for PostgreSQL server at ${PG_HOST}:${PG_PORT}..."
+_pgmaint() { PGPASSWORD="$PG_PASSWORD" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d postgres "$@"; }
+tries=60
+while ! nc -z "$PG_HOST" "$PG_PORT" 2>/dev/null; do
+    tries=$((tries-1)); [ "$tries" -le 0 ] && { log "FATAL: TCP timeout waiting for ${PG_HOST}:${PG_PORT}"; exit 1; }; sleep 2
+done
+tries=60
+while ! _pgmaint -tAc 'SELECT 1' >/dev/null 2>&1; do
+    tries=$((tries-1)); [ "$tries" -le 0 ] && { log "FATAL: psql timeout (wrong password?)"; exit 1; }; sleep 2
+done
+log "PostgreSQL server is ready"
+
+# ---- DB 作成（存在しない場合） -----------------------------------------------
+db_exists="$(_pgmaint -tAc "SELECT 1 FROM pg_database WHERE datname='${PG_DATABASE}'" 2>/dev/null | tr -d '[:space:]')"
+if [ "$db_exists" != "1" ]; then
+    log "Database '${PG_DATABASE}' not found; creating..."
+    _pgmaint -c "CREATE DATABASE \"${PG_DATABASE}\"" >/dev/null
+    log "Database '${PG_DATABASE}' created"
+else
+    log "Database '${PG_DATABASE}' exists"
 fi
-log "PostgreSQL is ready"
 
 # ---- スキーマ初期化（未初期化の DB にのみ適用） --------------------------------
 # SCHEMA_FRESH=true のときだけ自動リストアを許可する。
