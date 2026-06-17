@@ -106,6 +106,7 @@ fi
 # ---- 自動リストア（スキーマを今回初めて適用した DB にのみ） -----------------
 # HA バックアップからリストア後にスキーマ初期化が走った場合だけ取り込む。
 # 通常の再起動（スキーマ既存）では絶対にリストアしない。
+RESTORE_RAN=false
 DUMP="/config/backup/guacamole_db.dump"
 if [ "$AUTO_RESTORE" = "true" ]; then
     if [ "$SCHEMA_FRESH" = "true" ] && [ -f "$DUMP" ]; then
@@ -115,6 +116,7 @@ if [ "$AUTO_RESTORE" = "true" ]; then
                 --no-owner --clean --if-exists \
                 "$DUMP" 2>/tmp/guac_restore.err; then
             log "Auto-restore: completed successfully"
+            RESTORE_RAN=true
         else
             log "Auto-restore: FAILED — DB left with default content (guacadmin/guacadmin)"
             tail -n 10 /tmp/guac_restore.err 2>/dev/null | sed 's/^/[guacamole][restore] /' || true
@@ -126,6 +128,12 @@ if [ "$AUTO_RESTORE" = "true" ]; then
     fi
 else
     log "Auto-restore: disabled"
+fi
+
+# ---- 起動時バックアップ（リストアが実行されなかった場合のみ） -----------------
+# リストア直後は上書きしない。backup_enabled チェックは guac-backup.sh 内で行う。
+if [ "$RESTORE_RAN" = "false" ]; then
+    /usr/local/bin/guac-backup.sh
 fi
 
 # ---- ログイン画面バイパス（ingress 自動ログイン） ---------------------------
