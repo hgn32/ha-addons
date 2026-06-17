@@ -1,7 +1,7 @@
 {
   "name": "Guacamole",
-  "description": "軽量版 Apache Guacamole。guacd + Tomcat + PostgreSQL",
-  "version": "1.6.0-3",
+  "description": "軽量版 Apache Guacamole。guacd + Tomcat + 外部 PostgreSQL",
+  "version": "1.6.0-4",
   "slug": "guacamole",
   "url": "https://guacamole.apache.org/",
   "init": false,
@@ -24,29 +24,25 @@
     }
   ],
   "backup": "hot",
-  "backup_pre": "/usr/local/bin/guac-backup.sh",
-  "backup_exclude": [
-    "*/postgres*",
-    "*/extensions*",
-    "*/lib",
-    "*/schema",
-    "*/db_check",
-    "*/recordings",
-    "*/logs",
-    "*/.guacamole_settings.sql.gz*.tmp"
-  ],
   "options": {
+    "pg_host": "db21ed7f-postgres-latest",
+    "pg_port": 5432,
+    "pg_user": "postgres",
+    "pg_password": "",
+    "pg_database": "guacamole_db",
     "extensions": [],
     "ingress_auto_login": true,
     "ingress_auto_login_user": "guacadmin",
     "tz": "UTC",
     "backup_schedule": "0 18 * * *",
-    "log_retention_days": 30,
-    "backup_path": "/config/guacamole",
-    "backup_database": true,
-    "auto_restore_settings": true
+    "log_retention_days": 30
   },
   "schema": {
+    "pg_host": "str",
+    "pg_port": "int?",
+    "pg_user": "str?",
+    "pg_password": "password?",
+    "pg_database": "str?",
     "extensions": [
       "list(auth-totp|auth-duo|auth-header|auth-json|auth-ldap|auth-quickconnect|auth-ban|display-statistics|history-recording-storage|auth-sso-openid|auth-sso-saml|auth-sso-cas|auth-jdbc-mysql|auth-jdbc-sqlserver|vault-ksm)"
     ],
@@ -54,10 +50,7 @@
     "ingress_auto_login_user": "str",
     "tz": "str?",
     "backup_schedule": "str?",
-    "log_retention_days": "int(0,)?",
-    "backup_path": "str?",
-    "backup_database": "bool",
-    "auto_restore_settings": "bool"
+    "log_retention_days": "int(0,)?"
   },
   "_image": "ghcr.io/hgn32/guacamole"
 }
