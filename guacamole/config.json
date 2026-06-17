@@ -53,5 +53,5 @@
     "ingress_auto_login": "bool",
     "ingress_auto_login_user": "str"
   },
-  "_image": "ghcr.io/hgn32/guacamole"
+  "image": "ghcr.io/hgn32/guacamole"
 }
