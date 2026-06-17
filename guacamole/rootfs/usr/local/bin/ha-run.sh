@@ -16,8 +16,6 @@ EXT_LIST="$(jq -r '((.extensions // []) | join(","))' "$OPTIONS" 2>/dev/null || 
 TZ_OPT="$(jqget tz)";                       [ -z "$TZ_OPT" ] && TZ_OPT="UTC"
 AUTO_LOGIN="$(jqget ingress_auto_login)";   [ -z "$AUTO_LOGIN" ] && AUTO_LOGIN="true"
 AUTO_LOGIN_USER="$(jqget ingress_auto_login_user)"; [ -z "$AUTO_LOGIN_USER" ] && AUTO_LOGIN_USER="guacadmin"
-BACKUP_SCHED="$(jqget backup_schedule)"
-LOG_RET="$(jqget log_retention_days)";      case "$LOG_RET" in ''|*[!0-9]*) LOG_RET=30 ;; esac
 
 # ---- 外部 PostgreSQL 接続設定 -----------------------------------------------
 PG_HOST="$(jqget pg_host)"
@@ -54,10 +52,9 @@ guacd-hostname: 127.0.0.1
 guacd-port: 4822
 EOF
 
-# ---- cron・スクリプト用環境ファイル ------------------------------------------
+# ---- スクリプト用環境ファイル ------------------------------------------------
 # guac_psql / wait_for_db が参照する接続情報を書き出す。
 cat > /etc/guacamole-ha.env <<EOF
-LOG_RETENTION_DAYS=${LOG_RET}
 GUAC_VER=${GUAC_VER:-}
 PG_HOST=${PG_HOST}
 PG_PORT=${PG_PORT}
@@ -115,15 +112,8 @@ if ! ls "$GUACAMOLE_HOME/extensions/"*jdbc-postgresql*.jar >/dev/null 2>&1; then
     done
 fi
 
-# ---- 定期ログ削除 cron -------------------------------------------------------
-mkdir -p /etc/crontabs
-if [ -n "$BACKUP_SCHED" ]; then
-    echo "$BACKUP_SCHED /usr/local/bin/guac-backup.sh >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
-    log "Scheduled log cleanup (UTC): '${BACKUP_SCHED}' (retention=${LOG_RET}d)"
-else
-    : > /etc/crontabs/root
-    log "backup_schedule is empty; scheduled log cleanup disabled"
-fi
+# crond が起動しても空のままで問題ない
+mkdir -p /etc/crontabs && : > /etc/crontabs/root
 
 # ベースイメージの init は s6-overlay(/init)。最後にこれへ処理を渡し、
 # s6 が guacd / tomcat と nginx / cron を起動する。
