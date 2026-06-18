@@ -48,6 +48,7 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && sed -i 's|s6-socklog -d3 -U -t3000|s6-socklog -d3 -U -t3000 -x /tmpsock/syslog|g' \
        /etc/s6-overlay/s6-rc.d/syslogd/run \
     && sed -i 's|cp -rn /app/guacamole /config|true|' /etc/cont-init.d/30-defaults.sh \
+    && printf '#!/bin/sh\nexit 0\n' > /etc/cont-init.d/40-postgres.sh && chmod +x /etc/cont-init.d/40-postgres.sh \
     && script=/etc/services.d/guacamole/run \
     && if [ -f "$script" ]; then \
            { head -1 "$script"; \
