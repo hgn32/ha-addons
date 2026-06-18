@@ -64,11 +64,6 @@ clear_subnet_chain_rules() (
   clear_chain_rule FORWARD WG_ISOLATED
   clear_chain_rule WG_ISOLATED_allow
 )
-add_isolated_rules() {
-  if [ -z "${isolated_subnet:-}" ]; then return; fi
-  echo "$isolated_subnet" | xargs -n1 | xargs -I{} -- iptables -I OUTPUT -s {} -j WG_DMZ
-  echo "$isolated_subnet" | xargs -n1 | xargs -I{} -- iptables -I FORWARD -s {} -j WG_DMZ
-}
 add_chain_rules() {
   # 1 - dmz_subnet or isolated_subnet
   # 2 - dmz_subnet_allow or isolated_subnet_allow
