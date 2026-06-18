@@ -1,0 +1,10 @@
+configuration:
+  suwayomi_url:
+    name: Suwayomi Server URL
+    description: URL of the Suwayomi Server instance.
+  suwayomi_username:
+    name: Username
+    description: Username for Suwayomi Server authentication (leave blank if not set).
+  suwayomi_password:
+    name: Password
+    description: Password for Suwayomi Server authentication (leave blank if not set).
