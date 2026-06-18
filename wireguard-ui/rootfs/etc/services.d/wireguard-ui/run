@@ -35,21 +35,6 @@ default_interface_addresses="$(try_config_or_default 'default_interface_addresse
 export WGUI_USERNAME=wireguardadmin
 export WGUI_PASSWORD=adminwireguard
 
-# settings directly passed to WireGuard UI without additional validation
-EMAIL_FROM_ADDRESS=$(try_config_or_default 'email_from_address')
-EMAIL_FROM_NAME=$(try_config_or_default 'email_from_name')
-SENDGRID_API_KEY=$(try_config_or_default 'sendgrid_api_key')
-SMTP_HOSTNAME=$(try_config_or_default 'smtp_hostname')
-SMTP_PORT=$(try_config_or_default 'smtp_port')
-SMTP_USERNAME=$(try_config_or_default 'smtp_username')
-SMTP_PASSWORD=$(try_config_or_default 'smtp_password')
-SMTP_AUTH_TYPE=$(try_config_or_default 'smtp_auth_type')
-SMTP_ENCRYPTION=$(try_config_or_default 'smtp_encryption')
-SMTP_HELO=$(try_config_or_default 'smtp_helo')
-TELEGRAM_TOKEN=$(try_config_or_default 'telegram_token')
-TELEGRAM_ALLOW_CONF_REQUEST=$(try_config_or_default 'telegram_allow_conf_request')
-TELEGRAM_FLOOD_WAIT=$(try_config_or_default 'telegram_flood_wait')
-
 # wireguard-ui will SHA512 checksum the contents of the random password and use
 # that as the password to encrypt sessions.
 random_password() (
@@ -121,17 +106,8 @@ WGUI_SERVER_LISTEN_PORT="${port%/*}"
 export SUBNET_RANGES WGUI_DEFAULT_CLIENT_ALLOWED_IPS WGUI_DNS
 export WGUI_ENDPOINT_ADDRESS WGUI_LOG_LEVEL WGUI_MTU WGUI_PERSISTENT_KEEPALIVE
 export WGUI_SERVER_INTERFACE_ADDRESSES WGUI_SERVER_LISTEN_PORT
-
-# contact settings set from home assistant config
-export EMAIL_FROM_ADDRESS EMAIL_FROM_NAME SENDGRID_API_KEY SMTP_AUTH_TYPE
-export SMTP_ENCRYPTION SMTP_HELO SMTP_HOSTNAME SMTP_PASSWORD SMTP_PORT
-export SMTP_USERNAME TELEGRAM_ALLOW_CONF_REQUEST TELEGRAM_FLOOD_WAIT
-export TELEGRAM_TOKEN
 wgui_args=( -bind-address "127.0.0.1:8080" )
 if [ "${single_user:-}" = true ]; then
   wgui_args+=( -disable-login )
 fi
-[ -n "${SMTP_PORT:-}" ] || unset SMTP_PORT
-[ -n "${TELEGRAM_ALLOW_CONF_REQUEST:-}" ] || unset TELEGRAM_ALLOW_CONF_REQUEST
-[ -n "${TELEGRAM_FLOOD_WAIT:-}" ] || unset TELEGRAM_FLOOD_WAIT
 exec /usr/local/bin/wg-ui "${wgui_args[@]}"

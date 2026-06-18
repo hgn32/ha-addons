@@ -27,45 +27,9 @@ import { useEffect, useMemo, useState } from "react";
 import { api as apiObj, imageUrl } from "../api";
 import { useIsMobile } from "../hooks";
 import { useStore } from "../store";
-import { InventoryItem, Transaction } from "../types";
+import { InventoryItem } from "../types";
 import type { Page } from "../App";
 import { getStockStatus, stockBorderSx, stockColor } from "../components/StockStatus";
-
-// --- 次回購入想定日の計算 ---
-function estimateNextPurchase(productId: string, stock: number, txs: Transaction[]): Date | null {
-  const adds = txs
-    .filter((t) => t.product_id === productId && t.type === "add" && t.quantity > 0)
-    .map((t) => ({ date: new Date(t.date), qty: t.quantity }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  if (adds.length < 2) return null;
-
-  let totalInterval = 0;
-  let totalQty = 0;
-  for (let i = 1; i < adds.length; i++) {
-    totalInterval += adds[i].date.getTime() - adds[i - 1].date.getTime();
-    totalQty += adds[i - 1].qty;
-  }
-  const avgIntervalMs = totalInterval / (adds.length - 1);
-  const avgQtyPerPurchase = totalQty / (adds.length - 1) || 1;
-
-  const last = adds[adds.length - 1].date;
-  const daysUntilEmpty = (stock / avgQtyPerPurchase) * (avgIntervalMs / 86400000);
-  return new Date(last.getTime() + daysUntilEmpty * 86400000);
-}
-
-function NextPurchaseChip({ date }: { date: Date }) {
-  const now = Date.now();
-  const diff = Math.ceil((date.getTime() - now) / 86400000);
-  const label =
-    diff <= 0
-      ? `切れ (${Math.abs(diff)}日超過)`
-      : diff <= 7
-      ? `残${diff}日`
-      : date.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
-  const color = diff <= 0 ? "error" : diff <= 7 ? "warning" : "default";
-  return <Chip label={`次回購入: ${label}`} color={color} size="small" sx={{ mr: 0.5, mb: 0.5 }} />;
-}
 
 // --- 履歴ダイアログ ---
 const TX_COLOR: Record<string, "success" | "error" | "default"> = { add: "success", use: "error", adjust: "default" };
@@ -300,20 +264,12 @@ type SortKey = "alert" | "stock_asc" | "stock_desc" | "name_asc";
 // --- Dashboard ---
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p: Page) => void }) {
-  const { inventory, transactions, categories, categoryName } = useStore();
+  const { inventory, categories, categoryName } = useStore();
   const [dialogItem, setDialogItem] = useState<InventoryItem | null>(null);
   const [dialogMode, setDialogMode] = useState<"add" | "use">("add");
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [filterCategory, setFilterCategory] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("alert");
-
-  const nextPurchaseMap = useMemo(() => {
-    const m = new Map<string, Date | null>();
-    for (const item of inventory) {
-      m.set(item.id, estimateNextPurchase(item.id, item.quantity, transactions));
-    }
-    return m;
-  }, [inventory, transactions]);
 
   const displayed = useMemo(() => {
     let list = filterCategory
@@ -380,7 +336,6 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
           }}
         >
           {displayed.map((item) => {
-            const next = nextPurchaseMap.get(item.id) ?? null;
             const status = getStockStatus(item.quantity, item.warn_quantity);
             return (
               <Card key={item.id} sx={{ height: "100%", display: "flex", flexDirection: "column", ...stockBorderSx(status) }}>
@@ -404,7 +359,6 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                           {categoryName(item.category_id) && (
                             <Chip label={categoryName(item.category_id)} size="small" color="primary" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                           )}
-                          {next && <NextPurchaseChip date={next} />}
                         </Box>
                         <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
                           {item.amazon_url && (
