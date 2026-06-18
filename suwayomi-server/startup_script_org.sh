@@ -4,7 +4,7 @@ echo "---------- start original exec ----------"
 rm -f /home/suwayomi/.local/share/Tachidesk/server.conf
 ln -s /config/server.conf /home/suwayomi/.local/share/Tachidesk/server.conf
 
-###### server.conf
+###### options.json
 rm -f /home/suwayomi/.local/share/Tachidesk/options.json
 ln -s /config/options.json /home/suwayomi/.local/share/Tachidesk/options.json
 

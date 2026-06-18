@@ -152,7 +152,7 @@ export default function App() {
             src={`${(window as any).__INGRESS_PATH__ || ""}/icon.png`}
             sx={{ width: 28, height: 28, mr: 1.5 }}
           />
-          <Typography variant="h6" noWrap fontWeight={700}>
+          <Typography variant="h6" noWrap sx={{ fontWeight: 700 }}>
             Stock Manager
           </Typography>
         </Toolbar>

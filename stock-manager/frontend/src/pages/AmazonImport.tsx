@@ -187,13 +187,13 @@ export default function AmazonImport() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 3 }}>
+      <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>
         Amazon購入履歴取込
       </Typography>
 
       {/* --- 1. Cookie設定 --- */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Typography variant="h6" mb={1}>
+        <Typography variant="h6" sx={{ mb: 1 }}>
           1. ログインCookie設定
         </Typography>
         <Alert severity="info" sx={{ mb: 2 }}>
@@ -208,8 +208,8 @@ export default function AmazonImport() {
           <br />
           Cookie の値だけを貼り付けても構いません。セッション切れ時は同じ手順で差し替えてください。
         </Alert>
-        <Stack spacing={2} alignItems="flex-start">
-          <Stack direction="row" spacing={1} alignItems="center">
+        <Stack spacing={2} sx={{ alignItems: "flex-start" }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
             <Chip
               label={settings?.cookie_set ? "Cookie設定済み" : "Cookie未設定"}
               color={settings?.cookie_set ? "success" : "default"}
@@ -239,11 +239,11 @@ export default function AmazonImport() {
 
       {/* --- 2. クロール実行 --- */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Typography variant="h6" mb={1}>
+        <Typography variant="h6" sx={{ mb: 1 }}>
           2. 購入履歴を取得
         </Typography>
         <Stack spacing={1}>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
             <Button
               variant="contained"
               sx={{ flexShrink: 0 }}
@@ -282,8 +282,8 @@ export default function AmazonImport() {
 
       {/* --- 3. 実行ログ --- */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1} flexWrap="wrap" gap={1}>
-          <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1, flexWrap: "wrap", gap: 1 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
             <Typography variant="h6">3. 実行ログ</Typography>
             {running && <Chip size="small" color="primary" label="実行中…" />}
           </Stack>
@@ -330,11 +330,11 @@ export default function AmazonImport() {
 
       {/* --- 4. 取込待ちリスト --- */}
       <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" flexWrap="wrap" gap={1} mb={1}>
+        <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 1 }}>
           <Typography variant="h6" sx={{ flexShrink: 0 }}>
             4. 取込待ちリスト（{queue.length}件）
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
             {enrichFailedCount > 0 && (
               <Button
                 size="small"
@@ -364,7 +364,7 @@ export default function AmazonImport() {
             </Button>
           </Stack>
         </Stack>
-        <Typography variant="body2" color="text.secondary" mb={2}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           購入履歴を取り込む品目を1件ずつ確認します。在庫に追加するか、削除するかを選択してください。
         </Typography>
         <TableContainer sx={{ overflowX: "auto" }}>
@@ -401,7 +401,7 @@ export default function AmazonImport() {
                     </Typography>
                   </TableCell>
                   <TableCell sx={{ p: 1 }}>
-                    <Stack direction="column" spacing={0.5} alignItems="stretch">
+                    <Stack direction="column" spacing={0.5} sx={{ alignItems: "stretch" }}>
                         <Button
                           size="small"
                           variant="contained"

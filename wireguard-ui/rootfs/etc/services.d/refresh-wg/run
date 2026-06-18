@@ -10,18 +10,10 @@ bashio::log.info 'Starting wg0.conf monitor...'
 
 dmz_subnet="$(try_config_or_default 'dmz_subnet | join(" ")?')"
 dmz_subnet_allow="$(try_config_or_default 'dmz_subnet_allow | join(" ")?')"
-dmz_subnet_related="$(try_config_or_default 'dmz_subnet_related')"
 allowance_rule_separator='|'
-isolated_subnet="$(try_config_or_default 'isolated_subnet | join(" ")?')"
-isolated_subnet_allow="$(try_config_or_default 'isolated_subnet_allow | join(" ")?')"
-isolated_subnet_related="$(try_config_or_default 'isolated_subnet_related')"
-export allowance_rule_separator dmz_subnet dmz_subnet_allow dmz_subnet_related
-export isolated_subnet isolated_subnet_allow isolated_subnet_related
+export allowance_rule_separator dmz_subnet dmz_subnet_allow
 if [ "${dmz_subnet:-}" = null ]; then
   unset dmz_subnet
-fi
-if [ "${isolated_subnet:-}" = null ]; then
-  unset isolated_subnet
 fi
 
 user_loglevel=$(try_config_or_default 'log_level')
@@ -59,30 +51,17 @@ clear_subnet_chain_rules() (
   clear_chain_rule OUTPUT WG_DMZ
   clear_chain_rule FORWARD WG_DMZ
   clear_chain_rule WG_DMZ_allow
-
-  clear_chain_rule OUTPUT WG_ISOLATED
-  clear_chain_rule FORWARD WG_ISOLATED
-  clear_chain_rule WG_ISOLATED_allow
 )
-add_isolated_rules() {
-  if [ -z "${isolated_subnet:-}" ]; then return; fi
-  echo "$isolated_subnet" | xargs -n1 | xargs -I{} -- iptables -I OUTPUT -s {} -j WG_DMZ
-  echo "$isolated_subnet" | xargs -n1 | xargs -I{} -- iptables -I FORWARD -s {} -j WG_DMZ
-}
 add_chain_rules() {
-  # 1 - dmz_subnet or isolated_subnet
-  # 2 - dmz_subnet_allow or isolated_subnet_allow
-  # 3 - WG_DMZ or WG_ISOLATED
-  # 4 - WG_DMZ_allow or WG_ISOLATED_allow
-  # 5 - dmz_subnet_related or isolated_subnet_related
+  # 1 - dmz_subnet
+  # 2 - dmz_subnet_allow
+  # 3 - WG_DMZ
+  # 4 - WG_DMZ_allow
   echo "$1" | xargs -n1 | xargs -I{} -- iptables -I OUTPUT -s {} -j "$3"
   echo "$1" | xargs -n1 | xargs -I{} -- iptables -I FORWARD -s {} -j "$3"
   while read -r allow_rule; do
     apply_allow_rule "$allow_rule" "$1" "$4"
   done <<< "$(xargs -n1 <<< "${2:-}")"
-  if [ "${5:-}" = true ]; then
-    iptables -I "${4}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-  fi
 }
 clear_nats() (
   if ! iptables-save | grep -F -- '-j MASQUERADE'; then
@@ -116,13 +95,10 @@ refresh_wireguard() {
   clear_nats
   clear_subnet_chain_rules
   if [ -n "${dmz_subnet:-}" ]; then
-    add_chain_rules "${dmz_subnet}" "${dmz_subnet_allow:-}" WG_DMZ WG_DMZ_allow "${dmz_subnet_related:-}"
-  fi
-  if [ -n "${isolated_subnet:-}" ]; then
-    add_chain_rules "${isolated_subnet}" "${isolated_subnet_allow:-}" WG_ISOLATED WG_ISOLATED_allow "${isolated_subnet_related:-}"
+    add_chain_rules "${dmz_subnet}" "${dmz_subnet_allow:-}" WG_DMZ WG_DMZ_allow
   fi
   nat_ip_ranges
-  if [ -n "${dmz_subnet:-}" ] || [ -n "${isolated_subnet:-}" ]; then
+  if [ -n "${dmz_subnet:-}" ]; then
     iptables -nL
   fi
 }
@@ -263,8 +239,8 @@ set_parsed_environment_variables() {
 }
 apply_allow_rule() (
   # 1 - allow_rule
-  # 2 - dmz_subnet or isolated_subnet
-  # 3 - WG_DMZ_allow or WG_ISOLATED_allow
+  # 2 - dmz_subnet
+  # 3 - WG_DMZ_allow
   set_parsed_environment_variables "$1"
   if [ -n "${src_net:-}" ]; then
     add_exclusion_rule_to_iptables "$3"
@@ -281,11 +257,6 @@ trap 'rm -f /tmp/wg_started' EXIT
 #
 iptables --new WG_DMZ
 iptables --new WG_DMZ_allow
-iptables --new WG_ISOLATED
-iptables --new WG_ISOLATED_allow
-# ISOLATED config
-iptables -I WG_ISOLATED -j WG_ISOLATED_allow
-iptables -A WG_ISOLATED -j REJECT --reject-with icmp-host-prohibited
 # DMZ config with rfc1918 private IPv4 spaces
 iptables -I WG_DMZ -j WG_DMZ_allow
 iptables -A WG_DMZ -d 10.0.0.0/8 -j REJECT --reject-with icmp-host-prohibited

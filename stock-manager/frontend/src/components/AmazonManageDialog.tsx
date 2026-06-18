@@ -171,7 +171,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
   );
 
   const ItemPreview = (
-    <Stack direction="row" spacing={2} alignItems="center">
+    <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
       {item.image_url && (
         <Box
           component="img"
@@ -180,7 +180,7 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
         />
       )}
       <Box sx={{ minWidth: 0 }}>
-        <Typography variant="body2" fontWeight={600} noWrap>{item.product_name}</Typography>
+        <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>{item.product_name}</Typography>
         <Typography variant="caption" color="text.secondary">
           ASIN: {item.asin || "-"} · 購入数: {item.quantity}{item.maker ? ` · ${item.maker}` : ""}
         </Typography>
@@ -196,10 +196,10 @@ export default function AmazonManageDialog({ open, item, onClose, onDone }: Prop
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {ItemPreview}
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
               <Avatar src={matched.photo ? imageUrl(matched.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
               <Box>
-                <Typography variant="body2" fontWeight={600}>{matched.name}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{matched.name}</Typography>
                 <Typography variant="caption" color="text.secondary">
                   現在庫: {matched.quantity}{matched.piece_count > 1 ? ` · 員数: ${matched.piece_count}` : ""}
                 </Typography>

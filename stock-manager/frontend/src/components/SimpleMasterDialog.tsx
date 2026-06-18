@@ -122,7 +122,7 @@ export default function SimpleMasterDialog({ open, entity, item, onClose }: Prop
               />
             )}
             {(entity === "categories" || entity === "locations") && (
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
                 <Typography variant="body2">アイコン:</Typography>
                 <IconPicker value={watchedIcon} onChange={(v) => setValue("icon", v)} />
               </Stack>

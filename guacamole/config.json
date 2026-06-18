@@ -1,7 +1,7 @@
 {
   "name": "Guacamole",
   "description": "軽量版 Apache Guacamole。guacd + Tomcat + 外部 PostgreSQL",
-  "version": "1.6.0-10",
+  "version": "1.6.0-21",
   "slug": "guacamole",
   "url": "https://guacamole.apache.org/",
   "init": false,
@@ -33,7 +33,6 @@
     "pg_database": "guacamole_db",
     "backup_enabled": true,
     "vacuum_logs_on_backup": false,
-    "auto_restore_settings": true,
     "extensions": [],
     "ingress_auto_login": true,
     "ingress_auto_login_user": "guacadmin"
@@ -46,7 +45,6 @@
     "pg_database": "str?",
     "backup_enabled": "bool",
     "vacuum_logs_on_backup": "bool",
-    "auto_restore_settings": "bool",
     "extensions": [
       "list(auth-totp|auth-duo|auth-header|auth-json|auth-ldap|auth-quickconnect|auth-ban|display-statistics|history-recording-storage|auth-sso-openid|auth-sso-saml|auth-sso-cas|auth-jdbc-mysql|auth-jdbc-sqlserver|vault-ksm)"
     ],

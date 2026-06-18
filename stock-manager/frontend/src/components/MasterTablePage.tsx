@@ -158,8 +158,8 @@ export default function MasterTablePage({ title, entity, items, columns, reload 
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>{title}</Typography>
+      <Stack direction="row" sx={{ alignItems: "center", mb: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>{title}</Typography>
         <Button size="small" startIcon={<DownloadIcon />} onClick={exportCsv} sx={{ ml: "auto" }}>CSV出力</Button>
       </Stack>
 

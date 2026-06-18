@@ -1,7 +1,7 @@
 {
   "name": "Discord Chat Cleanup Bot",
   "description": "指定したDiscordチャンネルの古いメッセージを毎日自動削除します",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "slug": "discord_cleanup",
   "url": "https://yhc.jp",
   "init": false,

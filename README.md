@@ -20,11 +20,7 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 ### [Suwayomi Server](./suwayomi-server)
 
-[Mihon](https://mihon.app/) 互換のセルフホスト型マンガサーバー [Suwayomi-Server](https://github.com/Suwayomi/Suwayomi-Server) を Home Assistant アドオンとして動作させます。
-
-### [Suwayomi Summary](./suwayomi-summary)
-
-Suwayomi / Mihon の `.tachibk` バックアップファイルを Web ブラウザで閲覧できるビューワーです。
+[Mihon](https://mihon.app/) 互換のセルフホスト型マンガサーバー [Suwayomi-Server](https://github.com/Suwayomi/Suwayomi-Server) を Home Assistant アドオンとして動作させます。Suwayomi / Mihon の `.tachibk` バックアップファイルを Web ブラウザで閲覧できるビューワーを内蔵しています(旧 Suwayomi Summary アドオンを統合)。
 
 ### [WireGuard UI](./wireguard-ui)
 

@@ -224,7 +224,7 @@ export default function Stocktake() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>
+      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
         棚卸
       </Typography>
       {/* モード選択 */}
@@ -244,7 +244,7 @@ export default function Stocktake() {
 
       {/* 入力 */}
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction="row" spacing={1} alignItems="flex-start">
+        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
           <TextField
             inputRef={inputRef}
             label="JANコード"
@@ -312,10 +312,10 @@ export default function Stocktake() {
       {current && (
         <Card sx={{ mb: 2 }}>
           <CardContent>
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
               <Avatar src={current.photo ? imageUrl(current.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
               <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                <Typography fontWeight={700} noWrap>{current.name}</Typography>
+                <Typography noWrap sx={{ fontWeight: 700 }}>{current.name}</Typography>
                 <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
                   <Chip size="small" label={`現在在庫: ${currentStock}`} />
                   {mode === "add" && scannedPiece > 1 && (
@@ -325,7 +325,7 @@ export default function Stocktake() {
               </Box>
             </Stack>
 
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mt: 2 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "center", mt: 2 }}>
               <IconButton color="error" onClick={() => setCount((c) => Math.max(0, c - 1))}>
                 <RemoveIcon />
               </IconButton>
@@ -342,7 +342,7 @@ export default function Stocktake() {
               </IconButton>
             </Stack>
 
-            <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", mt: 1 }}>
               {mode === "adjust"
                 ? `在庫を ${currentStock} → ${count} に調整します`
                 : scannedPiece > 1
@@ -350,7 +350,7 @@ export default function Stocktake() {
                 : `在庫を ${currentStock} → ${currentStock + count} に加算します`}
             </Typography>
 
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }} alignItems="center">
+            <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: "center" }}>
               <Tooltip title="キャンセル">
                 <IconButton onClick={() => { setCurrent(null); setCount(0); setScannedPiece(1); focusInput(); }}>
                   <CloseIcon />
@@ -377,7 +377,7 @@ export default function Stocktake() {
           <Typography variant="subtitle2" sx={{ mb: 1 }}>直近の登録</Typography>
           <Stack spacing={0.5}>
             {logs.map((l, i) => (
-              <Stack key={i} direction="row" spacing={1} alignItems="center" sx={{ fontSize: "0.85rem" }}>
+              <Stack key={i} direction="row" spacing={1} sx={{ alignItems: "center", fontSize: "0.85rem" }}>
                 <Chip
                   size="small"
                   label={l.mode === "adjust" ? "棚卸" : "入庫"}
@@ -416,10 +416,10 @@ export default function Stocktake() {
                 onClick={() => !linking && linkToProduct(item)}
               >
                 <CardContent sx={{ py: 1, "&:last-child": { pb: 1 } }}>
-                  <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
                     <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 40, height: 40 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                     <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-                      <Typography fontWeight={600} noWrap>{item.name}</Typography>
+                      <Typography noWrap sx={{ fontWeight: 600 }}>{item.name}</Typography>
                       <Typography variant="caption" color="text.secondary" noWrap component="div">
                         在庫: {item.quantity}
                         {item.jan_code ? ` / JAN: ${item.jan_code}` : ""}

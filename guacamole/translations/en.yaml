@@ -16,13 +16,10 @@ configuration:
     description: Database name to use for Guacamole.
   backup_enabled:
     name: Enable Backup
-    description: Run pg_dump before each HA backup and save to /config/backup/.
+    description: Run pg_dump on startup and before each HA backup, saving to /config/backup/.
   vacuum_logs_on_backup:
     name: Clear History Before Backup
     description: Truncate Guacamole connection history from the database before dumping. Reduces backup size.
-  auto_restore_settings:
-    name: Auto Restore
-    description: Automatically restore from backup when a fresh database is detected on startup.
   extensions:
     name: Extensions
     description: "Guacamole extensions to enable. Examples: auth-totp, auth-ldap, auth-quickconnect."
