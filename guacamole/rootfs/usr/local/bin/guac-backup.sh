@@ -6,15 +6,11 @@
 . /usr/local/bin/guac-lib.sh
 _load_pg_env
 
-# バージョン付き pg_dump を優先 (サーバーが pg17+ の場合に必要)
-PG_DUMP=$(ls /usr/bin/pg_dump[0-9]* 2>/dev/null | sort -V | tail -1)
-[ -z "$PG_DUMP" ] && PG_DUMP=$(command -v pg_dump)
-
 jqget() { jq -r --arg k "$1" 'if (.[$k] != null) then .[$k] else "" end' /data/options.json 2>/dev/null; }
 BACKUP_ENABLED="$(jqget backup_enabled)"; [ -z "$BACKUP_ENABLED" ] && BACKUP_ENABLED="true"
 VACUUM_LOGS="$(jqget vacuum_logs_on_backup)"; [ -z "$VACUUM_LOGS" ] && VACUUM_LOGS="false"
 
-log "backup: starting (enabled=${BACKUP_ENABLED} db=${PG_DATABASE}@${PG_HOST}:${PG_PORT} using ${PG_DUMP})"
+log "backup: starting (enabled=${BACKUP_ENABLED} db=${PG_DATABASE}@${PG_HOST}:${PG_PORT})"
 
 if [ "$BACKUP_ENABLED" = "false" ]; then
     log "backup: disabled (backup_enabled=false); skipping"
@@ -46,7 +42,7 @@ log "backup: dumping ${PG_DATABASE} @ ${PG_HOST}:${PG_PORT} -> ${BDIR}/guacamole
 tmp="${BDIR}/.guacamole_db.dump.$$.tmp"
 trap 'rm -f "$tmp" 2>/dev/null || true' EXIT
 
-if PGPASSWORD="$PG_PASSWORD" "$PG_DUMP" \
+if PGPASSWORD="$PG_PASSWORD" pg_dump \
         -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
         --no-owner --no-acl --format=custom \
         --file="$tmp" 2>/tmp/guac_dump.err; then

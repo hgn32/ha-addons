@@ -7,16 +7,13 @@
 # ベースは s6-overlay(/init) を init として使う。本アドオンの追加プロセス
 # （nginx / cron）も supervisord ではなく /etc/services.d 配下の
 # s6 サービスとして起動する。
-FROM abesnier/guacamole:1.6.0-alpine-pg16
+FROM abesnier/guacamole:1.6.0-alpine-pg17
 
 # HA 連携に必要な最小限のパッケージのみ追加。
 # - nginx … ingress 用リバースプロキシ
 # - jq    … アドオン設定(/data/options.json)の読み取り
 # スクリプトは busybox ash(/bin/sh) で動作するため bash は不要。
-RUN apk add --no-cache nginx jq postgresql17-client \
-    && for bin in pg_dump pg_restore psql pg_dumpall; do \
-           v17=$(command -v "${bin}17" 2>/dev/null) && [ -n "$v17" ] && ln -sf "$v17" "/usr/local/bin/${bin}" || true; \
-       done
+RUN apk add --no-cache nginx jq
 
 # 定期ログ削除に busybox crond を使うため、存在をビルド時に確認する
 RUN command -v crond >/dev/null || (echo "crond not found in base image" && exit 1)

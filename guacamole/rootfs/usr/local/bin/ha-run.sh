@@ -108,13 +108,10 @@ fi
 # 通常の再起動（スキーマ既存）では絶対にリストアしない。
 RESTORE_RAN=false
 DUMP="/config/backup/guacamole_db.dump"
-# バージョン付き pg_restore を優先 (pg_dump17 で作成したダンプに必要)
-PG_RESTORE=$(ls /usr/bin/pg_restore[0-9]* 2>/dev/null | sort -V | tail -1)
-[ -z "$PG_RESTORE" ] && PG_RESTORE=$(command -v pg_restore)
 if [ "$AUTO_RESTORE" = "true" ]; then
     if [ "$SCHEMA_FRESH" = "true" ] && [ -f "$DUMP" ]; then
         log "Auto-restore: fresh schema + dump found; restoring from ${DUMP}..."
-        if PGPASSWORD="$PG_PASSWORD" "$PG_RESTORE" \
+        if PGPASSWORD="$PG_PASSWORD" pg_restore \
                 -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
                 --no-owner --clean --if-exists \
                 "$DUMP" 2>/tmp/guac_restore.err; then
