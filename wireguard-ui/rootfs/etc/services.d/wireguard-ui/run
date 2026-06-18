@@ -9,7 +9,6 @@
 # shellcheck disable=SC1091
 source /usr/local/share/service-functions.sh
 
-declare clear_session_on_boot
 declare dns
 declare endpoint
 declare port
@@ -21,7 +20,6 @@ declare default_interface_addresses
 
 bashio::log.info 'Starting Wireguard UI...'
 
-clear_session_on_boot=$(try_config_or_default 'clear_session_on_boot')
 dns=$(try_config_or_default 'default_client_dns')
 endpoint=$(try_config_or_default 'default_client_endpoint')
 port=$(try_port_or_default '51820/udp' '51820/udp')
@@ -66,9 +64,6 @@ fi
 cd "${state_dir}" || exit 1
 # missing state dir causes login loops
 [ -d db ] || mkdir db
-if [ "${clear_session_on_boot:-}" = true ]; then
-  rm -f session-key
-fi
 if [ ! -f session-key ] || [ -z "$(<session-key)" ]; then
   random_password > session-key
   echo "Generated new session encryption key." >&2
