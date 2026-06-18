@@ -13,7 +13,10 @@ FROM abesnier/guacamole:1.6.0-alpine-pg16
 # - nginx … ingress 用リバースプロキシ
 # - jq    … アドオン設定(/data/options.json)の読み取り
 # スクリプトは busybox ash(/bin/sh) で動作するため bash は不要。
-RUN apk add --no-cache nginx jq
+RUN apk add --no-cache nginx jq postgresql17-client \
+    && for bin in pg_dump pg_restore psql pg_dumpall; do \
+           v17=$(command -v "${bin}17" 2>/dev/null) && [ -n "$v17" ] && ln -sf "$v17" "/usr/local/bin/${bin}" || true; \
+       done
 
 # 定期ログ削除に busybox crond を使うため、存在をビルド時に確認する
 RUN command -v crond >/dev/null || (echo "crond not found in base image" && exit 1)
@@ -48,6 +51,7 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
     && sed -i 's|s6-socklog -d3 -U -t3000|s6-socklog -d3 -U -t3000 -x /tmpsock/syslog|g' \
        /etc/s6-overlay/s6-rc.d/syslogd/run \
     && sed -i 's|cp -rn /app/guacamole /config|true|' /etc/cont-init.d/30-defaults.sh \
+    && printf '#!/bin/sh\nexit 0\n' > /etc/cont-init.d/40-postgres.sh && chmod +x /etc/cont-init.d/40-postgres.sh \
     && script=/etc/services.d/guacamole/run \
     && if [ -f "$script" ]; then \
            { head -1 "$script"; \
