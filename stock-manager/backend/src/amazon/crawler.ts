@@ -195,6 +195,7 @@ function cleanChromeCache(): void {
   const { rmSync, existsSync } = require("fs") as typeof import("fs");
   const { join } = require("path") as typeof import("path");
   const targets = [
+    // セッションキャッシュ
     "Default/Cache",
     "Default/Code Cache",
     "Default/GPUCache",
@@ -205,6 +206,23 @@ function cleanChromeCache(): void {
     "Default/Session Storage",
     "ShaderCache",
     "GrShaderCache",
+    "GraphiteDawnCache",
+    // Chromeコンポーネント（Amazonスクレイピングに不要・バックアップを肥大化させる）
+    "component_crx_cache",  // ~58MB: コンポーネント更新キャッシュ
+    "WasmTtsEngine",        // ~23MB: 音声読み上げエンジン
+    "WidevineCdm",          // ~21MB: 動画DRMモジュール
+    "OnDeviceHeadSuggestModel", // ~8MB: 住所補完MLモデル
+    "ZxcvbnData",           // ~2MB: パスワード強度チェッカー
+    "hyphen-data",          // ~2MB: テキストハイフネーション
+    "Subresource Filter",   // ~400KB: 広告フィルタ
+    "segmentation_platform", // ~230KB: ユーザーセグメント分析
+    "SafetyTips",
+    "CaptchaProviders",
+    "MEIPreload",
+    "PrivacySandboxAttestationsPreloaded",
+    "FirstPartySetsPreloaded",
+    "TrustTokenKeyCommitments",
+    "AmountExtractionHeuristicRegexes",
   ];
   for (const rel of targets) {
     const full = join(CHROME_PROFILE_DIR, rel);
@@ -254,8 +272,11 @@ export async function getBrowser(): Promise<PuppeteerBrowser> {
       "--media-cache-size=1",
       "--disable-gpu-shader-disk-cache",
       "--disable-background-networking",
+      "--disable-component-update",
       "--disable-sync",
       "--no-first-run",
+      "--disable-speech-api",
+      "--disable-features=MediaRouter,Translate,OptimizationHints,AutofillServerCommunication,PrivacySandboxSettings4",
     ],
   });
   log("info", "Chromium起動完了 (プロファイル維持)");
