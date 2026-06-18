@@ -54,7 +54,6 @@ ln -sf /app/guacamole/schema               "$GUACAMOLE_HOME/schema"
 # PG_PASSWORD はシングルクォートでラップし、ソース時に $ が展開されないようにする。
 _sq() { printf '%s' "$1" | sed "s/'/'\\\\''/g" | { read -r v; printf "'%s'" "$v"; }; }
 {
-    printf 'GUAC_VER=%s\n'    "${GUAC_VER:-}"
     printf 'PG_HOST=%s\n'     "$PG_HOST"
     printf 'PG_PORT=%s\n'     "$PG_PORT"
     printf 'PG_USER=%s\n'     "$PG_USER"
@@ -153,11 +152,8 @@ if ! ls "$GUACAMOLE_HOME/extensions/"*jdbc-postgresql*.jar >/dev/null 2>&1; then
     done
 fi
 
-# crond が起動しても空のままで問題ない
-mkdir -p /etc/crontabs && : > /etc/crontabs/root
-
 # ベースイメージの init は s6-overlay(/init)。最後にこれへ処理を渡し、
-# s6 が guacd / tomcat と nginx / cron を起動する。
+# s6 が guacd / tomcat と nginx を起動する。
 log "Handing over to s6-overlay (/init)"
 if [ -x /init ]; then
     exec /init

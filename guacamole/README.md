@@ -12,9 +12,9 @@
 - 拡張プラグインを設定で追加（TOTP / LDAP / SSO / クイック接続 など）
 - 起動時にスキーマ未初期化の DB を自動検知して SQL を適用
 - **起動時に自動バックアップ**（リストア直後を除く）
-- HA バックアップ時に外部 PG を `pg_dump` して `/config/backup/` へ保存
+- HA バックアップ時に外部 PG を `pg_dump` して `addon_configs/[hash]_guacamole/backup/` へ保存
 - バックアップ前に接続履歴を削除してバックアップサイズを削減（オプション）
-- `/config/restore.dump` を置いて起動するとデータを上書きリストア
+- `addon_configs/[hash]_guacamole/restore.dump` を置いて起動するとデータを上書きリストア
 
 ## 対応アーキテクチャ
 
@@ -45,7 +45,7 @@
 | `pg_user` | str | `postgres` | 接続ユーザ名 |
 | `pg_password` | password | （空） | 接続パスワード |
 | `pg_database` | str | `guacamole_db` | 使用するデータベース名 |
-| `backup_enabled` | bool | `true` | 起動時および HA バックアップ時に pg_dump を取得して `/config/backup/` に保存する |
+| `backup_enabled` | bool | `true` | 起動時および HA バックアップ時に pg_dump を取得して `addon_configs/[hash]_guacamole/backup/` に保存する |
 | `vacuum_logs_on_backup` | bool | `false` | バックアップ前に接続履歴テーブルをデータベースから削除する（バックアップサイズ削減） |
 | `extensions` | list | `[]` | 有効化する拡張。例: `auth-totp`, `auth-ldap`, `auth-sso-openid`, `vault-ksm` など |
 | `ingress_auto_login` | bool | `true` | ingress 経由時に Guacamole のログイン画面をバイパスして自動ログインする |
@@ -64,24 +64,32 @@
 | **起動時** | リストアが実行されなかった場合（通常再起動・設定変更など） |
 | **HA バックアップ時** | `backup_pre` フックにより常に実行 |
 
-どちらの場合も `pg_dump`（カスタム形式）を実行し、`/config/backup/guacamole_db_YYYYMMDD_HHMMSS.dump` を生成します（最新 1 件のみ保持）。
+どちらの場合も `pg_dump`（カスタム形式）を実行し、以下のパスに保存します（最新 1 件のみ保持）。
+
+| コンテナ内 | HA ホスト上 |
+|---|---|
+| `/config/backup/guacamole_db_YYYYMMDD_HHMMSS.dump` | `/addon_configs/[hash]_guacamole/backup/guacamole_db_YYYYMMDD_HHMMSS.dump` |
 
 - `backup_enabled: false` に設定するとダンプをスキップします
 - `vacuum_logs_on_backup: true` にすると、ダンプ前に接続履歴テーブルを TRUNCATE します
 
 ### リストア
 
-`/config/restore.dump` を配置してアドオンを再起動するとリストアが実行されます。
+以下のパスにリストア用ファイルを配置してアドオンを再起動するとリストアが実行されます。
+
+| コンテナ内 | HA ホスト上 |
+|---|---|
+| `/config/restore.dump` | `/addon_configs/[hash]_guacamole/restore.dump` |
 
 **手順**
 
-1. リストアしたい pg_dump ファイルを `/config/restore.dump` として配置する
+1. リストアしたい pg_dump ファイルを上記パスに `restore.dump` として配置する
 2. アドオンを再起動する
-3. 起動時に既存データを消去して `/config/restore.dump` からリストアされる
-4. リストア成功後、`/config/restore.dump` は自動的に削除される
+3. 起動時に既存データを消去してリストアされる
+4. リストア成功後、`restore.dump` は自動的に削除される
 
 > **注意**: リストアは既存データを上書きします。事前にバックアップを取っておくことを推奨します。
-> リストアに失敗した場合は `/config/restore.dump` が残り、次回起動時に再試行されます。
+> リストアに失敗した場合は `restore.dump` が残り、次回起動時に再試行されます。
 
 ## クイック接続（auth-quickconnect）
 

@@ -1,15 +1,12 @@
 #!/bin/sh
-# 共通ヘルパ（ha-run.sh / backup / log-cleanup から source される）
-
-# イメージ同梱のひな形（set_property / del_property のデフォルト対象）
-GUAC_PROP_TEMPLATE="/app/guacamole/guacamole.properties"
+# 共通ヘルパ（ha-run.sh / backup から source される）
 
 log() { echo "[guacamole] $(date '+%F %T %Z') $*"; }
 
-# set_property KEY VALUE [FILE]
-# 既存行があれば置換、無ければ追記する。FILE 既定はイメージ同梱ひな形。
+# set_property KEY VALUE FILE
+# 既存行があれば置換、無ければ追記する。
 set_property() {
-    local key="$1" val="$2" file="${3:-$GUAC_PROP_TEMPLATE}"
+    local key="$1" val="$2" file="$3"
     [ -f "$file" ] || { mkdir -p "$(dirname "$file")"; : > "$file"; }
     if grep -qE "^${key}:" "$file" 2>/dev/null; then
         sed -i "s|^${key}:.*|${key}: ${val}|" "$file"
@@ -18,15 +15,15 @@ set_property() {
     fi
 }
 
-# del_property KEY [FILE]
+# del_property KEY FILE
 del_property() {
-    local key="$1" file="${2:-$GUAC_PROP_TEMPLATE}"
+    local key="$1" file="$2"
     [ -f "$file" ] && sed -i "/^${key}:.*/d" "$file"
 }
 
 # /etc/guacamole-ha.env から PG 接続情報を読み込む。
 # ha-run.sh がこのファイルを書いてから guac_psql/wait_for_db を呼ぶため
-# 通常は必ず存在する。cron スクリプトからは起動後に参照される。
+# 通常は必ず存在する。
 _load_pg_env() {
     [ -f /etc/guacamole-ha.env ] && . /etc/guacamole-ha.env
     PG_HOST="${PG_HOST:-127.0.0.1}"
