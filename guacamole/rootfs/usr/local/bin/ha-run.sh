@@ -15,7 +15,6 @@ jqget() { jq -r --arg k "$1" 'if (.[$k] != null) then .[$k] else "" end' "$OPTIO
 EXT_LIST="$(jq -r '((.extensions // []) | join(","))' "$OPTIONS" 2>/dev/null || echo "")"
 AUTO_LOGIN="$(jqget ingress_auto_login)";   [ -z "$AUTO_LOGIN" ] && AUTO_LOGIN="true"
 AUTO_LOGIN_USER="$(jqget ingress_auto_login_user)"; [ -z "$AUTO_LOGIN_USER" ] && AUTO_LOGIN_USER="guacadmin"
-AUTO_RESTORE="$(jqget auto_restore_settings)"; [ -z "$AUTO_RESTORE" ] && AUTO_RESTORE="true"
 
 # ---- 外部 PostgreSQL 接続設定 -----------------------------------------------
 PG_HOST="$(jqget pg_host)"
@@ -88,9 +87,6 @@ else
 fi
 
 # ---- スキーマ初期化（未初期化の DB にのみ適用） --------------------------------
-# SCHEMA_FRESH=true のときだけ自動リストアを許可する。
-# 既存 DB への再起動・設定変更では SCHEMA_FRESH=false になるためリストアをスキップする。
-SCHEMA_FRESH=false
 if guac_psql -tAc "SELECT to_regclass('public.guacamole_connection') IS NOT NULL" 2>/dev/null | grep -q t; then
     log "Schema already initialized; skipping"
 else
@@ -100,34 +96,26 @@ else
         guac_psql -f "$sql" >/dev/null
     done
     log "Schema initialization complete"
-    SCHEMA_FRESH=true
 fi
 
-# ---- 自動リストア（スキーマを今回初めて適用した DB にのみ） -----------------
-# HA バックアップからリストア後にスキーマ初期化が走った場合だけ取り込む。
-# 通常の再起動（スキーマ既存）では絶対にリストアしない。
+# ---- リストア（/config/restore.dump が存在する場合のみ） ---------------------
+# ユーザが /config/restore.dump を置いて起動するとデータを上書きリストアする。
+# 成功時はファイルを削除して次回起動で再実行されないようにする。
+# 失敗時はファイルを残して再試行できるようにする。
 RESTORE_RAN=false
-DUMP="$(ls -1t /config/backup/guacamole_db_*.dump 2>/dev/null | head -1)"
-if [ "$AUTO_RESTORE" = "true" ]; then
-    if [ "$SCHEMA_FRESH" = "true" ] && [ -n "$DUMP" ]; then
-        log "Auto-restore: fresh schema + dump found; restoring from ${DUMP}..."
-        if PGPASSWORD="$PG_PASSWORD" pg_restore \
-                -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
-                --no-owner --clean --if-exists \
-                "$DUMP" 2>/tmp/guac_restore.err; then
-            log "Auto-restore: completed successfully"
-            RESTORE_RAN=true
-        else
-            log "Auto-restore: FAILED — DB left with default content (guacadmin/guacadmin)"
-            tail -n 10 /tmp/guac_restore.err 2>/dev/null | sed 's/^/[guacamole][restore] /' || true
-        fi
-    elif [ "$SCHEMA_FRESH" = "false" ]; then
-        log "Auto-restore: schema already existed; skipping (regular restart)"
+if [ -f "/config/restore.dump" ]; then
+    log "Restore: /config/restore.dump found; restoring (existing data will be cleared)..."
+    if PGPASSWORD="$PG_PASSWORD" pg_restore \
+            -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
+            --no-owner --clean --if-exists \
+            "/config/restore.dump" 2>/tmp/guac_restore.err; then
+        log "Restore: completed successfully"
+        rm -f "/config/restore.dump"
+        RESTORE_RAN=true
     else
-        log "Auto-restore: no dump found in /config/backup/; starting fresh"
+        log "Restore: FAILED — /config/restore.dump kept for retry"
+        tail -n 10 /tmp/guac_restore.err 2>/dev/null | sed 's/^/[guacamole][restore] /' || true
     fi
-else
-    log "Auto-restore: disabled"
 fi
 
 # ---- 起動時バックアップ（リストアが実行されなかった場合のみ） -----------------
