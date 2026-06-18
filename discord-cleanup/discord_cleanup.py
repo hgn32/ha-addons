@@ -110,7 +110,6 @@ def cleanup_channel(channel_id: str):
 
     total_deleted = 0
     last_id = None
-    bulk_batch = []
 
     while True:
         messages = get_messages(channel_id, before=last_id)
