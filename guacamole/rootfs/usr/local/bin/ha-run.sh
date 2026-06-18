@@ -107,9 +107,9 @@ fi
 # HA バックアップからリストア後にスキーマ初期化が走った場合だけ取り込む。
 # 通常の再起動（スキーマ既存）では絶対にリストアしない。
 RESTORE_RAN=false
-DUMP="/config/backup/guacamole_db.dump"
+DUMP="$(ls -1t /config/backup/guacamole_db_*.dump 2>/dev/null | head -1)"
 if [ "$AUTO_RESTORE" = "true" ]; then
-    if [ "$SCHEMA_FRESH" = "true" ] && [ -f "$DUMP" ]; then
+    if [ "$SCHEMA_FRESH" = "true" ] && [ -n "$DUMP" ]; then
         log "Auto-restore: fresh schema + dump found; restoring from ${DUMP}..."
         if PGPASSWORD="$PG_PASSWORD" pg_restore \
                 -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
@@ -124,7 +124,7 @@ if [ "$AUTO_RESTORE" = "true" ]; then
     elif [ "$SCHEMA_FRESH" = "false" ]; then
         log "Auto-restore: schema already existed; skipping (regular restart)"
     else
-        log "Auto-restore: no dump found at ${DUMP}; starting fresh"
+        log "Auto-restore: no dump found in /config/backup/; starting fresh"
     fi
 else
     log "Auto-restore: disabled"

@@ -38,7 +38,9 @@ if [ "$VACUUM_LOGS" = "true" ]; then
     done
 fi
 
-log "backup: dumping ${PG_DATABASE} @ ${PG_HOST}:${PG_PORT} -> ${BDIR}/guacamole_db.dump"
+STAMP="$(date '+%Y%m%d_%H%M%S')"
+DEST="${BDIR}/guacamole_db_${STAMP}.dump"
+log "backup: dumping ${PG_DATABASE} @ ${PG_HOST}:${PG_PORT} -> ${DEST}"
 tmp="${BDIR}/.guacamole_db.dump.$$.tmp"
 trap 'rm -f "$tmp" 2>/dev/null || true' EXIT
 
@@ -46,8 +48,10 @@ if PGPASSWORD="$PG_PASSWORD" pg_dump \
         -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" \
         --no-owner --no-acl --format=custom \
         --file="$tmp" 2>/tmp/guac_dump.err; then
-    mv -f "$tmp" "${BDIR}/guacamole_db.dump"
-    log "backup: done ($(du -h "${BDIR}/guacamole_db.dump" | cut -f1))"
+    mv -f "$tmp" "$DEST"
+    log "backup: done ($(du -h "$DEST" | cut -f1))"
+    # 古いダンプを削除し最新1件のみ保持
+    ls -1t "${BDIR}/guacamole_db_"*.dump 2>/dev/null | tail -n +2 | xargs rm -f 2>/dev/null || true
 else
     log "backup: pg_dump FAILED"
     sed 's/^/[guacamole][backup] /' /tmp/guac_dump.err 2>/dev/null || true
