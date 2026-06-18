@@ -13,7 +13,7 @@ FROM abesnier/guacamole:1.6.0-alpine-pg16
 # - nginx … ingress 用リバースプロキシ
 # - jq    … アドオン設定(/data/options.json)の読み取り
 # スクリプトは busybox ash(/bin/sh) で動作するため bash は不要。
-RUN apk add --no-cache nginx jq
+RUN apk add --no-cache nginx jq postgresql16-client
 
 # 定期ログ削除に busybox crond を使うため、存在をビルド時に確認する
 RUN command -v crond >/dev/null || (echo "crond not found in base image" && exit 1)
