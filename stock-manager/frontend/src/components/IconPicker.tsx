@@ -177,12 +177,14 @@ export default function IconPicker({ value, onChange }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             sx={{ mb: 2, mt: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              },
             }}
           />
           <Box
@@ -210,13 +212,13 @@ export default function IconPicker({ value, onChange }: Props) {
               </Tooltip>
             ))}
             {filtered.length === 0 && (
-              <Stack gridColumn="span 6" alignItems="center" py={4}>
+              <Stack sx={{ gridColumn: "span 6", alignItems: "center", py: 4 }}>
                 <Typography color="text.secondary">見つかりません</Typography>
               </Stack>
             )}
           </Box>
           {value && (
-            <Box mt={2}>
+            <Box sx={{ mt: 2 }}>
               <Button size="small" color="inherit" onClick={() => handleSelect("")}>
                 アイコンをクリア
               </Button>

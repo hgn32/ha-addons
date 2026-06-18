@@ -154,7 +154,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
               }
               required
               fullWidth
-              inputProps={{ min: 0 }}
+              slotProps={{ htmlInput: { min: 0 } }}
               {...register("quantity")}
               error={!!errors.quantity}
               helperText={errors.quantity?.message}
@@ -170,7 +170,7 @@ export default function StockDialog({ open, mode, initialProductId, onClose }: P
                   type="number"
                   label="単価（円）"
                   fullWidth
-                  inputProps={{ min: 0 }}
+                  slotProps={{ htmlInput: { min: 0 } }}
                   {...register("unit_price")}
                   error={!!errors.unit_price}
                   helperText={errors.unit_price?.message}

@@ -373,7 +373,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
 
   const onSubmit = async (data: FormValues) => {
     const fd = new FormData();
-    (Object.keys(data) as (keyof FormValues)[]).forEach((k) => fd.append(k, data[k] ?? ""));
+    (Object.keys(data) as (keyof FormValues)[]).forEach((k) => fd.append(k, String(data[k] ?? "")));
     if (file) fd.append("photo", file);
     try {
       let created: Product | null = null;
@@ -413,7 +413,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                 </Box>
               )}
               {/* Amazon URLから取込（全幅） */}
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                 <TextField
                   label="Amazon URLから取込"
                   placeholder="https://www.amazon.co.jp/dp/..."
@@ -432,7 +432,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
               </Stack>
 
               {/* 2カラム（狭い画面では1カラム）にして古いHD画面でもスクロール不要に */}
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-start">
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ alignItems: "flex-start" }}>
                 {/* 左カラム */}
                 <Stack spacing={2} sx={{ flex: 1, width: "100%" }}>
                   <TextField
@@ -461,7 +461,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     {...register("warn_quantity", { valueAsNumber: true })}
                   />
                   <TextField label="メーカー" fullWidth {...register("maker")} slotProps={shrinkLabel(watchedMaker)} />
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                     <TextField label="JANコード（主）" fullWidth {...register("jan_code")} slotProps={shrinkLabel(watchedJan)} />
                     <IconButton
                       color="primary"
@@ -477,7 +477,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
 
                 {/* 右カラム */}
                 <Stack spacing={2} sx={{ flex: 1, width: "100%" }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                     <TextField label="Amazon URL" fullWidth {...register("amazon_url")} slotProps={shrinkLabel(watchedAmazonUrl)} />
                     <IconButton
                       color="info"
@@ -521,7 +521,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                 <Avatar src={preview} variant="rounded" sx={{ width: 64, height: 64 }} slotProps={containImgSlotProps}>
                   📦
                 </Avatar>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
                   <IconButton component="label" color="primary">
                     <input
                       hidden
@@ -551,17 +551,17 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                 員数は、そのJANコードをスキャンして入庫した際に1スキャンあたり加算する実在庫数です。
               </Typography>
               <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
-                <Typography variant="caption" color="text.secondary" display="block">主JANコード（「基本情報」タブで編集）— スキャン入庫は1個ずつ加算</Typography>
-                <Typography fontWeight={600}>{watchedJan || "未設定"}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>主JANコード（「基本情報」タブで編集）— スキャン入庫は1個ずつ加算</Typography>
+                <Typography sx={{ fontWeight: 600 }}>{watchedJan || "未設定"}</Typography>
               </Box>
               <Box>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>追加のJANコード</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>追加のJANコード</Typography>
                 <Stack spacing={1}>
                   {barcodes.length === 0 && (
                     <Typography variant="body2" color="text.disabled">追加のJANコードはありません</Typography>
                   )}
                   {barcodes.map((b) => (
-                    <Stack key={b.id} direction="row" spacing={1} alignItems="center">
+                    <Stack key={b.id} direction="row" spacing={1} sx={{ alignItems: "center" }}>
                       <Typography sx={{ flexGrow: 1, fontFamily: "monospace", wordBreak: "break-all" }}>{b.code}</Typography>
                       <PieceCountInput value={b.piece_count} onSave={(n) => updateBarcodePiece(b.id, n)} />
                       <IconButton color="error" size="small" onClick={() => removeBarcode(b.id)} aria-label="削除">
@@ -571,7 +571,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   ))}
                 </Stack>
               </Box>
-              <Stack direction="row" spacing={1} alignItems="flex-start">
+              <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
                 <TextField
                   label="JANコード追加"
                   placeholder="例: 4901234567890"
@@ -609,7 +609,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                     <Typography variant="body2" color="text.disabled">ASINが登録されていません</Typography>
                   )}
                   {asins.map((a) => (
-                    <Stack key={a.id} direction="row" spacing={1} alignItems="center">
+                    <Stack key={a.id} direction="row" spacing={1} sx={{ alignItems: "center" }}>
                       <Typography sx={{ flexGrow: 1, fontFamily: "monospace", wordBreak: "break-all" }}>{a.asin}</Typography>
                       <PieceCountInput value={a.piece_count} onSave={(n) => updateAsinPiece(a.id, n)} />
                       <IconButton color="error" size="small" onClick={() => removeAsin(a.id)} aria-label="削除">
@@ -619,7 +619,7 @@ export default function ProductDialog({ open, product, onClose, initialJan, onCr
                   ))}
                 </Stack>
               </Box>
-              <Stack direction="row" spacing={1} alignItems="flex-start">
+              <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
                 <TextField
                   label="ASIN追加"
                   placeholder="B0XXXXXXXXXX"

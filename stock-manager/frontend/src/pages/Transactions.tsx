@@ -50,9 +50,9 @@ export default function Transactions() {
 
   return (
     <Box>
-      <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>在庫履歴</Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ ml: { sm: "auto" } }}>
+      <Stack direction={{ xs: "column", sm: "row" }} sx={{ alignItems: { xs: "flex-start", sm: "center" }, flexWrap: "wrap", gap: 2, mb: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>在庫履歴</Typography>
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", ml: { sm: "auto" } }}>
           <TextField
             select label="品目" size="small" sx={{ minWidth: 150, maxWidth: 220 }}
             value={filterProduct}
@@ -102,7 +102,7 @@ export default function Transactions() {
                     </TableCell>
                     <TableCell>{productName(tx.product_id)}</TableCell>
                     <TableCell align="right">
-                      <Typography fontWeight={600} color={tx.type === "use" ? "error.main" : "success.main"} fontSize={13}>
+                      <Typography color={tx.type === "use" ? "error.main" : "success.main"} sx={{ fontWeight: 600, fontSize: 13 }}>
                         {tx.type === "use" ? `-${tx.quantity}` : `+${tx.quantity}`}
                       </Typography>
                     </TableCell>

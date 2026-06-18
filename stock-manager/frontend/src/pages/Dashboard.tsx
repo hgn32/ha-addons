@@ -75,12 +75,12 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
   return (
     <Dialog open={Boolean(item)} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle>
-        <Stack direction="row" spacing={1.5} alignItems="center">
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
           {item?.photo && (
             <Avatar src={imageUrl(item.photo)} variant="rounded" sx={{ width: 36, height: 36 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
           )}
           <Box>
-            <Typography fontWeight={700}>{item?.name}</Typography>
+            <Typography sx={{ fontWeight: 700 }}>{item?.name}</Typography>
             <Typography variant="caption" color="text.secondary">履歴 {txs.length}件</Typography>
           </Box>
         </Stack>
@@ -88,14 +88,14 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
       <DialogContent dividers>
         {/* 強制メンテ（棚卸）: 履歴は書き換えず、指定した数量に合わせる調整を1件登録する */}
         <Box sx={{ mb: 2, p: 1.5, borderRadius: 1, bgcolor: "action.hover" }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1 }}>
             <TuneIcon fontSize="small" color="warning" />
-            <Typography variant="subtitle2" fontWeight={700}>強制メンテ</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>強制メンテ</Typography>
           </Stack>
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
             現在の在庫数を入力すると、その数に合わせる調整履歴が登録されます（現在: {currentStock}）。
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="flex-start">
+          <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
             <TextField
               type="number"
               label="実在庫数"
@@ -125,14 +125,14 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
             {txs.map((t) => (
               <Card key={t.id} variant="outlined">
                 <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                  <Stack direction="row" alignItems="flex-start" sx={{ justifyContent: "space-between", gap: 1 }}>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
                       <Chip
                         label={{ add: "購入", use: "消費", adjust: "調整" }[t.type] ?? t.type}
                         color={TX_COLOR[t.type] as "success" | "error" | "default"}
                         size="small"
                       />
-                      <Typography fontWeight={700} color={TX_COLOR[t.type] === "success" ? "success.main" : TX_COLOR[t.type] === "error" ? "error.main" : "text.secondary"}>
+                      <Typography color={TX_COLOR[t.type] === "success" ? "success.main" : TX_COLOR[t.type] === "error" ? "error.main" : "text.secondary"} sx={{ fontWeight: 700 }}>
                         {t.type === "use" ? `-${t.quantity}` : `+${t.quantity}`}
                       </Typography>
                       {t.supplier_id && (
@@ -144,7 +144,7 @@ function HistoryDialog({ item, onClose }: { item: InventoryItem | null; onClose:
                     </Typography>
                   </Stack>
                   {t.note && (
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75, pl: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75, pl: 0.5 }}>
                       {t.note}
                     </Typography>
                   )}
@@ -297,9 +297,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" flexWrap="wrap" gap={2} sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>ダッシュボード</Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ ml: "auto" }}>
+      <Stack direction="row" sx={{ alignItems: "center", flexWrap: "wrap", gap: 2, mb: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>ダッシュボード</Typography>
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", ml: "auto" }}>
           <TextField
             select label="品目カテゴリ" size="small" sx={{ minWidth: 140, maxWidth: 200 }}
             value={filterCategory}
@@ -343,9 +343,9 @@ export default function Dashboard({ onNavigate: _onNavigate }: { onNavigate: (p:
                     <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
                       <Avatar src={item.photo ? imageUrl(item.photo) : undefined} variant="rounded" sx={{ width: 64, height: 64, flexShrink: 0 }} slotProps={{ img: { style: { objectFit: "contain" } } }}>📦</Avatar>
                       <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
-                        <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-                          <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>{item.name}</Typography>
-                          <Typography fontWeight={700} color={stockColor(status)} sx={{ flexShrink: 0 }}>
+                        <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
+                          <Typography noWrap sx={{ fontWeight: 600, flexGrow: 1, mr: 1 }}>{item.name}</Typography>
+                          <Typography color={stockColor(status)} sx={{ fontWeight: 700, flexShrink: 0 }}>
                             {item.quantity}
                           </Typography>
                         </Stack>

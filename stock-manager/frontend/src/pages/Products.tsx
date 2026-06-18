@@ -71,11 +71,11 @@ function SortableProductCard({ product: p, categoryLabel, lastPurchased, quantit
             📦
           </Avatar>
           <Box sx={{ minWidth: 0, flexGrow: 1, display: "flex", flexDirection: "column" }}>
-            <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-              <Typography fontWeight={600} noWrap sx={{ flexGrow: 1, mr: 1 }}>
+            <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
+              <Typography noWrap sx={{ fontWeight: 600, flexGrow: 1, mr: 1 }}>
                 {p.name}
               </Typography>
-              <Typography fontWeight={700} color={stockColor(status)} sx={{ flexShrink: 0, mr: 1 }}>
+              <Typography color={stockColor(status)} sx={{ fontWeight: 700, flexShrink: 0, mr: 1 }}>
                 {quantity}
               </Typography>
               <Box
@@ -195,8 +195,8 @@ export default function Products() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight={700}>品目マスタ</Typography>
+      <Stack direction="row" sx={{ alignItems: "center", mb: 3 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>品目マスタ</Typography>
         <Button size="small" startIcon={<DownloadIcon />} onClick={exportCsv} sx={{ ml: "auto" }}>CSV出力</Button>
       </Stack>
 
