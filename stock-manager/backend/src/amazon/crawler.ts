@@ -190,30 +190,6 @@ let _browser: PuppeteerBrowser | null = null;
 
 const CHROME_PROFILE_DIR = "/config/chrome-profile";
 
-// 起動前クリーンアップ: 純粋なHTTPキャッシュのみ削除。
-// LocalStorage・IndexedDB等のフィンガープリントデータは削除しない
-// （削除するとAmazonが別ブラウザと判定してCookieを無効化する恐れがある）。
-function cleanChromeCache(): void {
-  const { rmSync, existsSync } = require("fs") as typeof import("fs");
-  const { join } = require("path") as typeof import("path");
-  const targets = [
-    "Default/Cache",
-    "Default/Code Cache",
-    "Default/GPUCache",
-  ];
-  for (const rel of targets) {
-    const full = join(CHROME_PROFILE_DIR, rel);
-    if (existsSync(full)) {
-      try {
-        rmSync(full, { recursive: true, force: true });
-      } catch {
-        // 削除失敗は無視
-      }
-    }
-  }
-  log("info", "Chromeキャッシュを削除しました");
-}
-
 // SingletonLock等を解除する。削除できたファイルがあればtrueを返す。
 // Chrome起動失敗時にのみ呼び出す（通常はChromeが自身で管理する）。
 function releaseSingletonLock(): boolean {
@@ -238,6 +214,10 @@ function cleanChromeBloat(): void {
   const { rmSync, existsSync } = require("fs") as typeof import("fs");
   const { join } = require("path") as typeof import("path");
   const targets = [
+    // HTTPキャッシュ（次回起動時に再生成される）
+    "Default/Cache",
+    "Default/Code Cache",
+    "Default/GPUCache",
     // Chromeコンポーネント（バックアップを肥大化させる・次回起動時に再取得される）
     "component_crx_cache",       // ~58MB: コンポーネント更新キャッシュ
     "WasmTtsEngine",             // ~23MB: 音声読み上げエンジン
@@ -298,8 +278,6 @@ export async function getBrowser(): Promise<PuppeteerBrowser> {
       _browser = null;
     }
   }
-
-  cleanChromeCache();
 
   const executablePath = findChromium();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
