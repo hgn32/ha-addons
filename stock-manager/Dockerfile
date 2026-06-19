@@ -1,7 +1,7 @@
 # ---- Frontend build (Vite/React) ----
 FROM node:22-slim AS frontend
 WORKDIR /frontend
-RUN npm install -g npm@11.16.0
+RUN npm install -g npm@11.17.0
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
@@ -15,7 +15,7 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates build-essential python3 \
   && rm -rf /var/lib/apt/lists/*
-RUN npm install -g npm@11.16.0
+RUN npm install -g npm@11.17.0
 ENV DATABASE_URL=file:./build.db
 COPY backend/package*.json ./
 RUN npm install
@@ -28,7 +28,7 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates chromium fonts-noto-cjk \
   && rm -rf /var/lib/apt/lists/*
-RUN npm install -g npm@11.16.0
+RUN npm install -g npm@11.17.0
 ENV NODE_ENV=production
 ENV DATABASE_URL=file:/config/stock.db
 
