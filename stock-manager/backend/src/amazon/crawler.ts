@@ -190,21 +190,12 @@ let _browser: PuppeteerBrowser | null = null;
 
 const CHROME_PROFILE_DIR = "/config/chrome-profile";
 
-// 起動前クリーンアップ: 純粋なHTTPキャッシュとロックファイルのみ削除。
+// 起動前クリーンアップ: 純粋なHTTPキャッシュのみ削除。
 // LocalStorage・IndexedDB等のフィンガープリントデータは削除しない
 // （削除するとAmazonが別ブラウザと判定してCookieを無効化する恐れがある）。
 function cleanChromeCache(): void {
-  const { rmSync, unlinkSync, existsSync, lstatSync } = require("fs") as typeof import("fs");
+  const { rmSync, existsSync } = require("fs") as typeof import("fs");
   const { join } = require("path") as typeof import("path");
-
-  // Chromeがクラッシュした際に残るシングルトンロックを削除（次回起動をブロックするため）
-  for (const lock of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
-    const p = join(CHROME_PROFILE_DIR, lock);
-    try {
-      if (existsSync(p) || lstatSync(p)) unlinkSync(p);
-    } catch { /* 存在しない場合は無視 */ }
-  }
-
   const targets = [
     "Default/Cache",
     "Default/Code Cache",
@@ -221,6 +212,24 @@ function cleanChromeCache(): void {
     }
   }
   log("info", "Chromeキャッシュを削除しました");
+}
+
+// SingletonLock等を解除する。削除できたファイルがあればtrueを返す。
+// Chrome起動失敗時にのみ呼び出す（通常はChromeが自身で管理する）。
+function releaseSingletonLock(): boolean {
+  const { lstatSync, unlinkSync } = require("fs") as typeof import("fs");
+  const { join } = require("path") as typeof import("path");
+  let released = false;
+  for (const name of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
+    const p = join(CHROME_PROFILE_DIR, name);
+    try {
+      lstatSync(p); // シンボリックリンクも含めて存在確認（existsSyncはリンク切れを検出できない）
+      unlinkSync(p);
+      released = true;
+    } catch { /* 存在しない場合は無視 */ }
+  }
+  if (released) log("warn", "プロファイルロックを解除しました");
+  return released;
 }
 
 // セッション終了後クリーンアップ: Amazonスクレイピングに不要な大容量コンポーネントを削除。
@@ -273,6 +282,7 @@ export async function closeBrowserAndCleanup(): Promise<void> {
     try { await _browser.close(); } catch { /* 無視 */ }
     _browser = null;
   }
+  releaseSingletonLock(); // Chrome正常終了後の念押し（通常はChrome自身が削除する）
   cleanChromeBloat();
 }
 
@@ -294,7 +304,7 @@ export async function getBrowser(): Promise<PuppeteerBrowser> {
   const executablePath = findChromium();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { default: puppeteer } = await (Function('return import("puppeteer-core")')() as Promise<any>);
-  _browser = await puppeteer.launch({
+  const launchOptions = {
     executablePath,
     headless: true,
     userDataDir: CHROME_PROFILE_DIR,
@@ -317,7 +327,18 @@ export async function getBrowser(): Promise<PuppeteerBrowser> {
       "--disable-speech-api",
       "--disable-features=MediaRouter,Translate,OptimizationHints,AutofillServerCommunication,PrivacySandboxSettings4",
     ],
-  });
+  };
+
+  try {
+    _browser = await puppeteer.launch(launchOptions);
+  } catch (firstErr) {
+    // 前回のChromiumが正常終了せずSingletonLockが残っていた場合のみロックを解除してリトライ
+    if (!releaseSingletonLock()) throw firstErr;
+    _browser = await puppeteer.launch(launchOptions);
+    log("info", "Chromium起動完了 (プロファイルロック解除後リトライ)");
+    return _browser!;
+  }
+
   log("info", "Chromium起動完了 (プロファイル維持)");
   return _browser!;
 }
