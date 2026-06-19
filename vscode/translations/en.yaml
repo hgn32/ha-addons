@@ -1,0 +1,13 @@
+configuration:
+  log_level:
+    name: Log Level
+    description: Logging verbosity level.
+  config_path:
+    name: Config Path
+    description: Path to use as workspace root in VS Code. Defaults to /config.
+  packages:
+    name: Packages
+    description: Additional apt packages to install on startup.
+  init_commands:
+    name: Init Commands
+    description: Shell commands to run on startup.

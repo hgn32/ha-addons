@@ -1,0 +1,73 @@
+{
+  "name": "Studio Code Server",
+  "description": "ブラウザからアクセスできる Visual Studio Code (VSCode) 環境を Home Assistant フロントエンドに統合します。",
+  "version": "6.0.1",
+  "slug": "vscode",
+  "url": "https://github.com/hassio-addons/addon-vscode",
+  "init": false,
+  "arch": [
+    "aarch64",
+    "amd64"
+  ],
+  "startup": "services",
+  "boot": "auto",
+  "ingress": true,
+  "ingress_port": 1337,
+  "ingress_stream": true,
+  "panel_icon": "mdi:microsoft-visual-studio-code",
+  "panel_title": "VS Code",
+  "uart": true,
+  "hassio_api": true,
+  "hassio_role": "manager",
+  "homeassistant_api": true,
+  "map": [
+    {
+      "type": "addons",
+      "read_only": false
+    },
+    {
+      "type": "all_addon_configs",
+      "read_only": false
+    },
+    {
+      "type": "backup",
+      "read_only": false
+    },
+    {
+      "type": "homeassistant_config",
+      "read_only": false,
+      "path": "/config"
+    },
+    {
+      "type": "media",
+      "read_only": false
+    },
+    {
+      "type": "share",
+      "read_only": false
+    },
+    {
+      "type": "ssl",
+      "read_only": false
+    }
+  ],
+  "services": [
+    "mysql:want",
+    "mqtt:want"
+  ],
+  "options": {
+    "packages": [],
+    "init_commands": []
+  },
+  "schema": {
+    "log_level": "list(trace|debug|info|notice|warning|error|fatal)?",
+    "config_path": "str?",
+    "packages": [
+      "str"
+    ],
+    "init_commands": [
+      "str"
+    ]
+  },
+  "image": "ghcr.io/hgn32/vscode"
+}
