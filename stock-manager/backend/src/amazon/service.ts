@@ -4,7 +4,7 @@ import path from "path";
 import { prisma } from "../db";
 import { IMAGES_DIR, newId } from "../paths";
 import { getCookie, getCurlHeaders, getSetting, setSetting } from "./config";
-import { crawlOrders, enrichItems, CrawledItem } from "./crawler";
+import { crawlOrders, enrichItems, CrawledItem, closeBrowserAndCleanup } from "./crawler";
 import { log } from "./logger";
 
 const LAST_SYNC_KEY = "amazon_last_sync"; // 差分取得カーソル（取得済み注文の最新購入日）
@@ -88,6 +88,8 @@ export async function runAmazonCrawl(full = false): Promise<CrawlSummary> {
     return await runAmazonCrawlInner(full);
   } finally {
     crawlRunning = false;
+    // セッション終了後にブラウザを閉じて不要コンポーネントを削除（バックアップ軽量化）
+    await closeBrowserAndCleanup().catch((e) => log("warn", `クリーンアップ失敗: ${(e as Error).message}`));
   }
 }
 
@@ -306,6 +308,7 @@ export async function retryEnrichFailed(): Promise<{ total: number; success: num
     return await retryEnrichFailedInner();
   } finally {
     crawlRunning = false;
+    await closeBrowserAndCleanup().catch((e) => log("warn", `クリーンアップ失敗: ${(e as Error).message}`));
   }
 }
 

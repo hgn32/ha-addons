@@ -190,39 +190,25 @@ let _browser: PuppeteerBrowser | null = null;
 
 const CHROME_PROFILE_DIR = "/config/chrome-profile";
 
-// フィンガープリントに不要なキャッシュ系ディレクトリを起動前に削除
+// 起動前クリーンアップ: 純粋なHTTPキャッシュとロックファイルのみ削除。
+// LocalStorage・IndexedDB等のフィンガープリントデータは削除しない
+// （削除するとAmazonが別ブラウザと判定してCookieを無効化する恐れがある）。
 function cleanChromeCache(): void {
-  const { rmSync, existsSync } = require("fs") as typeof import("fs");
+  const { rmSync, unlinkSync, existsSync, lstatSync } = require("fs") as typeof import("fs");
   const { join } = require("path") as typeof import("path");
+
+  // Chromeがクラッシュした際に残るシングルトンロックを削除（次回起動をブロックするため）
+  for (const lock of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
+    const p = join(CHROME_PROFILE_DIR, lock);
+    try {
+      if (existsSync(p) || lstatSync(p)) unlinkSync(p);
+    } catch { /* 存在しない場合は無視 */ }
+  }
+
   const targets = [
-    // セッションキャッシュ
     "Default/Cache",
     "Default/Code Cache",
     "Default/GPUCache",
-    "Default/Service Worker",
-    "Default/CacheStorage",
-    "Default/Local Storage",
-    "Default/IndexedDB",
-    "Default/Session Storage",
-    "ShaderCache",
-    "GrShaderCache",
-    "GraphiteDawnCache",
-    // Chromeコンポーネント（Amazonスクレイピングに不要・バックアップを肥大化させる）
-    "component_crx_cache",  // ~58MB: コンポーネント更新キャッシュ
-    "WasmTtsEngine",        // ~23MB: 音声読み上げエンジン
-    "WidevineCdm",          // ~21MB: 動画DRMモジュール
-    "OnDeviceHeadSuggestModel", // ~8MB: 住所補完MLモデル
-    "ZxcvbnData",           // ~2MB: パスワード強度チェッカー
-    "hyphen-data",          // ~2MB: テキストハイフネーション
-    "Subresource Filter",   // ~400KB: 広告フィルタ
-    "segmentation_platform", // ~230KB: ユーザーセグメント分析
-    "SafetyTips",
-    "CaptchaProviders",
-    "MEIPreload",
-    "PrivacySandboxAttestationsPreloaded",
-    "FirstPartySetsPreloaded",
-    "TrustTokenKeyCommitments",
-    "AmountExtractionHeuristicRegexes",
   ];
   for (const rel of targets) {
     const full = join(CHROME_PROFILE_DIR, rel);
@@ -235,6 +221,59 @@ function cleanChromeCache(): void {
     }
   }
   log("info", "Chromeキャッシュを削除しました");
+}
+
+// セッション終了後クリーンアップ: Amazonスクレイピングに不要な大容量コンポーネントを削除。
+// Cookie・LocalStorage・IndexedDBは保持（セッション継続・フィンガープリント維持のため）。
+function cleanChromeBloat(): void {
+  const { rmSync, existsSync } = require("fs") as typeof import("fs");
+  const { join } = require("path") as typeof import("path");
+  const targets = [
+    // Chromeコンポーネント（バックアップを肥大化させる・次回起動時に再取得される）
+    "component_crx_cache",       // ~58MB: コンポーネント更新キャッシュ
+    "WasmTtsEngine",             // ~23MB: 音声読み上げエンジン
+    "WidevineCdm",               // ~21MB: 動画DRMモジュール
+    "OnDeviceHeadSuggestModel",  // ~8MB:  住所補完MLモデル
+    "ZxcvbnData",                // ~2MB:  パスワード強度チェッカー
+    "hyphen-data",               // ~2MB:  テキストハイフネーション
+    "Subresource Filter",
+    "segmentation_platform",
+    "SafetyTips",
+    "CaptchaProviders",
+    "MEIPreload",
+    "PrivacySandboxAttestationsPreloaded",
+    "FirstPartySetsPreloaded",
+    "TrustTokenKeyCommitments",
+    "AmountExtractionHeuristicRegexes",
+    // GPUシェーダーキャッシュ（次回起動時に再生成される）
+    "ShaderCache",
+    "GrShaderCache",
+    "GraphiteDawnCache",
+    // サービスワーカーキャッシュ（Cookieとは独立・次回訪問時に再登録される）
+    "Default/CacheStorage",
+    "Default/Service Worker",
+  ];
+  for (const rel of targets) {
+    const full = join(CHROME_PROFILE_DIR, rel);
+    if (existsSync(full)) {
+      try {
+        rmSync(full, { recursive: true, force: true });
+      } catch {
+        // 削除失敗は無視
+      }
+    }
+  }
+  log("info", "Chromeプロファイルの不要コンポーネントを削除しました");
+}
+
+// クロールセッション終了後にブラウザを閉じ、大容量ファイルを削除する。
+// 次回起動時はCookie・LocalStorage等が保持されているため認証状態が維持される。
+export async function closeBrowserAndCleanup(): Promise<void> {
+  if (_browser) {
+    try { await _browser.close(); } catch { /* 無視 */ }
+    _browser = null;
+  }
+  cleanChromeBloat();
 }
 
 export async function getBrowser(): Promise<PuppeteerBrowser> {
