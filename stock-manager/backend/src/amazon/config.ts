@@ -26,12 +26,10 @@ export async function setSetting(key: string, value: string): Promise<void> {
   });
 }
 
-// Cookie precedence: env var > HA addon option > value saved via UI (DB).
+// Cookie precedence: env var > value saved via UI (DB).
 export async function getCookie(): Promise<string> {
   const env = process.env.AMAZON_COOKIE?.trim();
   if (env) return env;
-  const opt = String(readHaOptions().amazon_cookie ?? "").trim();
-  if (opt) return opt;
   return (await getSetting("amazon_cookie")).trim();
 }
 
