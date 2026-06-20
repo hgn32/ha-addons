@@ -43,6 +43,7 @@ if [ "$FORCE_PUSH" = "true" ]; then
     req.end();
   "
 else
+  echo "[schema] スキーマを更新します"
   if ! npx prisma db push 2>&1; then
     echo "" >&2
     echo "================================================================" >&2
