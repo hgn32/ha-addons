@@ -5,9 +5,6 @@ set -e
 # (host path /addon_configs/<slug>, included in backups).
 mkdir -p /config/images
 
-# データマイグレーション（未適用のもののみ実行）
-node migrate.js
-
 # force_schema_push 設定を確認
 FORCE_PUSH=$(node -e "
 try {
@@ -38,7 +35,8 @@ if [ "$FORCE_PUSH" = "true" ]; then
         'Content-Length': Buffer.byteLength(body)
       }
     }, res => {
-      console.log('[schema] force_schema_push をOFFに設定しました');
+      res.resume();
+      res.on('end', () => console.log('[schema] force_schema_push をOFFに設定しました'));
     });
     req.on('error', e => console.error('[schema] オプション更新失敗:', e.message));
     req.write(body);

@@ -2,9 +2,9 @@ configuration:
   amazon_cron:
     name: Amazon 取込スケジュール
     description: Amazon 購入履歴の自動取込スケジュール（cron 形式・UTC）。
-  amazon_cookie:
-    name: Amazon Cookie
-    description: Amazon ログインセッションの Cookie 文字列（購入履歴取込に使用）。
-  notify_service:
-    name: 通知サービス
-    description: 通知に使用する Home Assistant サービス（例: persistent_notification）。
+  notify_enabled:
+    name: 通知を有効にする
+    description: Amazon 取込完了時に Home Assistant へ通知を送るかどうか。
+  force_schema_push:
+    name: スキーマ強制反映
+    description: 起動時にデータベースのスキーマ変更を強制的に適用する。通常は無効のままにしてください。

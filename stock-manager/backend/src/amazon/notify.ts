@@ -1,5 +1,5 @@
 import { log } from "./logger";
-import { getNotifyService } from "./config";
+import { isNotifyEnabled } from "./config";
 
 export interface NotifyResult {
   ok: boolean;
@@ -15,13 +15,17 @@ export interface NotifyResult {
 // homeassistant_api: true が必要（無いと 401 Unauthorized になる）。
 // 戻り値で成否を返すので、通知テストボタン等から結果を表示できる。
 export async function notifyHA(title: string, message: string): Promise<NotifyResult> {
+  if (!isNotifyEnabled()) {
+    return { ok: true, skipped: true, detail: "通知が無効です" };
+  }
+
   const token = process.env.SUPERVISOR_TOKEN;
   if (!token) {
     log("warn", "SUPERVISOR_TOKEN未設定 — HA通知をスキップ");
     return { ok: false, skipped: true, detail: "SUPERVISOR_TOKENが未設定です（Home Assistant外で実行中の可能性があります）" };
   }
 
-  const service = getNotifyService();
+  const service = "persistent_notification";
   const baseUrl = process.env.SUPERVISOR_API || "http://supervisor/core";
   const url = `${baseUrl}/api/services/notify/${service}`;
 

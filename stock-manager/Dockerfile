@@ -40,7 +40,6 @@ COPY --from=backend /app/prisma.config.ts ./prisma.config.ts
 COPY --from=backend /app/package.json ./package.json
 COPY --from=frontend /frontend/dist ./public
 COPY backend/start.sh ./start.sh
-COPY backend/migrate.js ./migrate.js
 RUN chmod +x start.sh
 
 EXPOSE 8099

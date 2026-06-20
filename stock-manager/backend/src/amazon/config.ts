@@ -26,12 +26,10 @@ export async function setSetting(key: string, value: string): Promise<void> {
   });
 }
 
-// Cookie precedence: env var > HA addon option > value saved via UI (DB).
+// Cookie precedence: env var > value saved via UI (DB).
 export async function getCookie(): Promise<string> {
   const env = process.env.AMAZON_COOKIE?.trim();
   if (env) return env;
-  const opt = String(readHaOptions().amazon_cookie ?? "").trim();
-  if (opt) return opt;
   return (await getSetting("amazon_cookie")).trim();
 }
 
@@ -54,12 +52,8 @@ export function getCronSchedule(): string {
   );
 }
 
-// 通知先サービス名。優先順位: 環境変数 > HAアドオンオプション > persistent_notification。
-// notify.<service> として呼ばれる（例: persistent_notification, mobile_app_xxx）。
-export function getNotifyService(): string {
-  return (
-    process.env.NOTIFY_SERVICE?.trim() ||
-    String(readHaOptions().notify_service ?? "").trim() ||
-    "persistent_notification"
-  );
+export function isNotifyEnabled(): boolean {
+  if (process.env.NOTIFY_ENABLED !== undefined) return process.env.NOTIFY_ENABLED !== "false";
+  const opt = readHaOptions().notify_enabled;
+  return opt !== false;
 }
