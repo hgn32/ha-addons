@@ -25,7 +25,18 @@ async function recordTx(
 
 // Inventory list = products with their quantity column.
 router.get("/inventory", async (_req, res) => {
-  res.json(await prisma.product.findMany({ orderBy: { created_at: "asc" } }));
+  const [products, locations] = await Promise.all([
+    prisma.product.findMany(),
+    prisma.location.findMany(),
+  ]);
+  const locationName = new Map(locations.map((l) => [l.id, l.name]));
+  products.sort((a, b) => {
+    const locA = locationName.get(a.location_id ?? "") ?? "";
+    const locB = locationName.get(b.location_id ?? "") ?? "";
+    if (locA !== locB) return locA.localeCompare(locB, "ja");
+    return a.name.localeCompare(b.name, "ja");
+  });
+  res.json(products);
 });
 
 router.post("/inventory/add", async (req, res) => {

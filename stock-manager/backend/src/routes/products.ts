@@ -74,7 +74,7 @@ router.get("/products/by-barcode/:code", async (req, res) => {
 router.get("/products/:id/barcodes", async (req, res) => {
   const rows = await prisma.productBarcode.findMany({
     where: { product_id: req.params.id as string },
-    orderBy: { created_at: "asc" },
+    orderBy: { code: "asc" },
   });
   res.json(rows);
 });
