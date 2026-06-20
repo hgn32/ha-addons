@@ -37,7 +37,18 @@ function removePhoto(filename: string): void {
 }
 
 router.get("/products", async (_req, res) => {
-  res.json(await prisma.product.findMany({ orderBy: [{ sort_order: "asc" }, { created_at: "asc" }] }));
+  const [products, locations] = await Promise.all([
+    prisma.product.findMany(),
+    prisma.location.findMany(),
+  ]);
+  const locationName = new Map(locations.map((l) => [l.id, l.name]));
+  products.sort((a, b) => {
+    const locA = locationName.get(a.location_id) ?? "";
+    const locB = locationName.get(b.location_id) ?? "";
+    if (locA !== locB) return locA.localeCompare(locB, "ja");
+    return a.name.localeCompare(b.name, "ja");
+  });
+  res.json(products);
 });
 
 // JANコード(JANコード)で品目を検索。棚卸画面のスキャンから利用する。
