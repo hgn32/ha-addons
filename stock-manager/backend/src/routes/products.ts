@@ -43,8 +43,8 @@ router.get("/products", async (_req, res) => {
   ]);
   const locationName = new Map(locations.map((l) => [l.id, l.name]));
   products.sort((a, b) => {
-    const locA = locationName.get(a.location_id) ?? "";
-    const locB = locationName.get(b.location_id) ?? "";
+    const locA = locationName.get(a.location_id ?? "") ?? "";
+    const locB = locationName.get(b.location_id ?? "") ?? "";
     if (locA !== locB) return locA.localeCompare(locB, "ja");
     return a.name.localeCompare(b.name, "ja");
   });
@@ -145,14 +145,18 @@ router.put("/products/reorder", async (req, res) => {
   res.status(204).end();
 });
 
-function coerce(field: string, value: string): string | number {
+const NULLABLE_FK = new Set(["category_id", "location_id"]);
+
+function coerce(field: string, value: string): string | number | null {
   if (field === "piece_count") return Math.max(1, parseInt(value, 10) || 1);
   // 警告しきい値: 0以上の整数。未入力/不正値は既定の1にフォールバックする。
   if (field === "warn_quantity") {
     const n = parseInt(value, 10);
     return Number.isNaN(n) ? 1 : Math.max(0, n);
   }
-  return String(value ?? "").trim();
+  const s = String(value ?? "").trim();
+  if (NULLABLE_FK.has(field) && s === "") return null;
+  return s;
 }
 
 router.post("/products", upload.single("photo"), async (req, res) => {

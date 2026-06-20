@@ -17,7 +17,7 @@ async function recordTx(
       product_id,
       quantity,
       unit_price: extras.unit_price ?? 0,
-      supplier_id: extras.supplier_id ?? "",
+      supplier_id: extras.supplier_id || null,
       note: extras.note ?? "",
     },
   });
