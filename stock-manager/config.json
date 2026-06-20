@@ -25,12 +25,12 @@
   ],
   "options": {
     "amazon_cron": "0 18 * * *",
-    "notify_service": "persistent_notification",
+    "notify_enabled": true,
     "force_schema_push": false
   },
   "schema": {
     "amazon_cron": "str",
-    "notify_service": "str?",
+    "notify_enabled": "bool?",
     "force_schema_push": "bool?"
   }
 }

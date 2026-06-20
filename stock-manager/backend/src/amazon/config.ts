@@ -52,12 +52,8 @@ export function getCronSchedule(): string {
   );
 }
 
-// 通知先サービス名。優先順位: 環境変数 > HAアドオンオプション > persistent_notification。
-// notify.<service> として呼ばれる（例: persistent_notification, mobile_app_xxx）。
-export function getNotifyService(): string {
-  return (
-    process.env.NOTIFY_SERVICE?.trim() ||
-    String(readHaOptions().notify_service ?? "").trim() ||
-    "persistent_notification"
-  );
+export function isNotifyEnabled(): boolean {
+  if (process.env.NOTIFY_ENABLED !== undefined) return process.env.NOTIFY_ENABLED !== "false";
+  const opt = readHaOptions().notify_enabled;
+  return opt !== false;
 }
