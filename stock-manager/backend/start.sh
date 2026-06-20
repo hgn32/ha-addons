@@ -35,7 +35,8 @@ if [ "$FORCE_PUSH" = "true" ]; then
         'Content-Length': Buffer.byteLength(body)
       }
     }, res => {
-      console.log('[schema] force_schema_push をOFFに設定しました');
+      res.resume();
+      res.on('end', () => console.log('[schema] force_schema_push をOFFに設定しました'));
     });
     req.on('error', e => console.error('[schema] オプション更新失敗:', e.message));
     req.write(body);
