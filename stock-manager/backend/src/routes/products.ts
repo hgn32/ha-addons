@@ -37,7 +37,18 @@ function removePhoto(filename: string): void {
 }
 
 router.get("/products", async (_req, res) => {
-  res.json(await prisma.product.findMany({ orderBy: [{ sort_order: "asc" }, { created_at: "asc" }] }));
+  const [products, locations] = await Promise.all([
+    prisma.product.findMany(),
+    prisma.location.findMany(),
+  ]);
+  const locationName = new Map(locations.map((l) => [l.id, l.name]));
+  products.sort((a, b) => {
+    const locA = locationName.get(a.location_id ?? "") ?? "";
+    const locB = locationName.get(b.location_id ?? "") ?? "";
+    if (locA !== locB) return locA.localeCompare(locB, "ja");
+    return a.name.localeCompare(b.name, "ja");
+  });
+  res.json(products);
 });
 
 // JANコード(JANコード)で品目を検索。棚卸画面のスキャンから利用する。
@@ -63,7 +74,7 @@ router.get("/products/by-barcode/:code", async (req, res) => {
 router.get("/products/:id/barcodes", async (req, res) => {
   const rows = await prisma.productBarcode.findMany({
     where: { product_id: req.params.id as string },
-    orderBy: { created_at: "asc" },
+    orderBy: { code: "asc" },
   });
   res.json(rows);
 });
@@ -134,14 +145,18 @@ router.put("/products/reorder", async (req, res) => {
   res.status(204).end();
 });
 
-function coerce(field: string, value: string): string | number {
+const NULLABLE_FK = new Set(["category_id", "location_id"]);
+
+function coerce(field: string, value: string): string | number | null {
   if (field === "piece_count") return Math.max(1, parseInt(value, 10) || 1);
   // 警告しきい値: 0以上の整数。未入力/不正値は既定の1にフォールバックする。
   if (field === "warn_quantity") {
     const n = parseInt(value, 10);
     return Number.isNaN(n) ? 1 : Math.max(0, n);
   }
-  return String(value ?? "").trim();
+  const s = String(value ?? "").trim();
+  if (NULLABLE_FK.has(field) && s === "") return null;
+  return s;
 }
 
 router.post("/products", upload.single("photo"), async (req, res) => {

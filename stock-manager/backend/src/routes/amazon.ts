@@ -172,7 +172,7 @@ router.post("/amazon/queue/:id/manage", async (req, res) => {
 router.get("/products/:id/asins", async (req, res) => {
   const asins = await prisma.productAsin.findMany({
     where: { product_id: req.params.id as string },
-    orderBy: { created_at: "asc" },
+    orderBy: { asin: "asc" },
   });
   res.json(asins);
 });

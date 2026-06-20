@@ -13,7 +13,7 @@ function crudRouter(path: string, delegate: Delegate, fields: string[]): Router 
   const r = Router();
 
   r.get(`/${path}`, async (_req, res) => {
-    res.json(await delegate.findMany({ orderBy: [{ sort_order: "asc" }, { created_at: "asc" }] }));
+    res.json(await delegate.findMany({ orderBy: [{ sort_order: "asc" }, { name: "asc" }] }));
   });
 
   r.post(`/${path}`, async (req, res) => {
