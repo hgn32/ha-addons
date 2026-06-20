@@ -5,9 +5,6 @@ set -e
 # (host path /addon_configs/<slug>, included in backups).
 mkdir -p /config/images
 
-# データマイグレーション（未適用のもののみ実行）
-node migrate.js
-
 # force_schema_push 設定を確認
 FORCE_PUSH=$(node -e "
 try {
