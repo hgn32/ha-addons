@@ -8,3 +8,6 @@ configuration:
   notify_service:
     name: Notification Service
     description: Home Assistant service to use for notifications (e.g. persistent_notification).
+  force_schema_push:
+    name: Force Schema Push
+    description: Force apply database schema changes on startup. Leave disabled under normal use.

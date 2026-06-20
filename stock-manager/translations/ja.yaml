@@ -8,3 +8,6 @@ configuration:
   notify_service:
     name: 通知サービス
     description: 通知に使用する Home Assistant サービス（例: persistent_notification）。
+  force_schema_push:
+    name: スキーマ強制反映
+    description: 起動時にデータベースのスキーマ変更を強制的に適用する。通常は無効のままにしてください。
