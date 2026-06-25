@@ -51,10 +51,7 @@
       "read_only": false
     }
   ],
-  "services": [
-    "mysql:want",
-    "mqtt:want"
-  ],
+  "backup_pre": "/usr/local/bin/vscode-backup-pre.sh",
   "options": {
     "packages": [],
     "init_commands": []
