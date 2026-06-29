@@ -103,7 +103,7 @@ export default function Transactions() {
                     <TableCell>{productName(tx.product_id)}</TableCell>
                     <TableCell align="right">
                       <Typography color={tx.type === "use" ? "error.main" : "success.main"} sx={{ fontWeight: 600, fontSize: 13 }}>
-                        {tx.type === "use" ? `-${tx.quantity}` : `+${tx.quantity}`}
+                        {tx.type === "use" ? `-${Math.abs(tx.quantity)}` : `+${Math.abs(tx.quantity)}`}
                       </Typography>
                     </TableCell>
                     <TableCell sx={{ color: "text.secondary", fontSize: 13, display: { xs: "none", sm: "table-cell" } }}>
