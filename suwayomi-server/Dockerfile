@@ -1,5 +1,5 @@
 # https://github.com/Suwayomi/Suwayomi-Server-docker/pkgs/container/suwayomi-server
-FROM ghcr.io/suwayomi/suwayomi-server:stable
+FROM ghcr.io/suwayomi/suwayomi-server:v2.3.2223
 
 USER root
 
