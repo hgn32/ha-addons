@@ -9,11 +9,14 @@
 // ページ全体のリロードやタイマーによるポーリングは行わない。
 
 const http = require('http');
+const fs = require('fs');
 const { spawn, execFileSync } = require('child_process');
 
 const PORT = 8099;
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const HEARTBEAT_MS = 25 * 1000;
+const RUN_LOG_PATH = '/data/session_opener.log';
+const RUN_LOG_MAX_BYTES = 50 * 1024;
 
 const state = {
   proc: null,
@@ -30,6 +33,21 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+}
+
+function readRunLogTail() {
+  try {
+    const stat = fs.statSync(RUN_LOG_PATH);
+    const start = Math.max(0, stat.size - RUN_LOG_MAX_BYTES);
+    const fd = fs.openSync(RUN_LOG_PATH, 'r');
+    const length = stat.size - start;
+    const buf = Buffer.alloc(length);
+    fs.readSync(fd, buf, 0, length, start);
+    fs.closeSync(fd);
+    return (start > 0 ? '…（省略）…\n' : '') + buf.toString('utf8');
+  } catch (e) {
+    return null;
+  }
 }
 
 function getAuthStatus() {
@@ -176,7 +194,7 @@ const SHELL_HTML = `<!DOCTYPE html>
 <body>
 <h1>Claude Session Opener - サブスクリプションログイン</h1>
 <div id="app"><p>読み込み中…</p></div>
-<p><small>詳細はアドオンの README を参照してください。</small></p>
+<p><small><a href="log">実行ログを見る</a> ／ 詳細はアドオンの README を参照してください。</small></p>
 <script>
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -261,6 +279,23 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && path === '/') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(SHELL_HTML);
+    return;
+  }
+
+  if (req.method === 'GET' && path === '/log') {
+    const tail = readRunLogTail();
+    const body = tail === null
+      ? '<p>まだ実行履歴がありません。</p>'
+      : `<pre style="white-space:pre-wrap;word-break:break-all;background:#fff;border:1px solid #E8956B;border-radius:8px;padding:0.8rem;font-size:0.85rem;">${escapeHtml(tail)}</pre>`;
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<title>Claude Session Opener - 実行ログ</title>
+<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#2b1a12;}</style>
+</head><body>
+<h1>実行ログ</h1>
+<p><a href=".">← 戻る</a></p>
+${body}
+</body></html>`);
     return;
   }
 

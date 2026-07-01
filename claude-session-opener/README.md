@@ -50,12 +50,12 @@ claude auth login --claudeai
 schedule_time: "07:00"
 ```
 
-## データ・ログのパス
+## ログの確認
 
-| 種類 | パス |
-|---|---|
-| 認証情報 | `/data/claude-credentials/`（コンテナ再起動後も維持） |
-| 実行ログ | `/data/session_opener.log` および HA のアドオンログ |
-| ログイン画面 | サイドバーの **「Claude Login」** パネル（Ingress 経由） |
+毎日の実行結果は以下の2箇所で確認できます。
 
-ログには API キーや認証トークンは一切出力しません。
+- HA の **設定 → アドオン → Claude Session Opener → ログ** タブ（直近の実行のみ）
+- サイドバーの **「Claude Login」** パネル内の **「実行ログを見る」** リンク（過去の実行履歴）
+
+認証情報は `/data/claude-credentials/` に保存され、コンテナを再起動しても
+維持されます。ログには API キーや認証トークンは一切出力しません。
