@@ -30,8 +30,6 @@ RUN_MINUTE=${RUN_MINUTE:-0}
 bashio::log.info "Claude Session Opener 起動"
 bashio::log.info "現在時刻: $(date '+%Y-%m-%d %H:%M') (${TZ})"
 bashio::log.info "実行時刻: ${SCHEDULE_TIME} (${TZ})"
-bashio::log.warning "この Add-on が実際に Claude Pro/Max の5時間セッションを起点にできるかは未検証です。"
-bashio::log.warning "Claude Code 内で /usage を確認し、効果があるか必ず検証してください。"
 
 if [ ! -f "${CRED_DIR}/.credentials.json" ]; then
     bashio::log.warning "認証情報が見つかりません。このアドオンのサイドバーパネル（Ingress）を開き、"
