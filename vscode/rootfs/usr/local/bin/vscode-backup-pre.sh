@@ -29,4 +29,5 @@ if [ -f /data/.zsh_history ]; then
     bashio::log.info "Cleared: /data/.zsh_history"
 fi
 
-bashio::log.info "Pre-backup cleanup done."
+data_size=$(du -sh /data 2>/dev/null | cut -f1)
+bashio::log.info "Pre-backup cleanup done. /data size: ${data_size}"
