@@ -32,6 +32,8 @@ RUN \
         mosquitto-clients \
         net-tools \
         nmap \
+        nodejs \
+        npm \
         openssh-client \
         openssl \
         python3-dev \
@@ -83,7 +85,14 @@ RUN \
     \
     && curl -L -s -o /usr/bin/ha \
         "https://github.com/home-assistant/cli/releases/download/${HA_CLI_VERSION}/ha_${BUILD_ARCH}" \
-    && chmod a+x /usr/bin/ha \
+    && chmod a+x /usr/bin/ha && \
+    # Anthropic.claude-code 拡張が同梱するネイティブバイナリは musl 向けビルドで、
+    # この Debian(glibc)ベースの環境では起動できない
+    # ("musl dynamic loader (/lib/ld-musl-*) is missing" エラー)。
+    # 代わりに npm でこのシステム向けの claude CLI を導入し、
+    # settings.json の claudeCode.claudeProcessWrapper でそちらを使わせる。
+    npm install -g --prefix /usr/local @anthropic-ai/claude-code \
+    && npm cache clean --force \
     \
     && git clone --branch master --single-branch --depth 1 \
         "https://github.com/robbyrussell/oh-my-zsh.git" ~/.oh-my-zsh \

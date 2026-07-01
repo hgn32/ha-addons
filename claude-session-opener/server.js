@@ -37,6 +37,14 @@ const lastFiredMinute = new Map();
 
 const clients = new Set();
 
+// console.log は HA の「ログ」タブにそのまま流れるが、
+// run.sh 側の bashio::log と違って時刻が付かないため、自前で付与する。
+function ts() {
+  return new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+}
+function log(msg) { console.log(`[${ts()}] ${msg}`); }
+function logError(msg) { console.error(`[${ts()}] ${msg}`); }
+
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -101,7 +109,7 @@ function runPing(account) {
   const proc = spawn(
     'claude',
     ['-p', 'ok', '--model', 'haiku', '--output-format', 'json', '--no-session-persistence'],
-    { env: { ...process.env, CLAUDE_CONFIG_DIR: dir } },
+    { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, CLAUDE_CONFIG_DIR: dir } },
   );
 
   let stdout = '';
@@ -110,7 +118,7 @@ function runPing(account) {
   proc.stderr.on('data', (c) => { stderr += c; });
 
   proc.on('close', (code) => {
-    if (stderr) console.error(`[${account.name}] stderr: ${stderr}`);
+    if (stderr) logError(`[${account.name}] stderr: ${stderr}`);
 
     let summary;
     if (code !== 0) {
@@ -125,7 +133,7 @@ function runPing(account) {
         summary = `応答の解析に失敗しました: ${stdout.slice(0, 300)}`;
       }
     }
-    console.log(`[${account.name}] セッションオープナー実行結果: ${summary}`);
+    log(`[${account.name}] セッションオープナー実行結果: ${summary}`);
   });
 }
 
@@ -141,7 +149,7 @@ function schedulerTick() {
     if (account.scheduleTime !== currentTime) continue;
     if (lastFiredMinute.get(account.slug) === minuteKey) continue;
     lastFiredMinute.set(account.slug, minuteKey);
-    console.log(`[${account.name}] セッションオープナーを実行します...`);
+    log(`[${account.name}] セッションオープナーを実行します...`);
     runPing(account);
   }
 }
@@ -248,7 +256,7 @@ function computeViewState() {
       }
       const auth = getAuthStatus(account.slug);
       if (auth && auth.loggedIn) {
-        return { ...base, mode: 'logged_in', authMethod: auth.authMethod || '不明', justSucceeded: st.status === 'success' };
+        return { ...base, mode: 'logged_in', authMethod: auth.authMethod || '不明' };
       }
       return { ...base, mode: 'logged_out', error: st.status === 'error' ? st.message : '' };
     }),
@@ -310,11 +318,8 @@ function renderAccount(s) {
   var header = '<h2>' + esc(s.name) + '（毎日 ' + esc(s.scheduleTime) + ' UTC）</h2>';
 
   if (s.mode === 'logged_in') {
-    var tip = s.justSucceeded
-      ? '<p class="ok">Claude Code 内で <code>/usage</code> を実行し、5時間セッションが起点になっているか確認してください。</p>'
-      : '';
     return header +
-      '<div class="card"><p class="ok">✅ ログイン済みです（認証方式: ' + esc(s.authMethod) + '）</p>' + tip +
+      '<div class="card"><p class="ok">✅ ログイン済みです（認証方式: ' + esc(s.authMethod) + '）</p>' +
       '<p>別のアカウントで再ログインする場合は以下から開始してください。</p>' +
       '<button data-action="start" data-slug="' + esc(s.slug) + '">再ログインを開始</button></div>';
   }
@@ -435,11 +440,11 @@ setInterval(() => {
 setInterval(schedulerTick, SCHEDULER_TICK_MS);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Claude Session Opener listening on :${PORT}`);
+  log(`Claude Session Opener listening on :${PORT}`);
   const accounts = loadAccounts();
   if (accounts.length === 0) {
-    console.log('警告: accounts が設定されていません。アドオンの設定タブで追加してください。');
+    log('警告: accounts が設定されていません。アドオンの設定タブで追加してください。');
   } else {
-    for (const a of accounts) console.log(`アカウント "${a.name}": 毎日 ${a.scheduleTime} (UTC) に実行`);
+    for (const a of accounts) log(`アカウント "${a.name}": 毎日 ${a.scheduleTime} (UTC) に実行`);
   }
 });
