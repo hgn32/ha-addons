@@ -22,4 +22,9 @@ for dir in \
     fi
 done
 
+if [ -f /data/.zsh_history ]; then
+    rm -f /data/.zsh_history
+    bashio::log.info "Cleared: /data/.zsh_history"
+fi
+
 bashio::log.info "Pre-backup cleanup done."
