@@ -28,7 +28,11 @@
     "**/OZW_Log.txt": true,
     "**/pyozw.sqlite": true,
     "**/tts/**": true,
-    "**/www/**": true
+    "**/www/**": true,
+    "**/tmp/**": true,
+    "**/*.bak": true,
+    "**/*.orig": true,
+    "**/.idea/**": true
   },
   "search.exclude": {
     ".Trash-0/**": true,
@@ -57,7 +61,11 @@
     "**/OZW_Log.txt": true,
     "**/pyozw.sqlite": true,
     "**/tts/**": true,
-    "**/www/**": true
+    "**/www/**": true,
+    "**/tmp/**": true,
+    "**/*.bak": true,
+    "**/*.orig": true,
+    "**/.idea/**": true
   },
   "files.exclude": {
     ".Trash-0/**": true,
