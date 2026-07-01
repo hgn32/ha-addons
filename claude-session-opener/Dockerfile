@@ -5,12 +5,13 @@ ARG BUILD_ARCH=amd64
 ARG BUILD_FROM=ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
 FROM ${BUILD_FROM}
 
-RUN apk add --no-cache nodejs npm \
+RUN apk add --no-cache nodejs npm tzdata \
     && npm install -g @anthropic-ai/claude-code \
     && npm cache clean --force
 
 COPY run.sh /run.sh
 COPY ping.sh /ping.sh
+COPY login_server.js /login_server.js
 RUN chmod +x /run.sh /ping.sh
 
 CMD ["/run.sh"]

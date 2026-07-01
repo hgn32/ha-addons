@@ -1,7 +1,7 @@
 {
   "name": "Claude Session Opener",
   "description": "毎朝指定時刻に最小トークンのタスクを送信し、Claude Pro/Max の5時間セッションを起点にする試験的アドオン",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "slug": "claude_session_opener",
   "url": "https://github.com/hgn32/ha-addons",
   "init": false,
@@ -13,6 +13,10 @@
   ],
   "startup": "services",
   "boot": "auto",
+  "ingress": true,
+  "ingress_port": 8099,
+  "panel_icon": "mdi:login-variant",
+  "panel_title": "Claude Login",
   "options": {
     "schedule_time": "07:00"
   },

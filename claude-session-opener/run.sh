@@ -1,5 +1,9 @@
 #!/usr/bin/with-contenv bashio
 
+# schedule_time は常に JST（Asia/Tokyo）として解釈する。
+# HA ホストのタイムゾーン設定に依存させず、毎朝の起点時刻を確実にするため固定。
+export TZ="Asia/Tokyo"
+
 # --- 認証情報の永続化 ---
 # Claude Code CLI の認証情報（サブスクリプション OAuth トークン）を
 # HA Addon の永続ストレージ /data に保存し、コンテナ再起動をまたいで維持する。
@@ -24,15 +28,17 @@ RUN_HOUR=${RUN_HOUR:-0}
 RUN_MINUTE=${RUN_MINUTE:-0}
 
 bashio::log.info "Claude Session Opener 起動（試験的機能）"
-bashio::log.info "実行時刻: ${SCHEDULE_TIME}"
+bashio::log.info "実行時刻: ${SCHEDULE_TIME} (JST / Asia/Tokyo)"
 bashio::log.warning "この Add-on が実際に Claude Pro/Max の5時間セッションを起点にできるかは未検証です。"
 bashio::log.warning "Claude Code 内で /usage を確認し、効果があるか必ず検証してください。"
 
 if [ ! -f "${CRED_DIR}/.credentials.json" ]; then
-    bashio::log.warning "認証情報が見つかりません。初回はこの Add-on の Web Terminal 等から"
-    bashio::log.warning "'claude auth login --claudeai' を実行し、サブスクリプション（Claude.ai"
-    bashio::log.warning "アカウント）での OAuth ログインを完了してください。詳細は README.md を参照してください。"
+    bashio::log.warning "認証情報が見つかりません。このアドオンのサイドバーパネル（Ingress）を開き、"
+    bashio::log.warning "画面の案内に従ってサブスクリプション（Claude.ai アカウント）でログインしてください。"
 fi
+
+# ログイン用 Web UI（Ingress）をバックグラウンドで起動
+node /login_server.js &
 
 # 毎日指定時刻に ping.sh を実行するループ
 while true; do
