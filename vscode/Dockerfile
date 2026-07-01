@@ -121,6 +121,9 @@ RUN \
 
 COPY rootfs /
 
+RUN find /etc/s6-overlay/s6-rc.d -name "run" -o -name "finish" -o -name "up" | xargs chmod +x \
+    && find /usr/local/bin -type f | xargs chmod +x
+
 HEALTHCHECK \
     CMD curl --fail http://127.0.0.1:1337/healthz || exit 1
 
