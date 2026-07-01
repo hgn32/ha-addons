@@ -1,4 +1,4 @@
 configuration:
   schedule_time:
     name: 実行時刻
-    description: 毎日この時刻（HH:MM、24時間表記）に最小トークンのタスクを送信します。
+    description: 毎日この時刻（HH:MM、24時間表記、UTC）に最小トークンのタスクを送信します。

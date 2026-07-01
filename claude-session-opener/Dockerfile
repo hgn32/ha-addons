@@ -5,7 +5,7 @@ ARG BUILD_ARCH=amd64
 ARG BUILD_FROM=ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
 FROM ${BUILD_FROM}
 
-RUN apk add --no-cache nodejs npm tzdata \
+RUN apk add --no-cache nodejs npm \
     && npm install -g @anthropic-ai/claude-code \
     && npm cache clean --force
 
