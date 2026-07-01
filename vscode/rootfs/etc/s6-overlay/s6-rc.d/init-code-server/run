@@ -66,3 +66,9 @@ current=$(sha512sum /data/vscode/User/settings.json|cut -d " " -f 1)
 if [[ " ${PREVIOUS_DEFAULT_CONFIG_HASHES[*]} " == *" ${current} "* ]]; then
     cp /root/.code-server/settings.json /data/vscode/User/settings.json
 fi
+
+# Set display language to Japanese.
+mkdir -p /data/vscode/User
+if ! bashio::fs.file_exists '/data/vscode/User/locale.json'; then
+    echo '{ "locale": "ja" }' > /data/vscode/User/locale.json
+fi
