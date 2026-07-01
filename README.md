@@ -36,7 +36,7 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 ### [Claude Session Opener](./claude-session-opener)
 
-毎朝決まった時刻に最小トークンのタスクを送信し、Claude Pro/Max の5時間セッションを起点にすることを狙うアドオンです。効果があるかは未検証のため、必ず [README](./claude-session-opener/README.md) を読んでから利用してください。
+毎朝決まった時刻に最小トークンのタスクを送信し、Claude Pro/Max の5時間セッションを起点にするアドオンです。
 
 ## インストール方法
 
