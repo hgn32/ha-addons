@@ -145,11 +145,14 @@ function renderIndex() {
   if (!state.proc) {
     const auth = getAuthStatus();
     if (auth && auth.loggedIn) {
-      const isOauth = /oauth/i.test(auth.authMethod || '');
-      const authLabel = isOauth ? 'サブスクリプション（OAuth）' : (auth.authMethod || '不明');
-      const warn = isOauth ? '' : `<p class="warn">認証方式が OAuth ではありません（${escapeHtml(authLabel)}）。
-        ANTHROPIC_API_KEY が設定されていないか確認してください。設定されている場合、
-        従量課金 API になり5時間セッションの起点にはなりません。</p>`;
+      // authMethod の表記は環境によって揺れる（"oauth_token" / "claude.ai" 等）ため、
+      // 判定には使わない。5時間セッションの起点になるかどうかを実際に左右するのは
+      // ANTHROPIC_API_KEY が設定されているかどうかなので、そちらを直接見る。
+      const apiKeySet = !!process.env.ANTHROPIC_API_KEY;
+      const authLabel = auth.authMethod || '不明';
+      const warn = apiKeySet ? `<p class="warn">ANTHROPIC_API_KEY が設定されています。ログイン状態に
+        関わらず API キー（従量課金）が優先して使われるため、5時間セッションの起点には
+        なりません。この環境変数を解除してください。</p>` : '';
       return page(`
         <div class="card">
           <p class="ok">✅ ログイン済みです（認証方式: ${escapeHtml(authLabel)}）</p>
