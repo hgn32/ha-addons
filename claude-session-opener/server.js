@@ -3,8 +3,11 @@
 // Claude Session Opener のメインプロセス。以下をまとめて担当する。
 //   1. アカウントごとの schedule_time になったら `claude -p "ok"` を実行するスケジューラ
 //   2. Ingress 経由のログイン用 Web UI（Server-Sent Events でリアルタイム更新）
-//   3. 実行ログの閲覧ページ
 // 外部パッケージには依存せず Node.js 標準モジュールのみを使用する。
+//
+// ログは console.log/console.error のみで、ファイルには一切書かない。
+// HA の「ログ」タブ（標準出力）で完結させ、無制限に増え続けるログファイルを
+// 自前で持たないようにするため。
 //
 // アカウントの分離は $CLAUDE_CONFIG_DIR 環境変数で行う。Claude Code CLI は
 // このディレクトリを設定・認証情報の保存先として使うため、アカウントごとに
@@ -23,8 +26,6 @@ const OPTIONS_PATH = '/data/options.json';
 // OAuth トークンの置き場所には向かない。/data はこのアドオン専用で他から
 // アクセスされず、このアドオンを選んでバックアップすれば含まれる。
 const CRED_ROOT = '/data/claude-credentials';
-const RUN_LOG_PATH = '/data/session_opener.log';
-const RUN_LOG_MAX_BYTES = 50 * 1024;
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const HEARTBEAT_MS = 25 * 1000;
 const SCHEDULER_TICK_MS = 20 * 1000;
@@ -91,29 +92,6 @@ function getAuthStatus(slug) {
   }
 }
 
-function appendRunLog(line) {
-  fs.appendFileSync(RUN_LOG_PATH, line + '\n');
-}
-
-function readRunLogTail() {
-  try {
-    const stat = fs.statSync(RUN_LOG_PATH);
-    const start = Math.max(0, stat.size - RUN_LOG_MAX_BYTES);
-    const fd = fs.openSync(RUN_LOG_PATH, 'r');
-    const length = stat.size - start;
-    const buf = Buffer.alloc(length);
-    fs.readSync(fd, buf, 0, length, start);
-    fs.closeSync(fd);
-    return (start > 0 ? '…（省略）…\n' : '') + buf.toString('utf8');
-  } catch (e) {
-    return null;
-  }
-}
-
-function timestamp() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19) + ' (UTC)';
-}
-
 // --- スケジューラ: ping ---
 
 function runPing(account) {
@@ -132,9 +110,7 @@ function runPing(account) {
   proc.stderr.on('data', (c) => { stderr += c; });
 
   proc.on('close', (code) => {
-    const ts = timestamp();
-    appendRunLog(`${ts} [${account.name}] exit=${code} stdout: ${stdout}`);
-    if (stderr) appendRunLog(`${ts} [${account.name}] stderr: ${stderr}`);
+    if (stderr) console.error(`[${account.name}] stderr: ${stderr}`);
 
     let summary;
     if (code !== 0) {
@@ -150,7 +126,6 @@ function runPing(account) {
       }
     }
     console.log(`[${account.name}] セッションオープナー実行結果: ${summary}`);
-    appendRunLog(`${ts} [${account.name}] summary: ${summary}`);
   });
 }
 
@@ -313,7 +288,7 @@ const SHELL_HTML = `<!DOCTYPE html>
 <body>
 <h1>Claude Session Opener - サブスクリプションログイン</h1>
 <div id="app"><p>読み込み中…</p></div>
-<p><small><a href="log">実行ログを見る</a> ／ 詳細はアドオンの README を参照してください。</small></p>
+<p><small>詳細はアドオンの README を参照してください。実行ログは HA の「ログ」タブに出力されます。</small></p>
 <script>
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -414,23 +389,6 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && reqPath === '/') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(SHELL_HTML);
-    return;
-  }
-
-  if (req.method === 'GET' && reqPath === '/log') {
-    const tail = readRunLogTail();
-    const body = tail === null
-      ? '<p>まだ実行履歴がありません。</p>'
-      : `<pre style="white-space:pre-wrap;word-break:break-all;background:#fff;border:1px solid #E8956B;border-radius:8px;padding:0.8rem;font-size:0.85rem;">${escapeHtml(tail)}</pre>`;
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
-<title>Claude Session Opener - 実行ログ</title>
-<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#2b1a12;}</style>
-</head><body>
-<h1>実行ログ</h1>
-<p><a href=".">← 戻る</a></p>
-${body}
-</body></html>`);
     return;
   }
 
