@@ -12,10 +12,12 @@ bashio::log.info "Cleaning VS Code logs and cache before backup..."
 for dir in \
     "${VSCODE_DATA}/logs" \
     "${VSCODE_DATA}/User/logs" \
+    "${VSCODE_DATA}/User/History" \
     "${VSCODE_DATA}/Cache" \
     "${VSCODE_DATA}/CachedData" \
     "${VSCODE_DATA}/CachedExtensionVSIXs" \
-    "${VSCODE_DATA}/cachedb"; do
+    "${VSCODE_DATA}/cachedb" \
+    "${VSCODE_DATA}/crashDumps"; do
     if [ -d "${dir}" ]; then
         rm -rf "${dir:?}"/*
         bashio::log.info "Cleared: ${dir}"
