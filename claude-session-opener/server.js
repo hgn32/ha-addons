@@ -18,9 +18,11 @@ const { spawn, execFileSync } = require('child_process');
 
 const PORT = 8099;
 const OPTIONS_PATH = '/data/options.json';
-// 認証情報はバックアップ対象になる /config（addon_config マップ）配下に保存する。
-// /data はこのアドオンを個別に選択したバックアップでしか含まれないため使わない。
-const CRED_ROOT = '/config/claude-credentials';
+// 認証情報は /data 配下に保存する。/config（addon_config マップ）は
+// 他のアドオン（File Editor, Samba 等）からも見える可能性がある共有領域なので、
+// OAuth トークンの置き場所には向かない。/data はこのアドオン専用で他から
+// アクセスされず、このアドオンを選んでバックアップすれば含まれる。
+const CRED_ROOT = '/data/claude-credentials';
 const RUN_LOG_PATH = '/data/session_opener.log';
 const RUN_LOG_MAX_BYTES = 50 * 1024;
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;

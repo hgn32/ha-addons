@@ -17,13 +17,6 @@
   "ingress_port": 8099,
   "panel_icon": "mdi:login-variant",
   "panel_title": "Claude Login",
-  "map": [
-    {
-      "type": "addon_config",
-      "read_only": false,
-      "path": "/config"
-    }
-  ],
   "options": {
     "accounts": [
       { "name": "default", "schedule_time": "07:00" }
