@@ -111,13 +111,25 @@ function cancelLogin() {
   state.message = '';
 }
 
-function page(bodyHtml, refresh) {
-  const meta = refresh ? '<meta http-equiv="refresh" content="2">' : '';
+function waitUntil(predicate, timeoutMs) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const tick = () => {
+      if (predicate() || Date.now() - start >= timeoutMs) {
+        resolve();
+        return;
+      }
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
+}
+
+function page(bodyHtml) {
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-${meta}
 <title>Claude Session Opener - ログイン</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #2b1a12; }
@@ -145,24 +157,16 @@ function renderIndex() {
   if (!state.proc) {
     const auth = getAuthStatus();
     if (auth && auth.loggedIn) {
-      // authMethod の表記は環境によって揺れる（"oauth_token" / "claude.ai" 等）ため、
-      // 判定には使わない。5時間セッションの起点になるかどうかを実際に左右するのは
-      // ANTHROPIC_API_KEY が設定されているかどうかなので、そちらを直接見る。
-      const apiKeySet = !!process.env.ANTHROPIC_API_KEY;
       const authLabel = auth.authMethod || '不明';
-      const warn = apiKeySet ? `<p class="warn">ANTHROPIC_API_KEY が設定されています。ログイン状態に
-        関わらず API キー（従量課金）が優先して使われるため、5時間セッションの起点には
-        なりません。この環境変数を解除してください。</p>` : '';
       return page(`
         <div class="card">
           <p class="ok">✅ ログイン済みです（認証方式: ${escapeHtml(authLabel)}）</p>
-          ${warn}
         </div>
         <div class="card">
           <p>別のアカウントで再ログインする場合は以下から開始してください。</p>
           <form method="POST" action="start"><button type="submit">再ログインを開始</button></form>
         </div>
-      `, false);
+      `);
     }
 
     if (state.status === 'success') {
@@ -171,7 +175,7 @@ function renderIndex() {
           <p class="ok">✅ ${escapeHtml(state.message || 'ログインに成功しました。')}</p>
           <p>Claude Code 内で <code>/usage</code> を実行し、5時間セッションが起点になっているか確認してください。</p>
         </div>
-      `, false);
+      `);
     }
 
     const errMsg = state.status === 'error' || state.status === 'idle' ? state.message : '';
@@ -181,14 +185,14 @@ function renderIndex() {
         ${errMsg ? `<p class="warn">${escapeHtml(errMsg)}</p>` : ''}
         <form method="POST" action="start"><button type="submit">ログインを開始</button></form>
       </div>
-    `, false);
+    `);
   }
 
   // ログインプロセス実行中
   const urlHtml = state.url
     ? `<p>以下の URL を自分のブラウザで開いてログインしてください。</p>
        <div class="url-box"><a href="${escapeHtml(state.url)}" target="_blank" rel="noopener">${escapeHtml(state.url)}</a></div>`
-    : `<p>認証 URL を取得中です…</p>`;
+    : `<p>認証 URL を取得中です… <a href=".">再読み込み</a></p>`;
 
   const invalidMsg = state.status === 'invalid'
     ? `<p class="warn">コードが正しくないか、コピーが不完全なようです。もう一度貼り付けてください。</p>`
@@ -207,7 +211,7 @@ function renderIndex() {
         <button type="submit" style="background:#888">キャンセル</button>
       </form>
     </div>
-  `, true);
+  `);
 }
 
 const server = http.createServer((req, res) => {
@@ -223,10 +227,18 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && (path === '/start' || path === '/submit' || path === '/cancel')) {
     let body = '';
     req.on('data', (c) => { body += c; });
-    req.on('end', () => {
+    req.on('end', async () => {
       const form = querystring.parse(body);
-      if (path === '/start') startLogin();
-      if (path === '/submit') submitCode(form.code);
+      if (path === '/start') {
+        startLogin();
+        // URL が届くまで少し待ってからリダイレクトすることで、
+        // 手動リロードなしで大抵はそのまま URL 付きの画面が表示される。
+        await waitUntil(() => !!state.url || state.status === 'error', 3000);
+      }
+      if (path === '/submit') {
+        submitCode(form.code);
+        await waitUntil(() => state.status !== 'submitting', 3000);
+      }
       if (path === '/cancel') cancelLogin();
       res.writeHead(303, { Location: '.' });
       res.end();
