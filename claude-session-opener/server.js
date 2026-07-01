@@ -248,7 +248,7 @@ function computeViewState() {
       }
       const auth = getAuthStatus(account.slug);
       if (auth && auth.loggedIn) {
-        return { ...base, mode: 'logged_in', authMethod: auth.authMethod || '不明', justSucceeded: st.status === 'success' };
+        return { ...base, mode: 'logged_in', authMethod: auth.authMethod || '不明' };
       }
       return { ...base, mode: 'logged_out', error: st.status === 'error' ? st.message : '' };
     }),
@@ -310,11 +310,8 @@ function renderAccount(s) {
   var header = '<h2>' + esc(s.name) + '（毎日 ' + esc(s.scheduleTime) + ' UTC）</h2>';
 
   if (s.mode === 'logged_in') {
-    var tip = s.justSucceeded
-      ? '<p class="ok">Claude Code 内で <code>/usage</code> を実行し、5時間セッションが起点になっているか確認してください。</p>'
-      : '';
     return header +
-      '<div class="card"><p class="ok">✅ ログイン済みです（認証方式: ' + esc(s.authMethod) + '）</p>' + tip +
+      '<div class="card"><p class="ok">✅ ログイン済みです（認証方式: ' + esc(s.authMethod) + '）</p>' +
       '<p>別のアカウントで再ログインする場合は以下から開始してください。</p>' +
       '<button data-action="start" data-slug="' + esc(s.slug) + '">再ログインを開始</button></div>';
   }
