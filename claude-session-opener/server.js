@@ -112,59 +112,6 @@ function timestamp() {
   return new Date().toISOString().replace('T', ' ').slice(0, 19) + ' (UTC)';
 }
 
-// /data・/config の中身をファイル名・サイズ・更新日時だけ一覧表示する。
-// 認証情報（OAuth トークン等）が入ったファイルの中身そのものは絶対に出さない。
-function listTree(rootDir) {
-  const entries = [];
-  function walk(dir, relBase) {
-    let names;
-    try {
-      names = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (e) {
-      return;
-    }
-    for (const entry of names.sort((a, b) => a.name.localeCompare(b.name))) {
-      const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        entries.push({ rel: `${rel}/`, size: null, mtime: null, isDir: true });
-        walk(full, rel);
-      } else {
-        let stat;
-        try { stat = fs.statSync(full); } catch (e) { continue; }
-        entries.push({ rel, size: stat.size, mtime: stat.mtime.toISOString().slice(0, 19), isDir: false });
-      }
-    }
-  }
-  try {
-    fs.statSync(rootDir);
-  } catch (e) {
-    return null;
-  }
-  walk(rootDir, '');
-  return entries;
-}
-
-function renderTree(rootLabel, rootDir) {
-  const entries = listTree(rootDir);
-  if (entries === null) {
-    return `<h2>${escapeHtml(rootLabel)}</h2><p>${escapeHtml(rootDir)} は存在しません。</p>`;
-  }
-  if (entries.length === 0) {
-    return `<h2>${escapeHtml(rootLabel)}</h2><p>${escapeHtml(rootDir)} は空です。</p>`;
-  }
-  const rows = entries.map((e) => {
-    const size = e.isDir ? '' : `${e.size} bytes`;
-    const mtime = e.isDir ? '' : e.mtime;
-    return `<tr><td>${escapeHtml(e.rel)}</td><td>${escapeHtml(size)}</td><td>${escapeHtml(mtime)}</td></tr>`;
-  }).join('');
-  return `<h2>${escapeHtml(rootLabel)}</h2>
-<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-<tr style="text-align:left;border-bottom:1px solid #E8956B;"><th>パス</th><th>サイズ</th><th>更新日時 (UTC)</th></tr>
-${rows}
-</table>`;
-}
-
 // --- スケジューラ: ping ---
 
 function runPing(account) {
@@ -364,7 +311,7 @@ const SHELL_HTML = `<!DOCTYPE html>
 <body>
 <h1>Claude Session Opener - サブスクリプションログイン</h1>
 <div id="app"><p>読み込み中…</p></div>
-<p><small><a href="log">実行ログを見る</a> ／ <a href="storage">保存されている内容を見る</a> ／ 詳細はアドオンの README を参照してください。</small></p>
+<p><small><a href="log">実行ログを見る</a> ／ 詳細はアドオンの README を参照してください。</small></p>
 <script>
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -481,22 +428,6 @@ const server = http.createServer((req, res) => {
 <h1>実行ログ</h1>
 <p><a href=".">← 戻る</a></p>
 ${body}
-</body></html>`);
-    return;
-  }
-
-  if (req.method === 'GET' && reqPath === '/storage') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
-<title>Claude Session Opener - 保存内容</title>
-<style>body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#2b1a12;}
-table{margin-bottom:1.5rem;} td,th{padding:0.2rem 0.6rem;}</style>
-</head><body>
-<h1>保存されている内容</h1>
-<p><a href=".">← 戻る</a></p>
-<p><small>認証情報ファイルの中身（トークン等）は表示していません。ファイル名・サイズ・更新日時のみです。</small></p>
-${renderTree('/config（バックアップ対象）', '/config')}
-${renderTree('/data（このアドオンを個別選択したバックアップのみ対象）', '/data')}
 </body></html>`);
     return;
   }
