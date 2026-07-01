@@ -34,6 +34,10 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 [VOICEVOX](https://voicevox.hiroshiba.jp/) 音声合成エンジンを Home Assistant アドオンとして動作させます。HA の TTS（音声読み上げ）として使うには、companion インテグレーション **[hgn32/ha-voicevox-tts](https://github.com/hgn32/ha-voicevox-tts)** を HACS でインストールしてください。アドオン起動時に自動検知されます。
 
+### [Claude Session Opener](./claude-session-opener)
+
+毎朝決まった時刻に最小トークンのタスクを送信し、Claude Pro/Max の5時間セッションを起点にするアドオンです。
+
 ## インストール方法
 
 1. Home Assistant の **設定 → アドオン → アドオンストア** を開く

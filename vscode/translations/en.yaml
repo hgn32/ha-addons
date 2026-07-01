@@ -1,0 +1,16 @@
+configuration:
+  log_level:
+    name: Log Level
+    description: Logging verbosity level.
+  max_memory_mb:
+    name: Max Memory (MB)
+    description: Maximum Node.js heap size for code-server in MB. Default is 2048.
+  config_path:
+    name: Config Path
+    description: Path to use as workspace root in VS Code. Defaults to /config.
+  packages:
+    name: Packages
+    description: Additional apt packages to install on startup.
+  init_commands:
+    name: Init Commands
+    description: Shell commands to run on startup.

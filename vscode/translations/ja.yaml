@@ -1,0 +1,16 @@
+configuration:
+  log_level:
+    name: ログレベル
+    description: ログの詳細度を設定します。
+  max_memory_mb:
+    name: 最大メモリ (MB)
+    description: code-server の Node.js ヒープ上限 (MB)。デフォルトは 2048。
+  config_path:
+    name: ワークスペースパス
+    description: VS Code で開くディレクトリのパス。デフォルトは /config。
+  packages:
+    name: 追加パッケージ
+    description: 起動時にインストールする apt パッケージ。
+  init_commands:
+    name: 初期化コマンド
+    description: 起動時に実行するシェルコマンド。
