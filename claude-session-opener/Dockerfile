@@ -10,8 +10,7 @@ RUN apk add --no-cache nodejs npm \
     && npm cache clean --force
 
 COPY run.sh /run.sh
-COPY ping.sh /ping.sh
-COPY login_server.js /login_server.js
-RUN chmod +x /run.sh /ping.sh
+COPY server.js /server.js
+RUN chmod +x /run.sh
 
 CMD ["/run.sh"]

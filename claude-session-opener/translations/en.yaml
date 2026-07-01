@@ -1,4 +1,4 @@
 configuration:
-  schedule_time:
-    name: Schedule Time
-    description: Daily time (HH:MM, 24-hour, UTC) to send the minimal-token task.
+  accounts:
+    name: Accounts
+    description: For each account to log in, set a name and a daily run time (HH:MM, 24-hour, UTC).

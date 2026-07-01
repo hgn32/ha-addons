@@ -1,4 +1,4 @@
 configuration:
-  schedule_time:
-    name: 実行時刻
-    description: 毎日この時刻（HH:MM、24時間表記、UTC）に最小トークンのタスクを送信します。
+  accounts:
+    name: アカウント
+    description: ログインするアカウントごとに、名前と毎日の実行時刻（HH:MM、24時間表記、UTC）を設定します。
