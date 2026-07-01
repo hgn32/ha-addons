@@ -101,7 +101,7 @@ function runPing(account) {
   const proc = spawn(
     'claude',
     ['-p', 'ok', '--model', 'haiku', '--output-format', 'json', '--no-session-persistence'],
-    { env: { ...process.env, CLAUDE_CONFIG_DIR: dir } },
+    { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, CLAUDE_CONFIG_DIR: dir } },
   );
 
   let stdout = '';
