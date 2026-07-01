@@ -2,9 +2,9 @@ configuration:
   amazon_cron:
     name: Amazon Import Schedule
     description: Cron expression for automatic Amazon purchase history import (UTC).
-  amazon_cookie:
-    name: Amazon Cookie
-    description: Cookie string for Amazon login session (used for purchase history import).
-  notify_service:
-    name: Notification Service
-    description: Home Assistant service to use for notifications (e.g. persistent_notification).
+  notify_enabled:
+    name: Enable Notifications
+    description: Whether to send a Home Assistant notification when Amazon import completes.
+  force_schema_push:
+    name: Force Schema Push
+    description: Force apply database schema changes on startup. Leave disabled under normal use.

@@ -7,30 +7,33 @@ datasource db {
 }
 
 model Category {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   name       String
-  note       String   @default("")
-  icon       String   @default("")
-  sort_order Int      @default(0)
-  created_at DateTime @default(now())
+  note       String    @default("")
+  icon       String    @default("")
+  sort_order Int       @default(0)
+  created_at DateTime  @default(now())
+  products   Product[]
 }
 
 model Location {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   name       String
-  note       String   @default("")
-  icon       String   @default("")
-  sort_order Int      @default(0)
-  created_at DateTime @default(now())
+  note       String    @default("")
+  icon       String    @default("")
+  sort_order Int       @default(0)
+  created_at DateTime  @default(now())
+  products   Product[]
 }
 
 model Supplier {
-  id         String   @id @default(uuid())
-  name       String
-  url        String   @default("")
-  note       String   @default("")
-  sort_order Int      @default(0)
-  created_at DateTime @default(now())
+  id           String        @id @default(uuid())
+  name         String
+  url          String        @default("")
+  note         String        @default("")
+  sort_order   Int           @default(0)
+  created_at   DateTime      @default(now())
+  transactions Transaction[]
 }
 
 model Product {
@@ -42,8 +45,8 @@ model Product {
   jan_code    String        @default("")
   amazon_asin String        @default("")
   amazon_url  String        @default("")
-  category_id String        @default("")
-  location_id String        @default("")
+  category_id String?
+  location_id String?
   note        String        @default("")
   photo       String        @default("")
   quantity    Int           @default(0)
@@ -51,6 +54,8 @@ model Product {
   warn_quantity Int         @default(1)
   sort_order  Int           @default(0)
   created_at  DateTime      @default(now())
+  category     Category?     @relation(fields: [category_id], references: [id])
+  location     Location?     @relation(fields: [location_id], references: [id])
   asins        ProductAsin[]
   barcodes     ProductBarcode[]
   transactions Transaction[]
@@ -89,10 +94,11 @@ model Transaction {
   product_id  String
   quantity    Int
   unit_price  Float    @default(0)
-  supplier_id String   @default("")
+  supplier_id String?
   note        String   @default("")
   date        DateTime @default(now())
   product     Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  supplier    Supplier? @relation(fields: [supplier_id], references: [id])
 
   @@index([product_id])
 }

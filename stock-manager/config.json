@@ -1,7 +1,7 @@
 {
   "name": "Stock Manager",
   "description": "在庫管理アプリ。品目・カテゴリ・置き場・購入先の管理、在庫操作・履歴記録、Amazon購入履歴の自動取込に対応。",
-  "version": "0.9.9",
+  "version": "0.10.2",
   "slug": "stock_manager",
   "image": "ghcr.io/hgn32/stock-manager",
   "init": false,
@@ -25,12 +25,12 @@
   ],
   "options": {
     "amazon_cron": "0 18 * * *",
-    "amazon_cookie": "",
-    "notify_service": "persistent_notification"
+    "notify_enabled": true,
+    "force_schema_push": false
   },
   "schema": {
     "amazon_cron": "str",
-    "amazon_cookie": "str?",
-    "notify_service": "str?"
+    "notify_enabled": "bool?",
+    "force_schema_push": "bool?"
   }
 }
