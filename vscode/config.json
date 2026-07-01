@@ -52,12 +52,14 @@
   ],
   "backup_pre": "/usr/local/bin/vscode-backup-pre.sh",
   "options": {
+    "max_memory_mb": 2048,
     "packages": [],
     "init_commands": []
   },
   "schema": {
     "log_level": "list(trace|debug|info|notice|warning|error|fatal)?",
     "config_path": "str?",
+    "max_memory_mb": "int?",
     "packages": [
       "str"
     ],

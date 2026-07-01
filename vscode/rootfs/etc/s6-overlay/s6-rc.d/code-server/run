@@ -24,6 +24,10 @@ options+=(--disable-update-check)
 # Disable code authentication, we use HA authentication
 options+=(--auth none)
 
+# Node.js heap memory limit
+max_memory_mb=$(bashio::config 'max_memory_mb' '2048')
+export NODE_OPTIONS="--max-old-space-size=${max_memory_mb}"
+
 # Export env variables for the Home Assistant extension
 export HASS_SERVER="http://supervisor/core"
 export HASS_TOKEN="${SUPERVISOR_TOKEN:-}"
