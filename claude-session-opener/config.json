@@ -19,5 +19,5 @@
   "schema": {
     "schedule_time": "match(^([01][0-9]|2[0-3]):[0-5][0-9]$)"
   },
-  "image": "ghcr.io/hgn32/claude-session-opener"
+  "_image": "ghcr.io/hgn32/claude-session-opener"
 }
