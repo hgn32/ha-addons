@@ -83,6 +83,7 @@
     "**/node_modules": true,
     "**/tts/**": true
   },
+  "claudeCode.claudeProcessWrapper": "/usr/local/bin/claude",
   "editor.renderWhitespace": "boundary",
   "editor.rulers": [80, 100, 120],
   "telemetry.enableTelemetry": false,
