@@ -16,7 +16,6 @@
   "ingress_stream": true,
   "panel_icon": "mdi:microsoft-visual-studio-code",
   "panel_title": "VS Code",
-  "uart": true,
   "hassio_api": true,
   "hassio_role": "manager",
   "homeassistant_api": true,
