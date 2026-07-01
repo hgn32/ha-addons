@@ -176,7 +176,7 @@ const SHELL_HTML = `<!DOCTYPE html>
 <body>
 <h1>Claude Session Opener - サブスクリプションログイン</h1>
 <div id="app"><p>読み込み中…</p></div>
-<p><small>このアドオンは試験的機能です。詳細はアドオンの README を参照してください。</small></p>
+<p><small>詳細はアドオンの README を参照してください。</small></p>
 <script>
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {

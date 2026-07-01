@@ -1,6 +1,6 @@
 # Claude Session Opener
 # 毎朝決まった時刻に最小トークンのタスクを送信し、Claude Pro/Max の
-# 5時間セッションを起点にすることを狙う試験的アドオン。
+# 5時間セッションを起点にすることを狙うアドオン。
 ARG BUILD_ARCH=amd64
 ARG BUILD_FROM=ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
 FROM ${BUILD_FROM}
