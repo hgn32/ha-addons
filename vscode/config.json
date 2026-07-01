@@ -67,5 +67,5 @@
       "str"
     ]
   },
-  "_image": "ghcr.io/hgn32/vscode"
+  "image": "ghcr.io/hgn32/vscode"
 }
