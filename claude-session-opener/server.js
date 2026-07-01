@@ -37,6 +37,14 @@ const lastFiredMinute = new Map();
 
 const clients = new Set();
 
+// console.log は HA の「ログ」タブにそのまま流れるが、
+// run.sh 側の bashio::log と違って時刻が付かないため、自前で付与する。
+function ts() {
+  return new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+}
+function log(msg) { console.log(`[${ts()}] ${msg}`); }
+function logError(msg) { console.error(`[${ts()}] ${msg}`); }
+
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -110,7 +118,7 @@ function runPing(account) {
   proc.stderr.on('data', (c) => { stderr += c; });
 
   proc.on('close', (code) => {
-    if (stderr) console.error(`[${account.name}] stderr: ${stderr}`);
+    if (stderr) logError(`[${account.name}] stderr: ${stderr}`);
 
     let summary;
     if (code !== 0) {
@@ -125,7 +133,7 @@ function runPing(account) {
         summary = `応答の解析に失敗しました: ${stdout.slice(0, 300)}`;
       }
     }
-    console.log(`[${account.name}] セッションオープナー実行結果: ${summary}`);
+    log(`[${account.name}] セッションオープナー実行結果: ${summary}`);
   });
 }
 
@@ -141,7 +149,7 @@ function schedulerTick() {
     if (account.scheduleTime !== currentTime) continue;
     if (lastFiredMinute.get(account.slug) === minuteKey) continue;
     lastFiredMinute.set(account.slug, minuteKey);
-    console.log(`[${account.name}] セッションオープナーを実行します...`);
+    log(`[${account.name}] セッションオープナーを実行します...`);
     runPing(account);
   }
 }
@@ -432,11 +440,11 @@ setInterval(() => {
 setInterval(schedulerTick, SCHEDULER_TICK_MS);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Claude Session Opener listening on :${PORT}`);
+  log(`Claude Session Opener listening on :${PORT}`);
   const accounts = loadAccounts();
   if (accounts.length === 0) {
-    console.log('警告: accounts が設定されていません。アドオンの設定タブで追加してください。');
+    log('警告: accounts が設定されていません。アドオンの設定タブで追加してください。');
   } else {
-    for (const a of accounts) console.log(`アカウント "${a.name}": 毎日 ${a.scheduleTime} (UTC) に実行`);
+    for (const a of accounts) log(`アカウント "${a.name}": 毎日 ${a.scheduleTime} (UTC) に実行`);
   }
 });
