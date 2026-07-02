@@ -8,24 +8,21 @@
 - ブラウザ経由で VSCode を操作
 - Home Assistant の設定ファイル・アドオン設定・バックアップ・メディア・share・SSL
   ディレクトリ、Supervisor API に直接アクセス
-- プリインストール済み拡張機能: Claude Code / Material Icon Theme / 日本語言語パック
+- プリインストール済み拡張機能: Material Icon Theme / 日本語言語パック
 - SSH / Git / zsh 環境を同梱
+- Claude Code CLI (`claude` コマンド) を同梱。VSCode 内のターミナルから利用できます
 
-## Claude Code 拡張機能について
+## Claude Code について
 
-`Anthropic.claude-code` 拡張機能を同梱していますが、拡張機能に付属する
-ネイティブバイナリは musl 向けビルドで、このアドオンのベースイメージ
-（Debian/glibc）では起動できません
-（`musl dynamic loader (/lib/ld-musl-*) is missing` エラー）。
+以前は `Anthropic.claude-code` 拡張機能を同梱していましたが、拡張機能に付属する
+ネイティブバイナリが musl 向けビルドで、このアドオンのベースイメージ
+（Debian/glibc）では起動できず
+（`musl dynamic loader (/lib/ld-musl-*) is missing` エラー）、常時エラー表示や
+再読み込み要求が出る不具合があったため同梱を取りやめました。
 
-そのため、この Docker イメージのビルド時に `npm install -g` で
-このシステム向けの `claude` CLI を別途インストールし
-（`/usr/local/bin/claude`）、拡張機能の設定
-`claudeCode.claudeProcessWrapper` でそちらを使うようあらかじめ
-構成しています。ユーザー側での追加設定は不要です。
-
-初回利用時は、VSCode 内のターミナルまたは Claude Code のサイドパネルから
-サブスクリプションアカウントでログインしてください。
+代わりに `claude` CLI 本体（npm 版）のみを同梱しています。VSCode 内のターミナルを
+開いて `claude` コマンドを実行してください。初回利用時はサブスクリプション
+アカウントでログインが必要です。
 
 ## 設定
 
