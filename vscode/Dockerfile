@@ -86,11 +86,10 @@ RUN \
     && curl -L -s -o /usr/bin/ha \
         "https://github.com/home-assistant/cli/releases/download/${HA_CLI_VERSION}/ha_${BUILD_ARCH}" \
     && chmod a+x /usr/bin/ha && \
-    # Anthropic.claude-code 拡張が同梱するネイティブバイナリは musl 向けビルドで、
-    # この Debian(glibc)ベースの環境では起動できない
+    # Claude Code はターミナルから使う CLI として npm でインストールする。
+    # 拡張機能版 (Anthropic.claude-code) は同梱するネイティブバイナリが musl 向け
+    # ビルドで、この Debian(glibc)ベースの環境では起動できないため同梱しない
     # ("musl dynamic loader (/lib/ld-musl-*) is missing" エラー)。
-    # 代わりに npm でこのシステム向けの claude CLI を導入し、
-    # settings.json の claudeCode.claudeProcessWrapper でそちらを使わせる。
     npm install -g --prefix /usr/local @anthropic-ai/claude-code \
     && npm cache clean --force \
     \

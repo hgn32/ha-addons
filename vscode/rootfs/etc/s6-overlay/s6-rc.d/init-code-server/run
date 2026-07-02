@@ -67,8 +67,18 @@ if [[ " ${PREVIOUS_DEFAULT_CONFIG_HASHES[*]} " == *" ${current} "* ]]; then
     cp /root/.code-server/settings.json /data/vscode/User/settings.json
 fi
 
-# Set display language to Japanese.
+# Previously this add-on force-set the display language to Japanese by
+# bundling MS-CEINTL.vscode-language-pack-ja and pre-writing locale.json.
+# code-server does not properly register language packs that are installed
+# any way other than through its own Extensions view (online install), so
+# this left the extension stuck in a broken "invalid extension" state that
+# nagged for a window reload on every load. Remove that forced default so
+# existing installs self-heal; users who want the Japanese UI should install
+# the language pack extension from the Extensions view inside VS Code itself
+# (see README.md).
 mkdir -p /data/vscode/User
-if ! bashio::fs.file_exists '/data/vscode/User/locale.json'; then
-    echo '{ "locale": "ja" }' > /data/vscode/User/locale.json
+if bashio::fs.file_exists '/data/vscode/User/locale.json'; then
+    if [[ "$(cat /data/vscode/User/locale.json)" == '{ "locale": "ja" }' ]]; then
+        rm -f /data/vscode/User/locale.json
+    fi
 fi
