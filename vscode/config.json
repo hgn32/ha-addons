@@ -1,7 +1,7 @@
 {
   "name": "Studio Code Server",
   "description": "ブラウザからアクセスできる Visual Studio Code (VSCode) 環境を Home Assistant フロントエンドに統合します。",
-  "version": "6.0.3",
+  "version": "6.0.4",
   "slug": "vscode",
   "url": "https://github.com/hassio-addons/addon-vscode",
   "init": false,

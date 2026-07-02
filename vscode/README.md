@@ -8,9 +8,23 @@
 - ブラウザ経由で VSCode を操作
 - Home Assistant の設定ファイル・アドオン設定・バックアップ・メディア・share・SSL
   ディレクトリ、Supervisor API に直接アクセス
-- プリインストール済み拡張機能: Material Icon Theme / 日本語言語パック
+- プリインストール済み拡張機能: Material Icon Theme
 - SSH / Git / zsh 環境を同梱
 - Claude Code CLI (`claude` コマンド) を同梱。VSCode 内のターミナルから利用できます
+
+## 日本語表示（言語パック）について
+
+日本語言語パック拡張機能（`MS-CEINTL.vscode-language-pack-ja`）は同梱していません。
+以前はビルド時にファイルを直接配置する方法で同梱していましたが、code-server は
+Extensions ビュー経由（オンライン）でインストールした場合以外は言語パックを
+正しく登録できず、拡張機能が「Invalid extensions detected」と表示され続けたり
+ウィンドウの再読み込みを繰り返し要求したりする不具合がありました
+（[coder/code-server#4735](https://github.com/coder/code-server/issues/4735)）。
+
+日本語 UI で使いたい場合は、VS Code 画面内の Extensions ビュー（左サイドバーの
+四角いアイコン）で `vscode-language-pack-ja` を検索してインストールしてください。
+オンラインでインストールした場合は正常に「言語を変更して再読み込みしますか？」
+という通知が表示され、その案内に従うことで日本語表示に切り替わります。
 
 ## Claude Code について
 
