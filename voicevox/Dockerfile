@@ -2,7 +2,7 @@ FROM voicevox/voicevox_engine:cpu-latest
 # FROM voicevox/voicevox_engine:nvidia-amd64-latest
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip \
+    && apt-get install -y --no-install-recommends python3 python3-pip jq \
     && python3 -m pip install --no-cache-dir --break-system-packages zeroconf \
     && rm -rf /var/lib/apt/lists/*
 

@@ -29,3 +29,6 @@ configuration:
   ingress_auto_login_user:
     name: 自動ログインユーザ
     description: ingress 自動ログインで使用する Guacamole ユーザ名。
+  max_memory_mb:
+    name: 最大メモリ使用量 (MB)
+    description: Tomcat(Guacamole Web)の最大ヒープサイズ(JVM -Xmx)。

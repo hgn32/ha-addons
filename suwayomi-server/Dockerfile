@@ -6,7 +6,7 @@ USER root
 # --- Integrated Suwayomi Summary viewer (FastAPI/uvicorn) ---
 # Installed into an isolated venv so it doesn't touch the system Python.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-venv \
+    && apt-get install -y --no-install-recommends python3 python3-venv jq \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/summary/venv
 COPY summary_requirements.txt /opt/summary/requirements.txt

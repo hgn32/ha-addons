@@ -48,6 +48,17 @@
   BASIC 認証を有効にしている場合のみ、アドオンの **設定** タブで
   `suwayomi_username` / `suwayomi_password` を設定してください。
 
+## アドオン設定
+
+| 設定キー | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `suwayomi_url` | url | `http://localhost:4567` | Suwayomi Summary（バックアップビューア）が接続する Suwayomi Server の URL |
+| `suwayomi_username` | str | （空） | BASIC 認証を有効にしている場合の認証ユーザ名 |
+| `suwayomi_password` | password | （空） | BASIC 認証を有効にしている場合の認証パスワード |
+| `max_memory_mb` | int | `2048` | Suwayomi Server（JVM）の最大ヒープサイズ（`-Xmx`、単位 MB） |
+
+拡張機能でのマンガ取得やページ画像の処理量が多い場合は `max_memory_mb` を大きくしてください。
+
 ## データの保存先
 
 `startup_script_org.sh` により、設定・データベース・拡張機能はアドオン専用の設定ディレクトリ（コンテナ内 `/config`、ホスト実体 `/addon_configs/<slug>/`、バックアップ対象）にシンボリックリンクで永続化されます。
