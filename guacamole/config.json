@@ -1,7 +1,7 @@
 {
   "name": "Guacamole",
   "description": "軽量版 Apache Guacamole。guacd + Tomcat + 外部 PostgreSQL",
-  "version": "1.6.0-21",
+  "version": "1.6.0-22",
   "slug": "guacamole",
   "url": "https://guacamole.apache.org/",
   "init": false,
@@ -35,7 +35,8 @@
     "vacuum_logs_on_backup": false,
     "extensions": [],
     "ingress_auto_login": true,
-    "ingress_auto_login_user": "guacadmin"
+    "ingress_auto_login_user": "guacadmin",
+    "max_memory_mb": 1024
   },
   "schema": {
     "pg_host": "str",
@@ -49,7 +50,8 @@
       "list(auth-totp|auth-duo|auth-header|auth-json|auth-ldap|auth-quickconnect|auth-ban|display-statistics|history-recording-storage|auth-sso-openid|auth-sso-saml|auth-sso-cas|auth-jdbc-mysql|auth-jdbc-sqlserver|vault-ksm)"
     ],
     "ingress_auto_login": "bool",
-    "ingress_auto_login_user": "str"
+    "ingress_auto_login_user": "str",
+    "max_memory_mb": "int(128,8192)?"
   },
   "image": "ghcr.io/hgn32/guacamole"
 }

@@ -15,6 +15,8 @@ jqget() { jq -r --arg k "$1" 'if (.[$k] != null) then .[$k] else "" end' "$OPTIO
 EXT_LIST="$(jq -r '((.extensions // []) | join(","))' "$OPTIONS" 2>/dev/null || echo "")"
 AUTO_LOGIN="$(jqget ingress_auto_login)";   [ -z "$AUTO_LOGIN" ] && AUTO_LOGIN="true"
 AUTO_LOGIN_USER="$(jqget ingress_auto_login_user)"; [ -z "$AUTO_LOGIN_USER" ] && AUTO_LOGIN_USER="guacadmin"
+MAX_MEMORY_MB="$(jqget max_memory_mb)"; [ -z "$MAX_MEMORY_MB" ] && MAX_MEMORY_MB="1024"
+log "Tomcat max heap size: ${MAX_MEMORY_MB}MB"
 
 # ---- 外部 PostgreSQL 接続設定 -----------------------------------------------
 PG_HOST="$(jqget pg_host)"
@@ -59,6 +61,7 @@ _sq() { printf '%s' "$1" | sed "s/'/'\\\\''/g" | { read -r v; printf "'%s'" "$v"
     printf 'PG_USER=%s\n'     "$PG_USER"
     printf 'PG_PASSWORD=%s\n' "$(_sq "$PG_PASSWORD")"
     printf 'PG_DATABASE=%s\n' "$PG_DATABASE"
+    printf 'MAX_MEMORY_MB=%s\n' "$MAX_MEMORY_MB"
 } > /etc/guacamole-ha.env
 
 # ---- 外部 PostgreSQL サーバ到達確認（postgres メンテナンス DB で接続） ----------

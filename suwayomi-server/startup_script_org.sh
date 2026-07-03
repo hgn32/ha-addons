@@ -1,5 +1,14 @@
 #!/bin/bash
 echo "---------- start original exec ----------"
+
+###### JVM 最大メモリ使用量 (max_memory_mb) -> JAVA_TOOL_OPTIONS
+# 本家の startup_script.sh は `java -jar ...` を直接起動し JAVA_OPTS 等を
+# 一切参照しないため、JVM が自動で拾う JAVA_TOOL_OPTIONS 経由で -Xmx を渡す。
+MAX_MEMORY_MB=$(jq -r 'if (.max_memory_mb != null) then .max_memory_mb else "" end' /data/options.json 2>/dev/null)
+[ -z "$MAX_MEMORY_MB" ] && MAX_MEMORY_MB=2048
+export JAVA_TOOL_OPTIONS="-Xmx${MAX_MEMORY_MB}m"
+echo "---------- JVM max heap size: ${MAX_MEMORY_MB}MB ----------"
+
 ###### server.conf
 rm -f /home/suwayomi/.local/share/Tachidesk/server.conf
 ln -s /config/server.conf /home/suwayomi/.local/share/Tachidesk/server.conf

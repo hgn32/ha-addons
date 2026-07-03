@@ -1,7 +1,7 @@
 {
   "name": "Suwayomi Server",
   "description": "Self-hosted manga server compatible with Mihon (.tachibk バックアップビューア内蔵)",
-  "version": "0.14",
+  "version": "0.15",
   "slug": "suwayomi_server",
   "init": false,
   "arch": [
@@ -33,12 +33,14 @@
   "options": {
     "suwayomi_url": "http://localhost:4567",
     "suwayomi_username": "",
-    "suwayomi_password": ""
+    "suwayomi_password": "",
+    "max_memory_mb": 2048
   },
   "schema": {
     "suwayomi_url": "url",
     "suwayomi_username": "str?",
-    "suwayomi_password": "password?"
+    "suwayomi_password": "password?",
+    "max_memory_mb": "int(256,8192)?"
   },
   "image": "ghcr.io/hgn32/suwayomi-server"
 }

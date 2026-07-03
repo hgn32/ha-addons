@@ -8,3 +8,6 @@ configuration:
   suwayomi_password:
     name: パスワード
     description: Suwayomi Server の認証パスワード（未設定の場合は空白）。
+  max_memory_mb:
+    name: 最大メモリ使用量 (MB)
+    description: Suwayomi Server（JVM）の最大ヒープサイズ（-Xmx）。

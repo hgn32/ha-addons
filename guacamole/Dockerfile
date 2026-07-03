@@ -51,6 +51,7 @@ RUN find /usr/local/bin -type f -name '*.sh' -exec chmod +x {} \; \
            { head -1 "$script"; \
              printf '[ -f /etc/guacamole-ha.env ] && . /etc/guacamole-ha.env || true\n'; \
              printf 'export PGHOST="${PG_HOST:-127.0.0.1}" PGPORT="${PG_PORT:-5432}" PGUSER="${PG_USER:-postgres}" PGPASSWORD="${PG_PASSWORD:-}" PGDATABASE="${PG_DATABASE:-guacamole_db}"\n'; \
+             printf 'export CATALINA_OPTS="-Xmx${MAX_MEMORY_MB:-1024}m"\n'; \
              printf 'psql() { true; }\ncreateuser() { true; }\ncreatedb() { true; }\n'; \
              tail -n +2 "$script"; } > /tmp/guac_run_patched \
            && mv /tmp/guac_run_patched "$script" \
