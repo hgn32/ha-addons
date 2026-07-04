@@ -7,9 +7,13 @@ on:
   pull_request:
     branches:
       - main
+  # すべてのブランチの push でビルド & publish する。
+  # main へのマージ前にイメージを ghcr に公開しておくことで、
+  # HA がストアで新バージョンを検知した時点で必ず pull 可能な状態にする
+  # (「更新を検知したのにイメージ取得に失敗する」窓を無くす)。
   push:
     branches:
-      - main
+      - "**"
   workflow_dispatch:
     inputs:
       app:
@@ -63,7 +67,10 @@ jobs:
             else
               changed_apps=(${APPS})
             fi
-          elif [[ "${CHANGED_FILES}" =~ \.github/workflows/(builder|build-app)\.yaml ]]; then
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" && "${CHANGED_FILES}" =~ \.github/workflows/(builder|build-app)\.yaml ]]; then
+            # ワークフロー変更の全アプリビルドは PR 検証時のみ(publish されない)。
+            # push でこれをやるとリリース済みタグを再ビルドで上書きしてしまう。
+            # 全アプリの再ビルドが必要な場合は workflow_dispatch を使うこと。
             changed_apps=(${APPS})
           else
             for app in ${APPS}; do
@@ -97,5 +104,5 @@ jobs:
     uses: ./.github/workflows/build-app.yaml
     with:
       app: ${{ matrix.app }}
-      publish: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      publish: ${{ github.event_name != 'pull_request' }}
     secrets: inherit
