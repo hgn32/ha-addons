@@ -39,40 +39,37 @@ if [ ! -f "$PERSIST/.layout-v2" ]; then
     touch "$PERSIST/.layout-v2"
 fi
 
-###### backups
-# Suwayomi は自動バックアップ (.tachibk) を <dataDir>/backups に書く。
-# 実体は従来どおり /config/backups に置き(統合 Summary viewer の
-# 「サーバ上のフォルダから選択」やホストの /addon_configs/<slug>/backups が
-# ここを参照する)、Tachidesk 側からはディレクトリリンクで参照させる。
-mkdir -p /config/backups
-chown suwayomi:suwayomi /config/backups 2>/dev/null || chmod 0777 /config/backups
-if [ ! -L "$PERSIST/backups" ]; then
-    # 実ディレクトリとして作られていた場合は中身を /config/backups へ退避
-    if [ -d "$PERSIST/backups" ]; then
-        mv "$PERSIST/backups"/* /config/backups/ 2>/dev/null
-    fi
-    rm -rf "$PERSIST/backups"
-    ln -s /config/backups "$PERSIST/backups"
-fi
-
-###### 非永続ディレクトリ (bin / cache / logs / downloads / thumbnails)
-# これらは容量が大きい・キャッシュ・バージョン密結合のいずれかで、
-# HA バックアップに含めたくない。永続領域には「コンテナ内ディレクトリへの
-# シンボリックリンク」だけを置く(tar はリンクを辿らないのでバックアップには
-# リンクエントリしか入らない)。実体はコンテナ内なので:
-#   - 再起動では残る / アドオン更新で消える(downloads は従来どおりの挙動)
-#   - bin(KCEF 等バージョン密結合バイナリ)は更新のたびに作り直される
+###### 非永続ディレクトリ (bin / cache / logs / downloads / thumbnails / webUI / backups)
+# これらは容量が大きい・キャッシュ・バージョン密結合・(ユーザーの明示的な希望で)
+# バックアップに含めたくない、のいずれかに該当する。永続領域には「コンテナ内
+# ディレクトリへのシンボリックリンク」だけを置く(tar はリンクを辿らないので
+# HA のバックアップにはリンクエントリしか入らない)。実体はコンテナ内なので:
+#   - 再起動では残る / アドオン更新で消える
+#   - bin(KCEF 等バージョン密結合バイナリ)・webUI(静的アセット)は
+#     いずれも本体が起動時に自動で再取得する
+#   - backups(.tachibk)は「更新前に作成 → 更新後に復元」のために
+#     一旦 PC 側にダウンロードしておく運用に変更(README 参照)。
+#     ホストの /addon_configs/<slug>/backups からは直接見えなくなる
 EPHEMERAL=/var/lib/tachidesk-ephemeral
 mkdir -p "$EPHEMERAL"
-for d in bin cache logs downloads thumbnails; do
+for d in bin cache logs downloads thumbnails webUI backups; do
     mkdir -p "$EPHEMERAL/$d"
-    # 0.17/0.18 で永続化されてしまった実体はバックアップ肥大の元なので破棄
+    # 過去バージョンで永続化されてしまった実体はバックアップ肥大の元なので破棄
     if [ -e "$PERSIST/$d" ] && [ ! -L "$PERSIST/$d" ]; then
         rm -rf "$PERSIST/$d"
     fi
     ln -sfn "$EPHEMERAL/$d" "$PERSIST/$d"
 done
 chown -R suwayomi:suwayomi "$EPHEMERAL" 2>/dev/null || chmod -R a+rwX "$EPHEMERAL"
+
+###### 旧 /config/backups(0.16〜0.19 時代の実体)からの一回限りの退避
+# 中身は一度だけ新しい保存先(コンテナ内、非永続)へコピーして今回のセッション
+# では引き続き参照できるようにしつつ、host からの残骸表示を消すため空にする。
+if [ -d /config/backups ] && [ ! -L /config/backups ]; then
+    echo "---------- migrating legacy /config/backups (now non-persistent) ----------"
+    find /config/backups -mindepth 1 -maxdepth 1 -exec mv {} "$EPHEMERAL/backups/" \; 2>/dev/null
+    rmdir /config/backups 2>/dev/null
+fi
 
 ###### 掃除
 # 前コンテナが強制終了した場合に残る H2 のロックファイル
@@ -96,8 +93,8 @@ ln -s "$PERSIST" "$TACHIDESK"
 # 「Permission denied」(例: extensions/icon/*.tmp)になる。
 # 所有者が suwayomi でないものだけを毎起動時に修復する(chown -h は
 # シンボリックリンク自体を対象にし、リンク先には触らない)。
-find "$PERSIST" /config/backups ! -user suwayomi -exec chown -h suwayomi:suwayomi {} + 2>/dev/null \
-    || chmod -R a+rwX "$PERSIST" /config/backups 2>/dev/null
+find "$PERSIST" ! -user suwayomi -exec chown -h suwayomi:suwayomi {} + 2>/dev/null \
+    || chmod -R a+rwX "$PERSIST" 2>/dev/null
 
 ###### ls
 echo "---------- ls:/config ----------"
@@ -108,9 +105,11 @@ ls -la "$PERSIST"
 ###### Summary viewer (ingress :8099)
 # Runs alongside the Suwayomi server in the same container, sharing /config.
 # Reachable Suwayomi API is on localhost:4567 (overridable via add-on options).
-# BACKUP_DIR points at the Suwayomi server's backup folder (/config/backups).
+# BACKUP_DIR points at the Suwayomi server's backup folder. これは 0.20 から
+# 非永続領域(コンテナ内、$EPHEMERAL/backups)を指す。参照は同一コンテナ内
+# なので ingress パネルからの閲覧・ダウンロードは引き続き問題なく行える。
 echo "---------- start summary viewer (:8099) ----------"
-BACKUP_DIR=/config/backups \
+BACKUP_DIR="$EPHEMERAL/backups" \
 ALIASES_FILE=/config/aliases.json \
 OPTIONS_FILE=/data/options.json \
 /opt/summary/venv/bin/uvicorn app.main:app \
