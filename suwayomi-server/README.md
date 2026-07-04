@@ -61,14 +61,19 @@
 
 ## データの保存先
 
-`startup_script_org.sh` により、設定・データベース・拡張機能はアドオン専用の設定ディレクトリ（コンテナ内 `/config`、ホスト実体 `/addon_configs/<slug>/`、バックアップ対象）にシンボリックリンクで永続化されます。
+`startup_script_org.sh` により、Suwayomi の Tachidesk データディレクトリ全体がアドオン専用の設定ディレクトリ（コンテナ内 `/config`、ホスト実体 `/addon_configs/<slug>/`、バックアップ対象）に永続化されます。
 
 | 種類 | コンテナ内パス |
 |---|---|
-| サーバー設定 | `/config/server.conf` |
-| オプション | `/config/options.json` |
-| データベース | `/config/database.mv.db` |
-| 拡張機能 | `/config/extensions/` |
+| Tachidesk データ一式（データベース・サーバー設定・拡張機能・ダウンロード等） | `/config/tachidesk/` |
+| 自動バックアップ (.tachibk) | `/config/backups/` |
+| Summary viewer の変換テーブル | `/config/aliases.json` |
+
+個々のファイルを個別にシンボリックリンクする方式は、Suwayomi 本体や上流起動スクリプトの
+「一時ファイル + rename」型の書き込みでリンクが実ファイルに置き換わり、以後のデータが
+コンテナ内に落ちてアップデートで失われるため使用していません（0.17 で修正）。
+`/config/tachidesk/bin`（KCEF 等のバージョン依存バイナリ）と `cache` は、アップデート後の
+不整合による起動不能を防ぐため毎回起動時に再生成されます。
 
 ## Mihon との連携
 

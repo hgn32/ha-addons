@@ -9,43 +9,75 @@ MAX_MEMORY_MB=$(jq -r 'if (.max_memory_mb != null) then .max_memory_mb else "" e
 export JAVA_TOOL_OPTIONS="-Xmx${MAX_MEMORY_MB}m"
 echo "---------- JVM max heap size: ${MAX_MEMORY_MB}MB ----------"
 
-###### server.conf
-rm -f /home/suwayomi/.local/share/Tachidesk/server.conf
-ln -s /config/server.conf /home/suwayomi/.local/share/Tachidesk/server.conf
+###### 永続データディレクトリ (/config/tachidesk)
+# 個々のファイルを /config へシンボリックリンクする方式は使わない。
+# 上流 startup_script.sh の `sed -i`(server.conf)や Suwayomi 本体の
+# H2 マイグレーション(Files.copy REPLACE_EXISTING で database.mv.db を差し替え)
+# は「一時ファイル + rename/置き換え」でリンク自体を実ファイルに変えてしまい、
+# 以後の書き込みがコンテナ内へ落ちてアップデートのたびに巻き戻る。
+# Tachidesk データディレクトリ全体を /config/tachidesk に置き、
+# コンテナ側はディレクトリごとリンクする(rename はディレクトリ内で完結し安全)。
+TACHIDESK=/home/suwayomi/.local/share/Tachidesk
+PERSIST=/config/tachidesk
+mkdir -p "$PERSIST"
 
-###### options.json
-rm -f /home/suwayomi/.local/share/Tachidesk/options.json
-ln -s /config/options.json /home/suwayomi/.local/share/Tachidesk/options.json
-
-###### database.mv.db
-rm -f /home/suwayomi/.local/share/Tachidesk/database.mv.db
-ln -s /config/database.mv.db /home/suwayomi/.local/share/Tachidesk/database.mv.db
-
-###### database.trace.db
-rm -f /home/suwayomi/.local/share/Tachidesk/database.trace.db
-ln -s /config/database.trace.db /home/suwayomi/.local/share/Tachidesk/database.trace.db
-
-###### extensions
-rm -rf /home/suwayomi/.local/share/Tachidesk/extensions
-ln -s /config/extensions /home/suwayomi/.local/share/Tachidesk/extensions
+###### 旧レイアウト(/config 直下のファイル)からの一回限りの移行
+if [ ! -f "$PERSIST/.layout-v2" ]; then
+    echo "---------- migrating legacy /config files into $PERSIST ----------"
+    for f in database.mv.db database.trace.db server.conf options.json; do
+        if [ -e "/config/$f" ] && [ ! -e "$PERSIST/$f" ]; then
+            mv "/config/$f" "$PERSIST/$f"
+            echo "moved /config/$f -> $PERSIST/$f"
+        fi
+    done
+    if [ -d /config/extensions ] && [ ! -e "$PERSIST/extensions" ]; then
+        mv /config/extensions "$PERSIST/extensions"
+        echo "moved /config/extensions -> $PERSIST/extensions"
+    fi
+    # Suwayomi は suwayomi ユーザーで動くため、移行したファイルの所有権を渡す
+    chown -R suwayomi:suwayomi "$PERSIST" 2>/dev/null || chmod -R a+rwX "$PERSIST"
+    touch "$PERSIST/.layout-v2"
+fi
 
 ###### backups
-# Suwayomi writes automated backups (.tachibk) under <dataDir>/backups.
-# Persist them under /config/backups so they survive restarts AND so the
-# integrated Summary viewer's "サーバ上のフォルダから選択" lists them.
+# Suwayomi は自動バックアップ (.tachibk) を <dataDir>/backups に書く。
+# 実体は従来どおり /config/backups に置き(統合 Summary viewer の
+# 「サーバ上のフォルダから選択」やホストの /addon_configs/<slug>/backups が
+# ここを参照する)、Tachidesk 側からはディレクトリリンクで参照させる。
 mkdir -p /config/backups
-# Created as root, but the Suwayomi server runs as the 'suwayomi' user and must
-# be able to write automated backups here. Hand ownership over (fall back to a
-# permissive mode if the user/group can't be resolved).
 chown suwayomi:suwayomi /config/backups 2>/dev/null || chmod 0777 /config/backups
-rm -rf /home/suwayomi/.local/share/Tachidesk/backups
-ln -s /config/backups /home/suwayomi/.local/share/Tachidesk/backups
+if [ ! -L "$PERSIST/backups" ]; then
+    # 実ディレクトリとして作られていた場合は中身を /config/backups へ退避
+    if [ -d "$PERSIST/backups" ]; then
+        mv "$PERSIST/backups"/* /config/backups/ 2>/dev/null
+    fi
+    rm -rf "$PERSIST/backups"
+    ln -s /config/backups "$PERSIST/backups"
+fi
+
+###### バージョン依存物の掃除
+# bin/ には KCEF(Chromium)などサーババージョンと密結合のバイナリが入る。
+# 永続化したままアップデートすると不整合で起動しなくなるため毎回作り直させる
+# (上流 startup_script.sh が bin/kcef を再リンク/再取得する)。cache/ も同様。
+rm -rf "$PERSIST/bin" "$PERSIST/cache"
+# 前コンテナが強制終了した場合に残る H2 のロックファイルを掃除
+rm -f "$PERSIST/database.lock.db"
+
+###### コンテナ側 Tachidesk をディレクトリごとリンク
+if [ -L "$TACHIDESK" ]; then
+    rm -f "$TACHIDESK"
+else
+    rm -rf "$TACHIDESK"
+fi
+ln -s "$PERSIST" "$TACHIDESK"
+# ディレクトリ自体は毎回所有権を確認(中身は suwayomi ユーザーが作るので不要)
+chown suwayomi:suwayomi "$PERSIST" 2>/dev/null || chmod a+rwX "$PERSIST"
 
 ###### ls
 echo "---------- ls:/config ----------"
 ls -la /config
-echo "---------- ls:/home/suwayomi/.local/share/Tachidesk/ ----------"
-ls -la /home/suwayomi/.local/share/Tachidesk/
+echo "---------- ls:$PERSIST ----------"
+ls -la "$PERSIST"
 
 ###### Summary viewer (ingress :8099)
 # Runs alongside the Suwayomi server in the same container, sharing /config.
