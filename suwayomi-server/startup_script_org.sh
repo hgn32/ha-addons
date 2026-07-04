@@ -70,8 +70,15 @@ else
     rm -rf "$TACHIDESK"
 fi
 ln -s "$PERSIST" "$TACHIDESK"
-# ディレクトリ自体は毎回所有権を確認(中身は suwayomi ユーザーが作るので不要)
-chown suwayomi:suwayomi "$PERSIST" 2>/dev/null || chmod a+rwX "$PERSIST"
+
+###### 所有権の自動修復
+# /config 配下は HA のバックアップ復元や過去バージョンの経緯で root 所有の
+# ファイルが混ざることがあり、suwayomi ユーザーで動く本体が書き込めず
+# 「Permission denied」(例: extensions/icon/*.tmp)になる。
+# 所有者が suwayomi でないものだけを毎起動時に修復する(chown -h は
+# シンボリックリンク自体を対象にし、リンク先には触らない)。
+find "$PERSIST" /config/backups ! -user suwayomi -exec chown -h suwayomi:suwayomi {} + 2>/dev/null \
+    || chmod -R a+rwX "$PERSIST" /config/backups 2>/dev/null
 
 ###### ls
 echo "---------- ls:/config ----------"
