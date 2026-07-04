@@ -55,13 +55,32 @@ if [ ! -L "$PERSIST/backups" ]; then
     ln -s /config/backups "$PERSIST/backups"
 fi
 
-###### バージョン依存物の掃除
-# bin/ には KCEF(Chromium)などサーババージョンと密結合のバイナリが入る。
-# 永続化したままアップデートすると不整合で起動しなくなるため毎回作り直させる
-# (上流 startup_script.sh が bin/kcef を再リンク/再取得する)。cache/ も同様。
-rm -rf "$PERSIST/bin" "$PERSIST/cache"
-# 前コンテナが強制終了した場合に残る H2 のロックファイルを掃除
+###### 非永続ディレクトリ (bin / cache / logs / downloads / thumbnails)
+# これらは容量が大きい・キャッシュ・バージョン密結合のいずれかで、
+# HA バックアップに含めたくない。永続領域には「コンテナ内ディレクトリへの
+# シンボリックリンク」だけを置く(tar はリンクを辿らないのでバックアップには
+# リンクエントリしか入らない)。実体はコンテナ内なので:
+#   - 再起動では残る / アドオン更新で消える(downloads は従来どおりの挙動)
+#   - bin(KCEF 等バージョン密結合バイナリ)は更新のたびに作り直される
+EPHEMERAL=/var/lib/tachidesk-ephemeral
+mkdir -p "$EPHEMERAL"
+for d in bin cache logs downloads thumbnails; do
+    mkdir -p "$EPHEMERAL/$d"
+    # 0.17/0.18 で永続化されてしまった実体はバックアップ肥大の元なので破棄
+    if [ -e "$PERSIST/$d" ] && [ ! -L "$PERSIST/$d" ]; then
+        rm -rf "$PERSIST/$d"
+    fi
+    ln -sfn "$EPHEMERAL/$d" "$PERSIST/$d"
+done
+chown -R suwayomi:suwayomi "$EPHEMERAL" 2>/dev/null || chmod -R a+rwX "$EPHEMERAL"
+
+###### 掃除
+# 前コンテナが強制終了した場合に残る H2 のロックファイル
 rm -f "$PERSIST/database.lock.db"
+# Suwayomi の H2 マイグレーションが残す一時ファイル・退避コピー
+# (database.mv.db.*.backup は DB と同サイズありバックアップを肥大させる。
+#  DB 本体と .tachibk が残っているので不要)
+rm -f "$PERSIST"/database.mv.db.*.backup "$PERSIST"/database.*.sql
 
 ###### コンテナ側 Tachidesk をディレクトリごとリンク
 if [ -L "$TACHIDESK" ]; then
