@@ -1,3 +1,7 @@
+## 0.16
+
+- Suwayomi Server を v2.3.2232 にアップデート(v2.3.2223 の Hotfix 2)
+
 ## 0.15
 
 - Suwayomi Server(JVM)の最大メモリ使用量を設定できる `max_memory_mb` オプションを追加(既定 2048MB)
