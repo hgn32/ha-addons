@@ -1,4 +1,4 @@
 configuration:
   max_memory_mb:
     name: Max Memory (MB)
-    description: Virtual memory limit (ulimit -v) for the VOICEVOX Engine process.
+    description: Virtual memory limit (ulimit -v) for the VOICEVOX Engine process. 0 disables the limit (recommended). Small values prevent the engine from starting (use at least 8192 if set).

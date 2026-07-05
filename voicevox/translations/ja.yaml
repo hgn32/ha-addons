@@ -1,4 +1,4 @@
 configuration:
   max_memory_mb:
     name: 最大メモリ使用量 (MB)
-    description: VOICEVOX Engine プロセスの仮想メモリ上限(ulimit -v)。
+    description: VOICEVOX Engine プロセスの仮想メモリ上限(ulimit -v)。0 で制限なし(推奨)。小さい値だとエンジンが起動できなくなります(目安 8192 以上)。
