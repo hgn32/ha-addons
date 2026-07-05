@@ -1,7 +1,7 @@
 {
   "name": "Suwayomi Server",
   "description": "Self-hosted manga server compatible with Mihon (.tachibk バックアップビューア内蔵)",
-  "version": "0.21",
+  "version": "0.22",
   "slug": "suwayomi_server",
   "init": false,
   "arch": [
