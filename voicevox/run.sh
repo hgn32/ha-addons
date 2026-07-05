@@ -47,7 +47,10 @@ trap 'kill -TERM "${ENGINE_PID}" 2>/dev/null' TERM INT
         if [ $((TICK % 3)) -eq 0 ]; then
             ELAPSED=$(( $(date +%s) - START ))
             MEM=$(awk '/VmRSS/{r=$2} /VmSize/{v=$2} END{printf "RSS=%dMB VSZ=%dMB", r/1024, v/1024}' "/proc/${ENGINE_PID}/status" 2>/dev/null || echo "RSS=? VSZ=?")
-            echo "[voicevox] 起動待ち ${ELAPSED}秒: ${MEM} (上限=${MAX_MEMORY_MB}MB, 0=無制限)"
+            # /proc/meminfo・loadavg はコンテナ内でもホスト全体の値を示す
+            HOSTMEM=$(awk '/MemAvailable/{printf "%dMB", $2/1024}' /proc/meminfo 2>/dev/null || echo "?")
+            LOAD=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo "?")
+            echo "[voicevox] 起動待ち ${ELAPSED}秒: ${MEM} (上限=${MAX_MEMORY_MB}MB, 0=無制限) / ホスト空きメモリ=${HOSTMEM} load=${LOAD}"
         fi
         sleep 5
     done
