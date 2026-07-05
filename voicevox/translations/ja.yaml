@@ -1,7 +1,7 @@
 configuration:
   max_memory_mb:
     name: 最大メモリ使用量 (MB)
-    description: VOICEVOX Engine プロセスの仮想メモリ上限(ulimit -v)。0 で制限なし(推奨)。小さい値だとエンジンが起動できなくなります。実測値はログタブの起動待ちログで確認できます。
+    description: VOICEVOX Engine プロセスの仮想メモリ上限(ulimit -v)。0 で制限なし(推奨)。エンジンは起動に仮想メモリ約8.1GBを要するため、設定する場合は 12288 以上を推奨。下回るとエンジンが起動できません。
   load_all_models:
     name: 全モデルを事前読み込み
     description: 起動時に全モデルを読み込みます(従来動作)。無効にすると必要時に読み込むため起動が数秒で完了します。起動問題の切り分けにも使えます。
