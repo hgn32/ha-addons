@@ -39,20 +39,23 @@ if [ ! -f "$PERSIST/.layout-v2" ]; then
     touch "$PERSIST/.layout-v2"
 fi
 
-###### 非永続ディレクトリ (bin / cache / logs / downloads / thumbnails / webUI / backups)
+###### 非永続ディレクトリ (bin / cache / logs / downloads / thumbnails / backups)
 # これらは容量が大きい・キャッシュ・バージョン密結合・(ユーザーの明示的な希望で)
 # バックアップに含めたくない、のいずれかに該当する。永続領域には「コンテナ内
 # ディレクトリへのシンボリックリンク」だけを置く(tar はリンクを辿らないので
 # HA のバックアップにはリンクエントリしか入らない)。実体はコンテナ内なので:
 #   - 再起動では残る / アドオン更新で消える
-#   - bin(KCEF 等バージョン密結合バイナリ)・webUI(静的アセット)は
-#     いずれも本体が起動時に自動で再取得する
+#   - bin(KCEF 等バージョン密結合バイナリ)は本体が起動時に自動で再取得する
 #   - backups(.tachibk)は「更新前に作成 → 更新後に復元」のために
 #     一旦 PC 側にダウンロードしておく運用に変更(README 参照)。
 #     ホストの /addon_configs/<slug>/backups からは直接見えなくなる
+# webUI はここに含めない(= 永続・バックアップ対象)。Suwayomi 本体は起動の
+# たびに webUI ディレクトリを削除→実ディレクトリとして作り直して静的アセットを
+# 展開し直すため、symlink を張っても起動時に実体へ置き換わってしまい、
+# symlink 方式では対象外にできない(0.20 で試みたが機能していなかった)。
 EPHEMERAL=/var/lib/tachidesk-ephemeral
 mkdir -p "$EPHEMERAL"
-for d in bin cache logs downloads thumbnails webUI backups; do
+for d in bin cache logs downloads thumbnails backups; do
     mkdir -p "$EPHEMERAL/$d"
     # 過去バージョンで永続化されてしまった実体はバックアップ肥大の元なので破棄
     if [ -e "$PERSIST/$d" ] && [ ! -L "$PERSIST/$d" ]; then
@@ -61,6 +64,14 @@ for d in bin cache logs downloads thumbnails webUI backups; do
     ln -sfn "$EPHEMERAL/$d" "$PERSIST/$d"
 done
 chown -R suwayomi:suwayomi "$EPHEMERAL" 2>/dev/null || chmod -R a+rwX "$EPHEMERAL"
+
+###### 0.20 が張った webUI の symlink の除去(一回限りの移行)
+# webUI は 0.21 から永続・バックアップ対象(上のコメント参照)。リンク先の
+# 非永続領域はもう用意しないため、残っていたらここで外す。本体が起動時に
+# 実ディレクトリとして作り直し、以後は永続領域に残る。
+if [ -L "$PERSIST/webUI" ]; then
+    rm -f "$PERSIST/webUI"
+fi
 
 ###### 旧 /config/backups(0.16〜0.19 時代の実体)からの一回限りの退避
 # 中身は一度だけ新しい保存先(コンテナ内、非永続)へコピーして今回のセッション
