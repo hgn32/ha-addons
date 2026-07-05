@@ -11,10 +11,12 @@
   "startup": "services",
   "host_network": true,
   "options": {
-    "max_memory_mb": 0
+    "max_memory_mb": 0,
+    "load_all_models": true
   },
   "schema": {
-    "max_memory_mb": "int(0,16384)?"
+    "max_memory_mb": "int(0,16384)?",
+    "load_all_models": "bool?"
   },
   "image": "ghcr.io/hgn32/voicevox"
 }
