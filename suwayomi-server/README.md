@@ -67,16 +67,23 @@
 | 種類 | 永続化・バックアップ対象 | コンテナ内パス |
 |---|---|---|
 | データベース・サーバー設定・拡張機能・マイグレーション設定 | ✅ 対象 | `/config/tachidesk/` |
-| `bin`(KCEF 等バージョン依存バイナリ)・`cache`・`logs`・`downloads`・`thumbnails`・`webUI` | ❌ 対象外(非永続) | `/config/tachidesk/<各名>` は symlink |
+| `webUI`(静的アセット) | ✅ 対象 | `/config/tachidesk/webUI` |
+| `bin`(KCEF 等バージョン依存バイナリ)・`cache`・`logs`・`downloads`・`thumbnails` | ❌ 対象外(非永続) | `/config/tachidesk/<各名>` は symlink |
 | バックアップ (.tachibk) | ❌ 対象外(非永続) | `/config/tachidesk/backups` は symlink |
 | Summary viewer の変換テーブル | ✅ 対象 | `/config/aliases.json` |
+
+`webUI` がバックアップ対象なのは、Suwayomi 本体が起動のたびに webUI ディレクトリを
+削除→実ディレクトリとして作り直して静的アセットを展開し直すためです。symlink を
+張って対象外にしても起動時に実体へ置き換わってしまうため、symlink 方式では
+対象外にできず(0.20 で試みたが機能していなかった)、対象(数MB 程度)として
+扱っています。
 
 個々のファイルを個別にシンボリックリンクする方式は、Suwayomi 本体や上流起動スクリプトの
 「一時ファイル + rename」型の書き込みでリンクが実ファイルに置き換わり、以後のデータが
 コンテナ内に落ちてアップデートで失われるため使用していません(0.17 で修正)。
 
 「対象外(非永続)」のディレクトリは、コンテナの**再起動では残り、アドオンの更新では消えます**。
-`bin` と `webUI` は本体が起動時に自動で再取得するため実害はありませんが、
+`bin` は本体が起動時に自動で再取得するため実害はありませんが、
 **`backups`(.tachibk)は更新のたびに消えるため、アップデート前後の運用が変わります**:
 
 1. アドオン更新の**前**に、Suwayomi WebUI でバックアップを作成し、
