@@ -10,6 +10,7 @@
   ],
   "startup": "services",
   "host_network": true,
+  "watchdog": "http://[HOST]:[PORT:50021]/version",
   "options": {
     "max_memory_mb": 0,
     "load_all_models": true,
