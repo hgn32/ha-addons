@@ -8,3 +8,6 @@ configuration:
   preload_speaker_ids:
     name: Style IDs to preload
     description: List of style IDs to load right after startup. Combine with "Preload all models" disabled to load only the models you use and save a lot of memory (other styles still load automatically on first use).
+  cpu_num_threads:
+    name: CPU threads
+    description: Number of CPU threads used for synthesis. 0 auto-sets to the host physical core count (recommended). Using SMT/HT logical cores makes it slower, so physical cores are used. Keep manual values at or below the physical core count.

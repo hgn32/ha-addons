@@ -13,6 +13,25 @@ LOAD_ALL_MODELS=$(jq -r 'if (.load_all_models == false) then "false" else "true"
 # スキーマは list(str) だが、GUI がスカラーや旧形式(数値)で送っても壊れないよう配列/スカラー両対応にする。
 PRELOAD_IDS=$(jq -r '(.preload_speaker_ids // []) | (if type=="array" then . else [.] end) | map(tostring) | join(" ")' <<<"${OPTIONS_JSON}" 2>/dev/null || echo "")
 
+# 合成に使う CPU スレッド数。既定 0 = ホストの物理コア数に自動設定。
+# 実測: スレッド数が物理コア数と一致するとき最速で、超えると逆に遅くなる。
+# SMT/HT の論理コア(nproc)まで使うと onnxruntime 推論はむしろ遅くなるため、
+# nproc(論理)ではなく /proc/cpuinfo の (physical id, core id) ユニーク数で物理コア数を求める
+# (例: Ryzen 5 3500U は 4コア8スレッド → 物理4を採用)。
+# 物理コア数を取得できない環境(一部の VM / aarch64 等)では nproc にフォールバック。
+CPU_THREADS=$(jq -r 'if (.cpu_num_threads != null) then .cpu_num_threads else 0 end' <<<"${OPTIONS_JSON}" 2>/dev/null || echo 0)
+if [ "${CPU_THREADS}" -le 0 ] 2>/dev/null; then
+    CPU_THREADS=$(awk -F: '/^physical id/{p=$2} /^core id/{seen[p","$2]=1} END{print length(seen)}' /proc/cpuinfo 2>/dev/null)
+    if [ -z "${CPU_THREADS}" ] || [ "${CPU_THREADS}" -lt 1 ] 2>/dev/null; then
+        CPU_THREADS=$(nproc 2>/dev/null || echo 4)
+        echo "[voicevox] cpu_num_threads: ${CPU_THREADS} (物理コア数を検出できず nproc を使用)"
+    else
+        echo "[voicevox] cpu_num_threads: ${CPU_THREADS} (物理コア数に自動設定)"
+    fi
+else
+    echo "[voicevox] cpu_num_threads: ${CPU_THREADS} (手動指定)"
+fi
+
 # 最大メモリ使用量 (max_memory_mb) -> ulimit -v (仮想メモリ上限)
 # 仮想アドレス空間(VSZ)は実メモリ(RSS)より大幅に大きくなるため、小さい値では
 # モデル読み込み中にメモリ確保に失敗し、エンジンが待ち受け開始まで到達しないことがある。
@@ -37,7 +56,7 @@ mkdir -p "${XDG_DATA_HOME}"
 # gosu user で実行するエンジンが読み書きできるよう所有権を付与する。
 chown -R user:user "${XDG_DATA_HOME}" 2>/dev/null || true
 
-ENGINE_ARGS=(--cpu_num_threads 6 --host 0.0.0.0)
+ENGINE_ARGS=(--cpu_num_threads "${CPU_THREADS}" --host 0.0.0.0)
 if [ "${LOAD_ALL_MODELS}" = "true" ]; then
     ENGINE_ARGS+=(--load_all_models)
 fi
