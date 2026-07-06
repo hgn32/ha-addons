@@ -1,7 +1,7 @@
 {
   "name": "VOICEVOX Engine",
   "description": "VOICEVOX Engine for Home Assistant",
-  "version": "0.10",
+  "version": "0.11",
   "slug": "voiceboxengine",
   "init": false,
   "arch": [
@@ -10,11 +10,16 @@
   ],
   "startup": "services",
   "host_network": true,
+  "watchdog": "http://[HOST]:[PORT:50021]/version",
   "options": {
-    "max_memory_mb": 2048
+    "max_memory_mb": 0,
+    "load_all_models": true,
+    "preload_speaker_ids": []
   },
   "schema": {
-    "max_memory_mb": "int(512,8192)?"
+    "max_memory_mb": "int(0,16384)?",
+    "load_all_models": "bool?",
+    "preload_speaker_ids": ["int"]
   },
   "image": "ghcr.io/hgn32/voicevox"
 }

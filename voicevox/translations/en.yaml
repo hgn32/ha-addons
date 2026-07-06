@@ -1,4 +1,10 @@
 configuration:
   max_memory_mb:
     name: Max Memory (MB)
-    description: Virtual memory limit (ulimit -v) for the VOICEVOX Engine process.
+    description: Virtual memory limit (ulimit -v) for the VOICEVOX Engine process. 0 disables the limit (recommended). The engine needs about 8.1GB of virtual memory to start, so use at least 12288 if set; smaller values prevent startup.
+  load_all_models:
+    name: Preload all models
+    description: Load all voice models at startup (previous behavior). Disable to load on demand so the engine starts listening within seconds; useful for troubleshooting startup issues.
+  preload_speaker_ids:
+    name: Style IDs to preload
+    description: List of style IDs to load right after startup. Combine with "Preload all models" disabled to load only the models you use and save a lot of memory (other styles still load automatically on first use).
