@@ -9,8 +9,9 @@ echo "[voicevox] options.json: ${OPTIONS_JSON}"
 
 MAX_MEMORY_MB=$(jq -r 'if (.max_memory_mb != null) then .max_memory_mb else 0 end' <<<"${OPTIONS_JSON}" 2>/dev/null || echo 0)
 LOAD_ALL_MODELS=$(jq -r 'if (.load_all_models == false) then "false" else "true" end' <<<"${OPTIONS_JSON}" 2>/dev/null || echo true)
-# 指定スタイルのみ事前読み込み(スタイルIDのリスト)。使う場合は load_all_models=false と併用する
-PRELOAD_IDS=$(jq -r '(.preload_speaker_ids // []) | map(tostring) | join(" ")' <<<"${OPTIONS_JSON}" 2>/dev/null || echo "")
+# 指定スタイルのみ事前読み込み(スタイルIDのリスト)。使う場合は load_all_models=false と併用する。
+# スキーマは list(str) だが、GUI がスカラーや旧形式(数値)で送っても壊れないよう配列/スカラー両対応にする。
+PRELOAD_IDS=$(jq -r '(.preload_speaker_ids // []) | (if type=="array" then . else [.] end) | map(tostring) | join(" ")' <<<"${OPTIONS_JSON}" 2>/dev/null || echo "")
 
 # 最大メモリ使用量 (max_memory_mb) -> ulimit -v (仮想メモリ上限)
 # 仮想アドレス空間(VSZ)は実メモリ(RSS)より大幅に大きくなるため、小さい値では
@@ -54,6 +55,14 @@ trap 'kill -TERM "${ENGINE_PID}" 2>/dev/null' TERM INT
             if [ -n "${PRELOAD_IDS}" ]; then
                 MEM=$(awk '/VmRSS/{r=$2} /VmSize/{v=$2} END{printf "RSS=%dMB VSZ=%dMB", r/1024, v/1024}' "/proc/${ENGINE_PID}/status" 2>/dev/null || echo "RSS=? VSZ=?")
                 echo "[voicevox] 事前読み込み完了後のメモリ: ${MEM}"
+            fi
+            # 上限運用時の余裕チェック: 未読込スタイルの初回読み込みは VSZ を約1GB 消費する
+            if [ "${MAX_MEMORY_MB}" -gt 0 ]; then
+                VSZ_NOW=$(awk '/VmSize/{print int($2/1024)}' "/proc/${ENGINE_PID}/status" 2>/dev/null || echo 0)
+                HEADROOM=$((MAX_MEMORY_MB - VSZ_NOW))
+                if [ "${HEADROOM}" -lt 1024 ]; then
+                    echo "[voicevox] 警告: 仮想メモリ上限 ${MAX_MEMORY_MB}MB まで残り ${HEADROOM}MB です。事前読み込みしていないスタイルを初めて使うと上限を超えて合成に失敗する恐れがあります。他のスタイルも使う場合は max_memory_mb を 0(無制限)にするか増やしてください。"
+                fi
             fi
             exit 0
         fi
