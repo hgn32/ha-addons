@@ -25,7 +25,19 @@ else
     echo "[voicevox] ulimit -v: 無制限 (max_memory_mb=0)"
 fi
 
-ENGINE_ARGS=(--cors_policy_mode all --cpu_num_threads 6 --host 0.0.0.0)
+# ---- 設定・辞書の永続化 ----
+# VOICEVOX Engine は設定(CORS/allow_origin)・ユーザー辞書・プリセットを
+# XDG_DATA_HOME 配下の voicevox-engine/ に読み書きする。既定はコンテナ内の非永続領域の
+# ため再起動で消える。保存先を /data に移すだけで、設定も辞書もまとめて永続化される
+# (実測確認済み: 設定ページでの変更が /data/xdg に保存され、再起動後も復元される)。
+# CORS はエンジン既定の localapps。TTS(サーバー間通信)や設定ページの表示には影響しない。
+# 変更したい場合は設定ページ(http://<HAのアドレス>:50021/setting)から行うと永続化される。
+export XDG_DATA_HOME=/data/xdg
+mkdir -p "${XDG_DATA_HOME}"
+# gosu user で実行するエンジンが読み書きできるよう所有権を付与する。
+chown -R user:user "${XDG_DATA_HOME}" 2>/dev/null || true
+
+ENGINE_ARGS=(--cpu_num_threads 6 --host 0.0.0.0)
 if [ "${LOAD_ALL_MODELS}" = "true" ]; then
     ENGINE_ARGS+=(--load_all_models)
 fi
