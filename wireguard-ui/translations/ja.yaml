@@ -4,7 +4,7 @@ configuration:
     description: 有効にするとログイン画面をスキップして直接アクセスできます。
   default_interface_addresses:
     name: VPN インターフェースアドレス
-    description: WireGuard インターフェースに割り当てる CIDR アドレス（例: 192.168.101.0/24）。
+    description: "WireGuard インターフェースに割り当てる CIDR アドレス（例: 192.168.101.0/24）。"
   subnet_ranges:
     name: サブネット範囲
     description: "クライアントグループ用の名前付きサブネット範囲。形式: \"名前: CIDR\""
