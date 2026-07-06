@@ -9,6 +9,8 @@ echo "[voicevox] options.json: ${OPTIONS_JSON}"
 
 MAX_MEMORY_MB=$(jq -r 'if (.max_memory_mb != null) then .max_memory_mb else 0 end' <<<"${OPTIONS_JSON}" 2>/dev/null || echo 0)
 LOAD_ALL_MODELS=$(jq -r 'if (.load_all_models == false) then "false" else "true" end' <<<"${OPTIONS_JSON}" 2>/dev/null || echo true)
+# 指定スタイルのみ事前読み込み(スタイルIDのリスト)。使う場合は load_all_models=false と併用する
+PRELOAD_IDS=$(jq -r '(.preload_speaker_ids // []) | map(tostring) | join(" ")' <<<"${OPTIONS_JSON}" 2>/dev/null || echo "")
 
 # 最大メモリ使用量 (max_memory_mb) -> ulimit -v (仮想メモリ上限)
 # 仮想アドレス空間(VSZ)は実メモリ(RSS)より大幅に大きくなるため、小さい値では
@@ -41,6 +43,18 @@ trap 'kill -TERM "${ENGINE_PID}" 2>/dev/null' TERM INT
             ELAPSED=$(( $(date +%s) - START ))
             VERSION=$(python3 -c "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:50021/version',timeout=5).read().decode().strip())" 2>/dev/null || echo "?")
             echo "[voicevox] OK: エンジン起動完了。50021 で待ち受け中 (${ELAPSED}秒, エンジン版 ${VERSION})"
+            # 指定スタイルの事前読み込み(モデル読み込み済みならエンジン側で no-op)
+            for SID in ${PRELOAD_IDS}; do
+                if python3 -c "import urllib.request;urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:50021/initialize_speaker?speaker=${SID}&skip_reinit=true',method='POST'),timeout=180).read()" 2>/dev/null; then
+                    echo "[voicevox] スタイルID ${SID} を事前読み込みしました"
+                else
+                    echo "[voicevox] 警告: スタイルID ${SID} の事前読み込みに失敗しました(存在しないIDの可能性)"
+                fi
+            done
+            if [ -n "${PRELOAD_IDS}" ]; then
+                MEM=$(awk '/VmRSS/{r=$2} /VmSize/{v=$2} END{printf "RSS=%dMB VSZ=%dMB", r/1024, v/1024}' "/proc/${ENGINE_PID}/status" 2>/dev/null || echo "RSS=? VSZ=?")
+                echo "[voicevox] 事前読み込み完了後のメモリ: ${MEM}"
+            fi
             exit 0
         fi
         TICK=$((TICK + 1))

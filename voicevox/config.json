@@ -12,11 +12,13 @@
   "host_network": true,
   "options": {
     "max_memory_mb": 0,
-    "load_all_models": true
+    "load_all_models": true,
+    "preload_speaker_ids": []
   },
   "schema": {
     "max_memory_mb": "int(0,16384)?",
-    "load_all_models": "bool?"
+    "load_all_models": "bool?",
+    "preload_speaker_ids": ["int"]
   },
   "image": "ghcr.io/hgn32/voicevox"
 }
