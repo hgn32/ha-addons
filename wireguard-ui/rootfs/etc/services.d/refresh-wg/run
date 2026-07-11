@@ -98,7 +98,9 @@ nat_ip_ranges() {
         echo "Warning: could not add IPv6 MASQUERADE for ${addr} (IPv6 NAT unsupported on this host?)"
       fi
     else
-      iptables -t nat -A POSTROUTING -s "${addr}" -o "${default_nic}" -j MASQUERADE
+      if ! iptables -t nat -A POSTROUTING -s "${addr}" -o "${default_nic}" -j MASQUERADE 2>/dev/null; then
+        echo "Warning: could not add IPv4 MASQUERADE for ${addr}"
+      fi
     fi
   done
 }
@@ -113,7 +115,10 @@ refresh_wireguard() {
   local current_checksum
   current_checksum="$(checksum_interface)"
   if [ "${old_interface_checksum}" = "$current_checksum" ]; then
-    wg syncconf wg0 <(wg-quick strip wg0)
+    if ! wg syncconf wg0 <(wg-quick strip wg0); then
+      echo "ERROR: wg syncconf wg0 に失敗しました。"
+      return 1
+    fi
     echo "Wireguard clients synchronized preserving wg0 interface."
   else
     echo "Interface changed... recreating wg0"
@@ -298,11 +303,17 @@ iptables -F WG_DMZ_allow 2>/dev/null || true
 iptables --new WG_DMZ 2>/dev/null || true
 iptables --new WG_DMZ_allow 2>/dev/null || true
 # DMZ config with rfc1918 private IPv4 spaces
-iptables -I WG_DMZ -j WG_DMZ_allow
-iptables -A WG_DMZ -d 10.0.0.0/8 -j REJECT --reject-with icmp-host-prohibited
-iptables -A WG_DMZ -d 172.16.0.0/12 -j REJECT --reject-with icmp-host-prohibited
-iptables -A WG_DMZ -d 192.168.0.0/16 -j REJECT --reject-with icmp-host-prohibited
-iptables -A WG_DMZ -j RETURN
+# REJECT ターゲットはカーネルモジュール(xt_REJECT 等)が無いホストでは
+# 使えず "Extension REJECT revision 0 not supported" で失敗することがある。
+# モジュール不要な DROP に変更(ICMP 到達不能応答は返らなくなるが、
+# 遮断自体の効果は同じ)。DMZ 設定はオプション機能であり、ここで失敗しても
+# 本体の WireGuard/NAT 機能まで巻き込んでクラッシュさせないよう、
+# 各コマンドの失敗は警告に留めて続行する。
+iptables -I WG_DMZ -j WG_DMZ_allow || echo "Warning: WG_DMZ -> WG_DMZ_allow ルールの追加に失敗しました"
+iptables -A WG_DMZ -d 10.0.0.0/8 -j DROP || echo "Warning: WG_DMZ DROP ルール(10.0.0.0/8)の追加に失敗しました"
+iptables -A WG_DMZ -d 172.16.0.0/12 -j DROP || echo "Warning: WG_DMZ DROP ルール(172.16.0.0/12)の追加に失敗しました"
+iptables -A WG_DMZ -d 192.168.0.0/16 -j DROP || echo "Warning: WG_DMZ DROP ルール(192.168.0.0/16)の追加に失敗しました"
+iptables -A WG_DMZ -j RETURN || echo "Warning: WG_DMZ RETURN ルールの追加に失敗しました"
 #
 # Watch for changes
 #
