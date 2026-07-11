@@ -10,6 +10,7 @@ FROM ${BUILD_FROM}
 RUN apk add --no-cache \
         inotify-tools \
         iptables \
+        ip6tables \
         nginx \
         wireguard-tools \
     && mkdir -p /etc/wireguard /var/log/nginx \

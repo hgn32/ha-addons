@@ -1,7 +1,7 @@
 {
   "name": "VOICEVOX Engine",
   "description": "VOICEVOX Engine for Home Assistant",
-  "version": "0.14",
+  "version": "0.15",
   "slug": "voiceboxengine",
   "init": false,
   "arch": [

@@ -3,6 +3,12 @@ set -e
 
 python3 /advertise.py &
 
+# HA で IPv6 を有効にするとクライアントが IPv6 でエンジンへ接続しようとするが、
+# エンジンは --host 0.0.0.0(IPv4 のみ)で待ち受けるため接続できなくなる。
+# [::]:50021 を IPv6 専用で待ち受けてエンジンへ中継するプロキシを併走させる
+# (IPv4 は従来どおりエンジンが直接処理。IPv6 無効環境では自動でスキップ)。
+python3 /ipv6proxy.py &
+
 # ---- 設定の読み込み(診断のため内容をそのままログタブに表示する) ----
 OPTIONS_JSON=$(cat /data/options.json 2>/dev/null || echo '{}')
 echo "[voicevox] options.json: ${OPTIONS_JSON}"

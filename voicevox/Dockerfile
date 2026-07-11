@@ -7,6 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY advertise.py /advertise.py
+COPY ipv6proxy.py /ipv6proxy.py
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 

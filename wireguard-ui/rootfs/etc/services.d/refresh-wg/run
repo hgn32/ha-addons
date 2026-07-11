@@ -26,7 +26,21 @@ default_route_ip="$(ip route | awk '$1 == "default" { print $3 }')"
 export default_nic default_route_ip
 
 # daemon restarts wg interface on modification
-iface_addr() { awk '$1 == "[Interface]" {iface=1; next}; iface == 1 && $1 == "Address" {print $3; exit}' /etc/wireguard/wg0.conf | tr ',' '\n'; }
+# [Interface] の Address 行から、カンマ区切り(例: "192.168.101.0/24, fd42:42:42::0/64")
+# の各アドレスを 1 行ずつ取り出す。IPv4 と IPv6 が混在していても両方拾えるようにする。
+iface_addr() {
+  awk -F'=' '
+    /^[[:space:]]*\[/ { iface = 0 }
+    /^[[:space:]]*\[Interface\][[:space:]]*$/ { iface = 1; next }
+    iface && $1 ~ /^[[:space:]]*Address[[:space:]]*$/ {
+      val = $2
+      gsub(/[[:space:]]/, "", val)
+      n = split(val, a, ",")
+      for (i = 1; i <= n; i++) if (a[i] != "") print a[i]
+    }
+  ' /etc/wireguard/wg0.conf
+}
+is_ipv6() { case "$1" in *:*) return 0 ;; *) return 1 ;; esac; }
 clear_chain_rule() {
   case "$#" in
     1)
@@ -64,13 +78,30 @@ add_chain_rules() {
   done <<< "$(xargs -n1 <<< "${2:-}")"
 }
 clear_nats() (
-  if ! iptables-save | grep -F -- '-j MASQUERADE'; then
-    return
-  fi
   set +o pipefail
-  iptables-save | grep -F -- '-j MASQUERADE' | sed 's/^-A/-D/' | tr '\n' '\0' | xargs -0 -I{} /bin/bash -c 'iptables -t nat {}'
+  if iptables-save 2>/dev/null | grep -F -- '-j MASQUERADE' > /dev/null; then
+    iptables-save | grep -F -- '-j MASQUERADE' | sed 's/^-A/-D/' | tr '\n' '\0' | xargs -0 -I{} /bin/bash -c 'iptables -t nat {}'
+  fi
+  # IPv6 側の MASQUERADE も同様に掃除する(ip6tables が無い/使えない環境では無視)
+  if ip6tables-save 2>/dev/null | grep -F -- '-j MASQUERADE' > /dev/null; then
+    ip6tables-save | grep -F -- '-j MASQUERADE' | sed 's/^-A/-D/' | tr '\n' '\0' | xargs -0 -I{} /bin/bash -c 'ip6tables -t nat {}'
+  fi
 )
-nat_ip_ranges() { iface_addr | xargs -I {} iptables -t nat -A POSTROUTING -s '{}' -o "${default_nic}" -j MASQUERADE; }
+# Address のうち IPv4 は iptables、IPv6 は ip6tables で MASQUERADE を張る。
+# IPv6 NAT に未対応の環境では警告を出すだけに留め、IPv4 の動作は止めない。
+nat_ip_ranges() {
+  local addr
+  iface_addr | while read -r addr; do
+    [ -z "${addr}" ] && continue
+    if is_ipv6 "${addr}"; then
+      if ! ip6tables -t nat -A POSTROUTING -s "${addr}" -o "${default_nic}" -j MASQUERADE 2>/dev/null; then
+        echo "Warning: could not add IPv6 MASQUERADE for ${addr} (IPv6 NAT unsupported on this host?)"
+      fi
+    else
+      iptables -t nat -A POSTROUTING -s "${addr}" -o "${default_nic}" -j MASQUERADE
+    fi
+  done
+}
 checksum_interface() {
   if [ ! -f /etc/wireguard/wg0.conf ]; then
     return
