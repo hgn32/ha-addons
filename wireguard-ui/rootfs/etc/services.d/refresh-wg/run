@@ -118,10 +118,14 @@ refresh_wireguard() {
   else
     echo "Interface changed... recreating wg0"
     old_interface_checksum="$current_checksum"
-    if ip link show wg0; then
-      wg-quick down wg0
+    if ip link show wg0 >/dev/null 2>&1; then
+      wg-quick down wg0 || echo "Warning: wg-quick down wg0 failed (interface may already be gone)"
     fi
-    wg-quick up wg0
+    if ! wg-quick up wg0; then
+      echo "ERROR: wg-quick up wg0 failed. wg0.conf の Address 行(IPv6 含む)がこの環境で割り当てできない可能性があります。"
+      return 1
+    fi
+    echo "wg-quick up wg0 succeeded."
   fi
   clear_nats
   clear_subnet_chain_rules
@@ -285,9 +289,14 @@ apply_allow_rule() (
 trap 'rm -f /tmp/wg_started' EXIT
 #
 # Create wireguard DMZ
+# 直前の実行がクラッシュ等で異常終了した場合、チェーンが残ったまま再起動される
+# ことがあるため、既存のチェーンがあればフラッシュしてから作り直す(冪等化)。
+# これをしないと "Chain already exists" で即クラッシュし、無限再起動ループに陥る。
 #
-iptables --new WG_DMZ
-iptables --new WG_DMZ_allow
+iptables -F WG_DMZ 2>/dev/null || true
+iptables -F WG_DMZ_allow 2>/dev/null || true
+iptables --new WG_DMZ 2>/dev/null || true
+iptables --new WG_DMZ_allow 2>/dev/null || true
 # DMZ config with rfc1918 private IPv4 spaces
 iptables -I WG_DMZ -j WG_DMZ_allow
 iptables -A WG_DMZ -d 10.0.0.0/8 -j REJECT --reject-with icmp-host-prohibited
