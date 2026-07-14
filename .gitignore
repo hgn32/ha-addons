@@ -4,5 +4,6 @@ __pycache__/
 .env
 *.db
 *.trace.db
-.claude/
+.claude/*
+!.claude/settings.json
 backend/prisma/migrations
