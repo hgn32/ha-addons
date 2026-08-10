@@ -97,6 +97,7 @@ cp "$PATCH_DIR/hvcc.go" pkg/h265/hvcc.go
 cp "$PATCH_DIR/hvcc_test.go" pkg/h265/hvcc_test.go
 
 SRC_MUXER="pkg/mp4/muxer.go"
+SRC_MUXER_CONSUMER="pkg/mp4/consumer.go"
 expect_present "$SRC_MUXER" 'h265.EncodeConfig(vps, sps, pps)'
 sed -i 's/h265\.EncodeConfig(vps, sps, pps)/h265.EncodeConfigHVC1(vps, sps, pps)/' "$SRC_MUXER"
 expect_present "$SRC_MUXER" 'h265.EncodeConfigHVC1(vps, sps, pps)'
@@ -127,6 +128,47 @@ expect_present "$SRC_MUXER" 'if s := h265.DecodeSPSHVC1(sps); s != nil {'
 expect_absent  "$SRC_MUXER" 'if s := h265.DecodeSPS(sps); s != nil {'
 
 # ---------------------------------------------------------------------------
+# 診断: H.265 のキーフレームが検出できないときに原因をログに出す
+#
+# go2rtc は最初のキーフレームが来るまで何も送らないため、キーフレームを検出
+# できないとブラウザ側はエラーも出ずに無音で止まる。原因が
+#   (1) アクセスユニットが組み立てられていない
+#   (2) 組み立てられているが IsKeyframe が false
+# のどちらなのかは外から区別できないので、HA のログタブで分かるようにする。
+# 正常時は何も出力しない。
+# ---------------------------------------------------------------------------
+[ -f "$PATCH_DIR/hvc1diag.go" ] || fail "missing $PATCH_DIR/hvc1diag.go"
+if [ -e pkg/h265/hvc1diag.go ]; then
+    fail "pkg/h265/hvc1diag.go already exists upstream; review the patch"
+fi
+cp "$PATCH_DIR/hvc1diag.go" pkg/h265/hvc1diag.go
+
+# 診断が使う上流の関数が存在すること
+expect_present pkg/h265/helper.go 'func IsKeyframe(b []byte) bool {'
+expect_present pkg/h265/helper.go 'func Types(data []byte) []byte {'
+
+SRC_RTP="pkg/h265/rtp.go"
+expect_present "$SRC_RTP" 'nuType := (data[0] >> 1) & 0x3F'
+sed -i 's/nuType := (data\[0\] >> 1) \& 0x3F/nuType := (data[0] >> 1) \& 0x3F; DiagRTP(nuType, packet.Marker, data)/' "$SRC_RTP"
+expect_present "$SRC_RTP" 'DiagRTP(nuType, packet.Marker, data)'
+
+expect_present "$SRC_RTP" 'clone.Version = h264.RTPPacketVersionAVC'
+sed -i 's/clone\.Version = h264\.RTPPacketVersionAVC/clone.Version = h264.RTPPacketVersionAVC; DiagAU(buf)/' "$SRC_RTP"
+expect_present "$SRC_RTP" 'DiagAU(buf)'
+
+expect_present "$SRC_MUXER_CONSUMER" 'if !h265.IsKeyframe(packet.Payload) {'
+sed -i 's/if !h265\.IsKeyframe(packet\.Payload) {/if !h265.IsKeyframeDiag(packet.Payload) {/' "$SRC_MUXER_CONSUMER"
+expect_present "$SRC_MUXER_CONSUMER" 'if !h265.IsKeyframeDiag(packet.Payload) {'
+expect_absent  "$SRC_MUXER_CONSUMER" 'if !h265.IsKeyframe(packet.Payload) {'
+
+# 診断は MP4/MSE のコンシューマが接続したときだけ有効にする。WebRTC や RTSP で
+# 視聴している場合は「最初のキーフレーム待ち」を通らないので、キーフレームが
+# 記録されないのは正常であり、警告を出してはいけない。
+expect_present "$SRC_MUXER_CONSUMER" 'init, err := c.muxer.GetInit()'
+sed -i 's/init, err := c\.muxer\.GetInit()/h265.DiagArm(); init, err := c.muxer.GetInit()/' "$SRC_MUXER_CONSUMER"
+expect_present "$SRC_MUXER_CONSUMER" 'h265.DiagArm(); init, err := c.muxer.GetInit()'
+
+# ---------------------------------------------------------------------------
 # バージョン文字列にパッチ済みであることを埋め込む。
 #
 # ユーザーが確認できるのは HA の画面 (アドオンのログタブ / go2rtc の Web UI) だけ
@@ -141,4 +183,6 @@ echo "patch-hvc1: applied successfully"
 grep -n 'StartAtom("hvc1")' "$SRC_WRITER"
 grep -n 'case "avc1", "hev1", "hvc1":' "$SRC_READER"
 grep -n 'h265.EncodeConfigHVC1\|h265.GetParameterSetHVC1\|h265.DecodeSPSHVC1' "$SRC_MUXER"
+grep -n 'h265.IsKeyframeDiag' "$SRC_MUXER_CONSUMER"
+grep -n 'DiagRTP\|DiagAU(buf)' "$SRC_RTP"
 grep -n 'app.Version =' "$SRC_MAIN"
