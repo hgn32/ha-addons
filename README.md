@@ -37,7 +37,7 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 ### [go2rtc (hvc1 patched)](./go2rtc-hvc1)
 
-[go2rtc](https://github.com/AlexxIT/go2rtc) の公式ハードウェア版に、H.265(HEVC) がブラウザの MSE で再生できないバグ([issue #2205](https://github.com/AlexxIT/go2rtc/issues/2205))の修正を当てたアドオンです。H.265 のメインストリームをトランスコードなし・画質劣化なしでブラウザ表示できます。公式アドオンとポートが衝突するため、同時には起動できません。
+[go2rtc](https://github.com/AlexxIT/go2rtc) の公式ハードウェア版に、H.265(HEVC) がブラウザの MSE で再生できない問題の修正を当てたアドオンです。H.265 のメインストリームをトランスコードなし・画質劣化なしでブラウザ表示できます。上流の [issue #2205](https://github.com/AlexxIT/go2rtc/issues/2205)（`hev1`/`hvc1`）に加え、`hvcC` の中身、SDP の `sprop-*` ラベルを取り違えるカメラ、アクセスユニットを丸ごと1つの NAL として送るカメラにも対応しています。映像が出ないときに原因をログタブに出す診断つき。公式アドオンとポートが衝突するため、同時には起動できません。
 
 ### [Claude Session Opener](./claude-session-opener)
 

@@ -1,11 +1,12 @@
 # go2rtc (hvc1 patched)
 
 公式 go2rtc の **ハードウェア版** に、H.265 (HEVC) がブラウザの MSE で再生できない
-バグ ([go2rtc issue #2205](https://github.com/AlexxIT/go2rtc/issues/2205)) の修正を
-当てたアドオンです。
+問題の修正を当てたアドオンです。
 
 H.265 のメインストリームを **トランスコードなし・画質劣化なし** でブラウザ表示
-できるようになります。
+できます。
+
+✅ SwitchBot カメラ（2592×1620 / H.265）+ Edge で**再生できることを実機確認済み**。
 
 ---
 
@@ -53,9 +54,9 @@ INF go2rtc platform=linux/amd64 revision=... version=1.9.14-hvc1+dev....
 `+dev.<commit>.dirty` の部分は「上流のタグ付きリリースにローカル修正を加えた
 ビルド」であることを Go が自動で付ける表記です。異常ではありません。
 
-> この go2rtc 側のバージョン文字列は**アドオンの版を区別しません**（1.9.14.3 でも
-> 1.9.14-hvc1.1 でも同じ `1.9.14-hvc1+dev...` になります）。どの版が入っているかは
-> HA のアドオン画面に出るバージョン（例: `1.9.14.3`）で確認してください。
+> この go2rtc 側のバージョン文字列は**アドオンの版を区別しません**。どの版が
+> 入っているかは HA のアドオン画面に出るバージョン（例: `1.9.14.6`）で確認して
+> ください。
 
 ### 2. H.265 が再生できるか（Ingress パネル）
 
@@ -63,20 +64,76 @@ INF go2rtc platform=linux/amd64 revision=... version=1.9.14-hvc1+dev....
 
 ```yaml
 streams:
-  security01_h265: rtsp://Admin:パスワード@192.168.100.212:554/live0
+  security01: rtsp://Admin:パスワード@192.168.100.212:554/live0
 ```
 
 保存したらアドオンを再起動し、サイドバーの **go2rtc (hvc1 patched)** パネルを開いて、
 該当ストリームの **`stream`** または **`mse`** リンクから映像が出ることを確認します。
-
-公式アドオンでは、ここで映像が出ずにブラウザのコンソールに
-`CHUNK_DEMUXER_ERROR_APPEND_FAILED` が出ていました。
 
 ### 3. トランスコードが走っていないこと
 
 Ingress パネルのストリーム一覧で、該当ストリームの `producers` に **ffmpeg が
 現れないこと** を確認します。RTSP が直接 producer になっていれば、
 デコード・エンコードは一切行われていません（CPU 負荷は転送のみ）。
+
+---
+
+## 映像が出ないとき
+
+go2rtc は「最初のキーフレームが来るまで1バイトも送らない」設計です。そのため
+キーフレームを検出できないと、**ブラウザにはエラーも出ず、画面だけが出ません**。
+
+本アドオンは、この状態を**ログタブ**で分かるようにしてあります。`mse` を開いたまま
+15〜20 秒待ってから **ログ** タブを見てください。
+
+```
+[hvc1-diag] H265 のキーフレームを 10s 検出できていません: <原因>
+(rtp_packets=... access_units=... not_keyframe=... nal_types={型:個数} last_au=[...])
+[hvc1-diag]   キーフレーム候補の AU: count=... len=... types=[...] single_nal=... annexb_inside=... head=...
+```
+
+| 見るところ | 意味 |
+|---|---|
+| `access_units=0` | RTP からアクセスユニットを組み立てられていない |
+| `access_units>0` かつ `not_keyframe>0` | 組み立てられているがキーフレームと判定できていない |
+| `nal_types` | カメラが実際に使っている NAL unit type の内訳 |
+| `head=` | キーフレーム候補の実バイト（先頭 96 バイト） |
+
+正常に再生できているときは何も出ません。WebRTC / RTSP で視聴しているときも
+出ません。
+
+ブラウザのコンソールにエラーが出る場合は、そちらも合わせて確認してください
+（`coded size` の値が原因の手がかりになります）。
+
+---
+
+## 修正の内容
+
+原因は1つではなく、**4つの問題が重なっていました**。上流の go2rtc 側が2つ、
+カメラが規格から外れた送り方をしているものが2つです。
+
+| # | 問題 | ブラウザ側の症状 |
+|---|---|---|
+| 1 | サンプルエントリ名が `hev1`（MIME は `hvc1` と宣言） | `CHUNK_DEMUXER_ERROR_APPEND_FAILED` |
+| 2 | `hvcC` の `general_level_idc` / `chromaFormat` / `bitDepth` が 0 | `level: not available` |
+| 3 | カメラが SDP の `sprop-*` のラベルを取り違えている | `coded size: [0,8]` |
+| 4 | アクセスユニットが丸ごと1つの NAL として届く | **エラーなし・画面も出ない** |
+
+- **問題1**: `hev1` と `hvc1` は ISO/IEC 14496-15 §8.4.1 で別物です。`hvc1` に直します
+- **問題2**: `hvc1` ではブラウザは `hvcC` **だけ**を信頼します。SPS から正しく
+  組み立て直します
+- **問題3**: このカメラは `sprop-vps` に PPS、`sprop-sps` に VPS、`sprop-pps` に SPS を
+  入れて送ってきます。上流はラベルを信じるため VPS を SPS としてパースし、解像度が
+  `0x8` になっていました。**ラベルではなく NAL unit type で振り分け**ます
+- **問題4**: このカメラは VPS/SPS/PPS/IDR を連結したものを「1つの NAL」として送ります。
+  go2rtc はそれを型 32 (VPS) の単一 NAL として扱うため、キーフレームと判定できません。
+  この形を検出して正しい並びに**組み直し**ます
+
+問題3・4 の対処は、条件を満たすときだけ動きます。ラベルが正しく、普通に NAL を
+送ってくるカメラでは挙動は変わりません。
+
+ffmpeg を基準実装として `hvcC` がバイト単位で一致することと、上記の症状の再現・解消は
+ビルド時のテストで検証しています（通らなければイメージは作られません）。
 
 ---
 
@@ -92,70 +149,17 @@ Ingress パネルのストリーム一覧で、該当ストリームの `produce
 
 ---
 
-## 修正の内容
-
-go2rtc は fMP4 の init セグメントに `hev1` サンプルエントリを書きながら、ブラウザには
-MIME で `hvc1.1.6.L153.B0` と宣言していました。ISO/IEC 14496-15 §8.4.1 では、
-
-- `hvc1` … パラメータセット (VPS/SPS/PPS) を `hvcC` に out-of-band で格納
-- `hev1` … パラメータセットは in-band でも `hvcC` でも可
-
-という別物です。Chrome / Edge 120 以降は宣言と実物の不一致を理由に init セグメントを
-拒否します。go2rtc はパラメータセットを既に `hvcC` に正しく書いているため、
-ボックス名を `hvc1` に直すのが正しい修正になります。
-
-さらに、ボックス名を直すだけでは足りませんでした。上流の go2rtc は `hvcC`
-(HEVCDecoderConfigurationRecord) に profile_tier_level の先頭 3 バイトしか書いて
-おらず、`general_level_idc` / `chromaFormat` / `bitDepth` が 0 のままです。
-`hev1` ならブラウザは in-band のパラメータセットを読むので表面化しませんが、
-`hvc1` ではブラウザは `hvcC` だけを信頼するため、
-
-```
-CHUNK_DEMUXER_ERROR_APPEND_FAILED: Invalid video decoder config:
-codec: hevc, profile: hevc main, level: not available, coded size: [0,8]
-```
-
-で拒否されます。そこで `hvcC` も SPS から組み立て直しています。
-
-さらに、`sprop-*` のラベルと中身がずれている H.265 カメラが実在します
-（SwitchBot カメラで確認: `sprop-vps` の中身が PPS、`sprop-sps` の中身が VPS、
-`sprop-pps` の中身が SPS）。上流はラベルを信じるため **VPS を SPS としてパース**
-してしまい、サンプルエントリの解像度が `0x8`、`general_level_idc` が `0` になります。
-Chrome の `coded size: [0,8]` / `level: not available` はこれをそのまま表しています。
-そのため、パラメータセットはラベルではなく **NAL unit type で振り分け**ています。
-
-ビルド時に上流ソースへ当てている変更:
-
-| ファイル | 変更 |
-|---|---|
-| `pkg/iso/codecs.go` | `m.StartAtom("hev1")` → `m.StartAtom("hvc1")` |
-| `pkg/iso/reader.go` | MP4 パーサが `hvc1` も受け付けるよう追加（`hev1` 互換は維持） |
-| `pkg/h265/hvcc.go`（新規） | 完全な `hvcC` の組み立て、NAL type による振り分け、conformance window 込みの解像度 |
-| `pkg/mp4/muxer.go` | 上記を使うよう差し替え |
-| `main.go` | バージョン文字列に `-hvc1` を付与 |
-
-実イメージで検証した結果（同じ映像を ffmpeg が `-tag:v hvc1` で multiplex した
-ものを基準にした比較）:
-
-| `hvcC` のフィールド | 公式イメージ | 本アドオン | ffmpeg（基準） |
-|---|---|---|---|
-| サンプルエントリ名 | `hev1` | `hvc1` | `hvc1` |
-| `general_level_idc` | **0** | **93** | 93 |
-| `chromaFormat` | **0**（モノクロ） | **1**（4:2:0） | 1 |
-| `bitDepthLuma` | 未設定 | 8 | 8 |
-| 先頭 23 バイト | 不完全 | ffmpeg と一致 | — |
-| H.264 ストリーム | `avc1` / `avcC` | `avc1` / `avcC`（影響なし） | — |
-
----
-
 ## 既知の制限
 
 - **Home Assistant 標準のカメラカードでは効果が出ない場合があります。**
-  このバグは MSE（go2rtc の Web UI や WebRTC Camera カードが使う経路）のものです。
+  ここで直しているのは MSE（go2rtc の Web UI や WebRTC Camera カードが使う経路）です。
   HA 標準カードが使う WebRTC は Chrome が H.265 に対応していないため、別の理由で
   再生できないことがあります
 - H.265 の codec 文字列は上流が Level 5.1 (`hvc1.1.6.L153.B0`) 固定です。
   4K (3840×2160) までは Level 5.1 の範囲内ですが、それを超える解像度では別途対応が
   必要です
+- 問題3・4 はカメラ側が規格から外れていることへの対処です。ここで想定していない
+  外れ方をするカメラでは、また別の対処が要るかもしれません。その場合は上記の
+  診断ログが手がかりになります
 - 自前ビルドのため、go2rtc の更新には自動追従しません
 - amd64 のみ対応です（ベースにしている公式ハードウェア版が amd64 のみのため）
