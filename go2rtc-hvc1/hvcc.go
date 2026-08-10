@@ -6,6 +6,112 @@ import (
 	"github.com/AlexxIT/go2rtc/pkg/bits"
 )
 
+// HEVC の NAL unit type (ISO/IEC 23008-2 Table 7-1)
+const (
+	nalVPS = 32
+	nalSPS = 33
+	nalPPS = 34
+)
+
+func nalType(b []byte) byte {
+	if len(b) == 0 {
+		return 0
+	}
+	return (b[0] >> 1) & 0x3F
+}
+
+// GetParameterSetHVC1 は SDP の fmtp からパラメータセットを取り出し、
+// **ラベルではなく NAL unit type で** VPS/SPS/PPS に振り分ける。
+//
+// SDP のラベルを取り違えて送ってくるカメラが実在する。実例 (SwitchBot):
+//
+//	sprop-vps=... の中身が PPS (type 34)
+//	sprop-sps=... の中身が VPS (type 32)
+//	sprop-pps=... の中身が SPS (type 33)
+//
+// 上流の go2rtc はラベルをそのまま信じるため、VPS を SPS としてパースしてしまい、
+//   - サンプルエントリの解像度が 0x8 になる (Chrome: "coded size: [0,8]")
+//   - hvcC の general_level_idc が 0 になる (Chrome: "level: not available")
+//
+// となって、ブラウザが init セグメントを設定不正として拒否する。
+//
+// ラベルが正しいカメラでは、この関数は何も変えない。
+func GetParameterSetHVC1(fmtpLine string) (vps, sps, pps []byte) {
+	vps, sps, pps = GetParameterSet(fmtpLine)
+
+	var fixedVPS, fixedSPS, fixedPPS []byte
+	for _, b := range [][]byte{vps, sps, pps} {
+		switch nalType(b) {
+		case nalVPS:
+			if fixedVPS == nil {
+				fixedVPS = b
+			}
+		case nalSPS:
+			if fixedSPS == nil {
+				fixedSPS = b
+			}
+		case nalPPS:
+			if fixedPPS == nil {
+				fixedPPS = b
+			}
+		}
+	}
+
+	// 3 つとも識別できたときだけ入れ替える。識別できない NAL が混ざっている
+	// 場合は上流の挙動 (ラベルどおり) を変えない。
+	if fixedVPS != nil && fixedSPS != nil && fixedPPS != nil {
+		return fixedVPS, fixedSPS, fixedPPS
+	}
+	return vps, sps, pps
+}
+
+// SizeHVC1 は SPS から求めた表示解像度。
+type SizeHVC1 struct {
+	width, height uint16
+}
+
+func (s *SizeHVC1) Width() uint16  { return s.width }
+func (s *SizeHVC1) Height() uint16 { return s.height }
+
+// DecodeSPSHVC1 は SPS から表示解像度を求める。
+//
+// 上流の DecodeSPS と違い、
+//   - general_profile_idc != 1 でも失敗しない
+//   - conformance window を適用する (上流は pic_*_in_luma_samples をそのまま返すので
+//     CTU 境界に切り上げられた値になる。例: 1620 の映像で 1624)
+//
+// パースできなければ nil を返す (呼び出し側が 1920x1080 にフォールバックする)。
+func DecodeSPSHVC1(sps []byte) *SizeHVC1 {
+	if len(sps) < 3 {
+		return nil
+	}
+	rbsp := bytes.ReplaceAll(sps[2:], []byte{0, 0, 3}, []byte{0, 0})
+	p := parseSPSChromaDepth(rbsp)
+	if p == nil || p.picWidth == 0 || p.picHeight == 0 {
+		return nil
+	}
+
+	// SubWidthC / SubHeightC (ISO/IEC 23008-2 Table 6-1)
+	var subW, subH uint32 = 1, 1
+	switch p.chromaFormatIDC {
+	case 1: // 4:2:0
+		subW, subH = 2, 2
+	case 2: // 4:2:2
+		subW, subH = 2, 1
+	}
+
+	w := p.picWidth
+	h := p.picHeight
+	if cw := subW * (p.confWinLeft + p.confWinRight); cw < w {
+		w -= cw
+	}
+	if ch := subH * (p.confWinTop + p.confWinBottom); ch < h {
+		h -= ch
+	}
+
+	return &SizeHVC1{width: uint16(w), height: uint16(h)}
+}
+
 // EncodeConfigHVC1 は完全な HEVCDecoderConfigurationRecord (hvcC) を組み立てる。
 //
 // 上流の EncodeConfig は profile_tier_level の先頭 3 バイトしか書かず、
@@ -76,13 +182,49 @@ func EncodeConfigHVC1(vps, sps, pps []byte) []byte {
 	// + lengthSizeMinusOne(2)=3 (NAL 長は 4 バイト)
 	buf[21] = (numTemporalLayers&0x07)<<3 | (temporalIDNested&0x01)<<2 | 0x03
 
+	// array_completeness = 1。hvc1 ではパラメータセットは全て hvcC にあり
+	// ストリーム中には無い、という意味。ffmpeg も hvc1 では 1 にする
+	// (上流 go2rtc は 0 のまま)。
+	setArrayCompleteness(buf)
+
 	return buf
+}
+
+// setArrayCompleteness は hvcC の各配列の array_completeness ビットを立てる。
+// 配列の構造 (ISO/IEC 14496-15 §8.3.3.1):
+//
+//	array_completeness(1) + reserved(1) + NAL_unit_type(6)
+//	numNalus(16)
+//	{ nalUnitLength(16) + nalUnit } * numNalus
+func setArrayCompleteness(buf []byte) {
+	pos := 23
+	for i := byte(0); i < buf[22]; i++ {
+		if pos+3 > len(buf) {
+			return
+		}
+		buf[pos] |= 0x80
+		count := int(buf[pos+1])<<8 | int(buf[pos+2])
+		pos += 3
+		for n := 0; n < count; n++ {
+			if pos+2 > len(buf) {
+				return
+			}
+			pos += 2 + (int(buf[pos])<<8 | int(buf[pos+1]))
+		}
+	}
 }
 
 type spsChromaDepth struct {
 	chromaFormatIDC  byte
 	bitDepthLumaM8   byte
 	bitDepthChromaM8 byte
+
+	picWidth      uint32
+	picHeight     uint32
+	confWinLeft   uint32
+	confWinRight  uint32
+	confWinTop    uint32
+	confWinBottom uint32
 }
 
 // parseSPSChromaDepth は RBSP 化済みの SPS から chroma_format_idc と
@@ -112,14 +254,14 @@ func parseSPSChromaDepth(rbsp []byte) *spsChromaDepth {
 		_ = r.ReadBit() // separate_colour_plane_flag
 	}
 
-	_ = r.ReadUEGolomb() // pic_width_in_luma_samples
-	_ = r.ReadUEGolomb() // pic_height_in_luma_samples
+	s.picWidth = r.ReadUEGolomb()
+	s.picHeight = r.ReadUEGolomb()
 
 	if r.ReadBit() != 0 { // conformance_window_flag
-		_ = r.ReadUEGolomb() // conf_win_left_offset
-		_ = r.ReadUEGolomb() // conf_win_right_offset
-		_ = r.ReadUEGolomb() // conf_win_top_offset
-		_ = r.ReadUEGolomb() // conf_win_bottom_offset
+		s.confWinLeft = r.ReadUEGolomb()
+		s.confWinRight = r.ReadUEGolomb()
+		s.confWinTop = r.ReadUEGolomb()
+		s.confWinBottom = r.ReadUEGolomb()
 	}
 
 	luma := r.ReadUEGolomb()

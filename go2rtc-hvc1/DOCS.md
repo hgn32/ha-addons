@@ -117,14 +117,21 @@ codec: hevc, profile: hevc main, level: not available, coded size: [0,8]
 
 で拒否されます。そこで `hvcC` も SPS から組み立て直しています。
 
+さらに、`sprop-*` のラベルと中身がずれている H.265 カメラが実在します
+（SwitchBot カメラで確認: `sprop-vps` の中身が PPS、`sprop-sps` の中身が VPS、
+`sprop-pps` の中身が SPS）。上流はラベルを信じるため **VPS を SPS としてパース**
+してしまい、サンプルエントリの解像度が `0x8`、`general_level_idc` が `0` になります。
+Chrome の `coded size: [0,8]` / `level: not available` はこれをそのまま表しています。
+そのため、パラメータセットはラベルではなく **NAL unit type で振り分け**ています。
+
 ビルド時に上流ソースへ当てている変更:
 
 | ファイル | 変更 |
 |---|---|
 | `pkg/iso/codecs.go` | `m.StartAtom("hev1")` → `m.StartAtom("hvc1")` |
 | `pkg/iso/reader.go` | MP4 パーサが `hvc1` も受け付けるよう追加（`hev1` 互換は維持） |
-| `pkg/h265/hvcc.go`（新規） | 完全な `hvcC` を組み立てる `EncodeConfigHVC1` |
-| `pkg/mp4/muxer.go` | `h265.EncodeConfig` → `h265.EncodeConfigHVC1` |
+| `pkg/h265/hvcc.go`（新規） | 完全な `hvcC` の組み立て、NAL type による振り分け、conformance window 込みの解像度 |
+| `pkg/mp4/muxer.go` | 上記を使うよう差し替え |
 | `main.go` | バージョン文字列に `-hvc1` を付与 |
 
 実イメージで検証した結果（同じ映像を ffmpeg が `-tag:v hvc1` で multiplex した
