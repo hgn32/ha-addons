@@ -12,6 +12,13 @@
 #   go2rtc はパラメータセットを既に `hvcC` に out-of-band で書いているため、
 #   ボックス名を `hvc1` に直すのが正しい修正。
 #
+#   ただしボックス名だけでは足りない。上流の hvcC は profile_tier_level の先頭
+#   3 バイトしか書いておらず、general_level_idc / chromaFormat / bitDepth が 0 の
+#   ままになっている。`hev1` ではブラウザが in-band のパラメータセットを読むので
+#   問題にならないが、`hvc1` ではブラウザは hvcC だけを信頼するため、
+#   "Invalid video decoder config: ... level: not available" で拒否される。
+#   そのため hvcC も SPS から正しく組み立て直している (hvcc.go)。
+#
 #   Issue: https://github.com/AlexxIT/go2rtc/issues/2205
 #   PR (Draft, 未マージ): https://github.com/AlexxIT/go2rtc/pull/2253
 
@@ -33,8 +40,12 @@ RUN git clone --depth 1 --branch "v${GO2RTC_VERSION}" https://github.com/AlexxIT
 # パッチ適用。行番号はバージョンで動くため、必ず文字列で検索・置換する。
 # sed は「1件も置換しなくても成功する」ため、置換前後を grep で検証し、
 # 想定外のソース変更で無言のうちに未パッチのイメージが出来ることを防ぐ。
-COPY patch-hvc1.sh /patch-hvc1.sh
-RUN sh /patch-hvc1.sh
+COPY patch-hvc1.sh hvcc.go hvcc_test.go /patch/
+RUN sh /patch/patch-hvc1.sh /patch
+
+# 生成される hvcC が ffmpeg (基準実装) と一致することをビルド時に検証する。
+# ここが落ちたらイメージは出来上がらない。
+RUN go test ./pkg/h265/... ./pkg/iso/... ./pkg/mp4/...
 
 # 上流 (docker/hardware.Dockerfile) と同じビルドオプション
 RUN CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath -o /out/go2rtc .

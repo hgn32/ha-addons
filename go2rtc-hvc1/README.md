@@ -23,27 +23,66 @@ Chrome / Edge 120 以降は宣言と実物の不一致を理由に init セグ�
 go2rtc はパラメータセットを既に `hvcC` に正しく書いているため、**ボックス名を `hvc1` に
 直すのが正しい修正** です。
 
+### ボックス名だけでは足りなかった
+
+サンプルエントリ名を `hvc1` にしただけでは再生できませんでした。上流の go2rtc は
+`hvcC` (HEVCDecoderConfigurationRecord) に profile_tier_level の先頭 3 バイトしか
+書いておらず、**`general_level_idc` / `chromaFormat` / `bitDepth` が 0 のまま**
+だったためです。
+
+`hev1` ではブラウザが in-band のパラメータセットを読むのでこの手抜きは表面化しま
+せんが、`hvc1` ではブラウザは `hvcC` だけを信頼します。結果、Chrome/Edge は次の
+ように拒否します。
+
+```
+CHUNK_DEMUXER_ERROR_APPEND_FAILED: Invalid video decoder config:
+codec: hevc, profile: hevc main, level: not available,
+coded size: [0,8], has extra data: false
+```
+
+`level: not available` が、まさに `general_level_idc = 0` を指しています。
+そこで `hvcC` も SPS から正しく組み立て直しています。
+
+### 当てているパッチ
+
 ビルド時に上流ソースへ以下を当てています（[patch-hvc1.sh](./patch-hvc1.sh)）。
 
 | ファイル | 変更 |
 |---|---|
 | `pkg/iso/codecs.go` | `m.StartAtom("hev1")` → `m.StartAtom("hvc1")` |
 | `pkg/iso/reader.go` | MP4 パーサが `hvc1` も受け付けるよう追加（`hev1` の互換は維持） |
+| `pkg/h265/hvcc.go`（新規） | 完全な `hvcC` を組み立てる `EncodeConfigHVC1` を追加 |
+| `pkg/mp4/muxer.go` | `h265.EncodeConfig` → `h265.EncodeConfigHVC1` |
 | `main.go` | バージョン文字列に `-hvc1` を付与（HA のログタブで判別できるようにするため） |
+
+`hvcc.go` がやっていること:
+
+- SPS から emulation prevention byte (`0x03`) を除去したうえで、
+  profile_tier_level の 12 バイト（profile/tier/idc + 互換フラグ 32bit +
+  制約フラグ 48bit + `general_level_idc`）を `hvcC` の `[1]..[12]` に転記
+  （生の NAL からコピーすると `0x03` の分だけ値がずれる）
+- `chroma_format_idc` / `bit_depth_luma_minus8` / `bit_depth_chroma_minus8` /
+  `numTemporalLayers` を SPS から解析して設定
+- 予約ビットを規格どおり 1 で埋める
 
 ### 検証済みの効果
 
-同梱の Dockerfile でビルドしたイメージを実際に起動し、H.265 ストリームの fMP4 を
-取得して確認しています。
+同梱の Dockerfile でビルドしたイメージを実際に起動し、libx265 の H.265 ストリーム
+（Main profile / yuv420p）を流して fMP4 を取得し、**同じ映像を ffmpeg が
+`-tag:v hvc1` で multiplex した結果と突き合わせて**確認しています。
 
-| | 公式イメージ | 本アドオン |
-|---|---|---|
-| offset 421 のボックス名 | `hev1` | `hvc1` |
-| `hvcC`(パラメータセット) | offset 507 | offset 507（変化なし） |
-| `Content-Type` の宣言 | `hvc1.1.6.L153.B0` | `hvc1.1.6.L153.B0` |
-| 宣言と実物の整合 | ❌ 不一致 | ✅ 一致 |
+| `hvcC` のフィールド | 公式イメージ | 本アドオン | ffmpeg（基準） |
+|---|---|---|---|
+| サンプルエントリ名 | `hev1` | `hvc1` | `hvc1` |
+| `general_level_idc` | **0** | **93** | 93 |
+| `chromaFormat` | **0**（モノクロ） | **1**（4:2:0） | 1 |
+| `bitDepthLuma` | 未設定 | 8 | 8 |
+| `numTemporalLayers` | 0 | 1 | 1 |
+| 先頭 23 バイト | 不完全 | ffmpeg と一致 | — |
 
-H.264 ストリームは従来どおり `avc1` / `avcC` のままで、影響はありません。
+この一致は `hvcc_test.go` としてビルドに組み込んであり、**一致しなければイメージは
+作られません**。H.264 ストリームは従来どおり `avc1` / `avcC` のままで、影響はあり
+ません。
 
 ## 公式アドオンとの違い
 
