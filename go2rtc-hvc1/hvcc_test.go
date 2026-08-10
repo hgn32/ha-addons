@@ -3,7 +3,11 @@ package h265
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"io"
+	"os"
+	"strings"
 	"testing"
+	"time"
 )
 
 // --- 基準1: ffmpeg ---
@@ -117,5 +121,152 @@ func TestGetParameterSetHVC1NoopWhenLabelsCorrect(t *testing.T) {
 		hex.EncodeToString(s1) != hex.EncodeToString(s2) ||
 		hex.EncodeToString(p1) != hex.EncodeToString(p2) {
 		t.Fatal("ラベルが正しいのに入れ替わってしまった")
+	}
+}
+
+// --- 診断のテスト ---
+// 「正常なときは何も出さない」「壊れているときだけ原因を出す」を固定する。
+
+func captureStderr(f func()) string {
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	os.Stderr = w
+	f()
+	_ = w.Close()
+	os.Stderr = old
+	b, _ := io.ReadAll(r)
+	return string(b)
+}
+
+func newDiag(age time.Duration) *hvc1Diag {
+	d := &hvc1Diag{
+		nalSeen:   make(map[byte]uint64),
+		nalMarker: make(map[byte]uint64),
+	}
+	d.firstPacket = time.Now().Add(-age)
+	d.armedAt = d.firstPacket // MP4/MSE のコンシューマが接続済みの想定
+	return d
+}
+
+func report(d *hvc1Diag) string {
+	return captureStderr(func() {
+		d.mu.Lock()
+		d.reportLocked()
+		d.mu.Unlock()
+	})
+}
+
+func TestDiagSilentWhenHealthy(t *testing.T) {
+	d := newDiag(60 * time.Second)
+	d.rtpPackets = 10000
+	d.auEmitted = 300
+	d.keyframes = 10 // 再生できている
+	if out := report(d); out != "" {
+		t.Fatalf("正常時に出力があった: %q", out)
+	}
+
+	// キーフレームがまだでも猶予時間内なら黙っている
+	d2 := newDiag(2 * time.Second)
+	d2.rtpPackets = 100
+	if out := report(d2); out != "" {
+		t.Fatalf("猶予時間内に出力があった: %q", out)
+	}
+}
+
+func TestDiagReportsNoAccessUnit(t *testing.T) {
+	d := newDiag(15 * time.Second)
+	d.rtpPackets = 5000
+	d.nalSeen[19] = 20
+	d.nalSeen[1] = 4000
+	d.nalSeen[40] = 20
+	d.nalMarker[40] = 20 // suffix SEI がマーカーを持っている
+	// auEmitted = 0
+
+	out := report(d)
+	if out == "" {
+		t.Fatal("AU が0なのに何も出なかった")
+	}
+	for _, want := range []string{"アクセスユニットが1つも", "rtp_packets=5000", "access_units=0", "40:20(marker:20)"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("出力に %q が含まれない:\n%s", want, out)
+		}
+	}
+	t.Log(strings.TrimSpace(out))
+}
+
+func TestDiagReportsNotKeyframe(t *testing.T) {
+	d := newDiag(15 * time.Second)
+	d.rtpPackets = 5000
+	d.auEmitted = 150
+	d.auNotKey = 150
+	d.nalSeen[1] = 5000
+	d.lastAUTypes = []byte{1}
+
+	out := report(d)
+	if out == "" {
+		t.Fatal("キーフレーム未検出なのに何も出なかった")
+	}
+	for _, want := range []string{"キーフレームと判定されていない", "access_units=150", "not_keyframe=150"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("出力に %q が含まれない:\n%s", want, out)
+		}
+	}
+	t.Log(strings.TrimSpace(out))
+}
+
+func TestDiagRTPUnwrapsFU(t *testing.T) {
+	// FU (49) の開始断片からは中身の本当の型 (19) を記録すること
+	saved := diag
+	defer func() { diag = saved }()
+	diag = newDiag(0)
+
+	fuStart := []byte{49 << 1, 1, 0b10<<6 | 19, 0xAA}
+	DiagRTP(49, false, fuStart)
+
+	diag.mu.Lock()
+	defer diag.mu.Unlock()
+	if diag.nalSeen[19] != 1 {
+		t.Fatalf("FU の中身が展開されていない: %v", diag.nalSeen)
+	}
+	if diag.nalSeen[49] != 0 {
+		t.Fatalf("FU の型のまま記録されている: %v", diag.nalSeen)
+	}
+}
+
+func TestDiagSilentWhenNotArmed(t *testing.T) {
+	// WebRTC / RTSP で視聴中: MP4 コンシューマがいないので警告してはいけない
+	d := newDiag(60 * time.Second)
+	d.armedAt = time.Time{} // 未 arm
+	d.rtpPackets = 10000
+	d.nalSeen[1] = 10000
+	if out := report(d); out != "" {
+		t.Fatalf("MP4 コンシューマがいないのに出力があった: %q", out)
+	}
+
+	// arm すれば出る
+	d.armedAt = time.Now().Add(-60 * time.Second)
+	if out := report(d); out == "" {
+		t.Fatal("arm 後も出力がない")
+	}
+}
+
+func TestDiagArmSetsOnce(t *testing.T) {
+	saved := diag
+	defer func() { diag = saved }()
+	diag = newDiag(0)
+	diag.armedAt = time.Time{}
+
+	DiagArm()
+	first := diag.armedAt
+	if first.IsZero() {
+		t.Fatal("DiagArm で armedAt が設定されていない")
+	}
+	time.Sleep(2 * time.Millisecond)
+	DiagArm()
+	if !diag.armedAt.Equal(first) {
+		t.Fatal("2回目の DiagArm で armedAt が上書きされた")
 	}
 }
