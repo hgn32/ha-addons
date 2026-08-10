@@ -35,6 +35,10 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 [VOICEVOX](https://voicevox.hiroshiba.jp/) 音声合成エンジンを Home Assistant アドオンとして動作させます。HA の TTS（音声読み上げ）として使うには、companion インテグレーション **[hgn32/ha-voicevox-tts](https://github.com/hgn32/ha-voicevox-tts)** を HACS でインストールしてください。アドオン起動時に自動検知されます。
 
+### [go2rtc (hvc1 patched)](./go2rtc-hvc1)
+
+[go2rtc](https://github.com/AlexxIT/go2rtc) の公式ハードウェア版に、H.265(HEVC) がブラウザの MSE で再生できないバグ([issue #2205](https://github.com/AlexxIT/go2rtc/issues/2205))の修正を当てたアドオンです。H.265 のメインストリームをトランスコードなし・画質劣化なしでブラウザ表示できます。公式アドオンとポートが衝突するため、同時には起動できません。
+
 ### [Claude Session Opener](./claude-session-opener)
 
 毎朝決まった時刻に最小トークンのタスクを送信し、Claude Pro/Max の5時間セッションを起点にするアドオンです。
