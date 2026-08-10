@@ -1,44 +1,45 @@
+## 1.9.14.4
+
+- **修正: SwitchBot カメラで H.265 が再生できなかった真の原因**
+  - 症状: Chrome/Edge が `CHUNK_DEMUXER_ERROR_APPEND_FAILED: Invalid video
+    decoder config: ... level: not available, coded size: [0,8],
+    has extra data: false` で init セグメントを拒否する
+  - 原因: **カメラが SDP の `sprop-*` のラベルを取り違えて送っていた**
+
+    | SDP のラベル | 実際の中身 |
+    |---|---|
+    | `sprop-vps` | PPS (NAL type 34) |
+    | `sprop-sps` | VPS (NAL type 32) |
+    | `sprop-pps` | SPS (NAL type 33) |
+
+    上流の go2rtc はラベルをそのまま信じるため、**VPS を SPS としてパース**して
+    しまい、サンプルエントリの解像度が `0x8` に、`hvcC` の
+    `general_level_idc` が `0` になっていた。Chrome の
+    `coded size: [0,8]` / `level: not available` はこれをそのまま表している
+  - 対策: パラメータセットを **ラベルではなく NAL unit type で振り分ける**
+    ようにした。ラベルが正しいカメラでは挙動は変わらない
+  - 併せて解像度を conformance window 込みで求めるようにした
+    (上流は CTU 境界に切り上げられた値をそのまま書くため 1620 の映像が 1624 になる)
+  - `array_completeness` を 1 にした (`hvc1` ではパラメータセットは全て `hvcC` に
+    ある、という意味。ffmpeg も同じ)
+- 検証: このカメラの実際の SDP を使ったテストをビルドに組み込んだ。
+  上流の挙動 (0x8 になること) の再現と、修正後に 2592x1620 / level 150 になること、
+  および `hvcC` が **ffmpeg の出力とバイト単位で一致**することを検証している
+
 ## 1.9.14.3
 
 - **修正: アップデートが検知されず、毎回アンインストールが必要だった問題**
-  - 症状: 新しいバージョンを公開しても HA が「最新」と表示し、
-    アップデートボタンが押せない
-  - 原因: バージョン表記 `1.9.14-hvc1.N` が悪かった。HA が比較に使う
-    `AwesomeVersion` はこれを SemVer と解釈し、`-` 以降をプレリリース修飾子として
-    扱う。基準の `1.9.14` 同士が同値になるため
+  - 原因: バージョン表記 `1.9.14-hvc1.N` を HA の `AwesomeVersion` が SemVer と
+    解釈し、`-` 以降をプレリリース修飾子として扱うため
     `1.9.14-hvc1.2 > 1.9.14-hvc1.1` が **False** になっていた
-  - 対策: 単純な数値表記 `<上流バージョン>.<パッチ版の通し番号>` に変更した
-    (例: go2rtc 1.9.14 ベースの3回目 → `1.9.14.3`)。
-    これは `AwesomeVersion` が SimpleVer として素直に比較でき、
-    `1.9.14.3 > 1.9.14-hvc1.2` も `True` になるため、
-    **今回はアンインストールなしで更新できる**
+  - 対策: `<上流バージョン>.<パッチ版の通し番号>` という数値のみの表記に変更
 - 中身は 1.9.14-hvc1.2 と同じ(バージョン表記のみの変更)
 
 ## 1.9.14-hvc1.2
 
-- **修正: 1.9.14-hvc1.1 では H.265 がまだ再生できなかった問題**
-  - 症状: Chrome/Edge が
-    `CHUNK_DEMUXER_ERROR_APPEND_FAILED: Invalid video decoder config:
-    codec: hevc, profile: hevc main, level: not available,
-    coded size: [0,8], has extra data: false` で init セグメントを拒否する
-  - 原因: サンプルエントリ名を `hvc1` に直すだけでは足りなかった。上流の
-    go2rtc は `hvcC` (HEVCDecoderConfigurationRecord) に profile_tier_level の
-    先頭 3 バイトしか書いておらず、**general_level_idc / chromaFormat /
-    bitDepth が 0 のまま**だった。`hev1` ならブラウザは in-band の
-    パラメータセットを読むので問題にならないが、`hvc1` ではブラウザは `hvcC`
-    だけを信頼するため設定不正として弾かれる
+- **修正: `hvcC` (HEVCDecoderConfigurationRecord) が不完全だった問題**
+  - 上流は profile_tier_level の先頭 3 バイトしか書かず、
+    `general_level_idc` / `chromaFormat` / `bitDepth` が 0 のままだった。
+    `hev1` ではブラウザが in-band のパラメータセットを読むので表面化しないが、
+    `hvc1` ではブラウザは `hvcC` だけを信頼するため設定不正として弾かれる
   - 対策: `hvcC` を SPS から正しく組み立て直すようにした
-    (emulation prevention byte を除去したうえで profile_tier_level 12 バイトを
-    転記し、chroma_format_idc / bit_depth / numTemporalLayers を SPS から解析)
-  - 同じ SPS に対して **ffmpeg が書く `hvcC` と先頭 23 バイトが一致する**ことを
-    ビルド時のテストで検証している(一致しなければイメージは作られない)
-
-## 1.9.14-hvc1.1
-
-- 初期リリース(go2rtc 1.9.14 ベース)
-- H.265(HEVC) が MSE で再生できないバグの修正
-  ([go2rtc issue #2205](https://github.com/AlexxIT/go2rtc/issues/2205))
-  - fMP4 の init セグメントのサンプルエントリ名を `hev1` → `hvc1` に変更
-  - 併せて MP4 パーサ側も `hvc1` を受け付けるようにした(`hev1` の互換は維持)
-- 公式の **go2rtc (hardware)** イメージがベース
-- 公式アドオンと同じ `/config/go2rtc.yaml` を読むため設定の移行は不要

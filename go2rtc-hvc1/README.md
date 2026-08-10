@@ -43,6 +43,26 @@ coded size: [0,8], has extra data: false
 `level: not available` が、まさに `general_level_idc = 0` を指しています。
 そこで `hvcC` も SPS から正しく組み立て直しています。
 
+### SDP のラベルを取り違えるカメラがある
+
+さらに、`sprop-*` のラベルと中身がずれている H.265 カメラが実在します。
+実例（SwitchBot カメラ）:
+
+| SDP のラベル | 実際の中身 |
+|---|---|
+| `sprop-vps` | **PPS**（NAL type 34） |
+| `sprop-sps` | **VPS**（NAL type 32） |
+| `sprop-pps` | **SPS**（NAL type 33） |
+
+上流の go2rtc はラベルをそのまま信じるため、**VPS を SPS としてパース**してしまい、
+
+- サンプルエントリの解像度が `0x8` になる → Chrome の `coded size: [0,8]`
+- `hvcC` の `general_level_idc` が `0` になる → Chrome の `level: not available`
+
+となって、`hvcC` を正しく書いてもブラウザに拒否されます。
+そのため、パラメータセットは**ラベルではなく NAL unit type で振り分けて**います。
+ラベルが正しいカメラでは挙動は変わりません。
+
 ### 当てているパッチ
 
 ビルド時に上流ソースへ以下を当てています（[patch-hvc1.sh](./patch-hvc1.sh)）。
@@ -51,8 +71,8 @@ coded size: [0,8], has extra data: false
 |---|---|
 | `pkg/iso/codecs.go` | `m.StartAtom("hev1")` → `m.StartAtom("hvc1")` |
 | `pkg/iso/reader.go` | MP4 パーサが `hvc1` も受け付けるよう追加（`hev1` の互換は維持） |
-| `pkg/h265/hvcc.go`（新規） | 完全な `hvcC` を組み立てる `EncodeConfigHVC1` を追加 |
-| `pkg/mp4/muxer.go` | `h265.EncodeConfig` → `h265.EncodeConfigHVC1` |
+| `pkg/h265/hvcc.go`（新規） | 完全な `hvcC` を組み立てる `EncodeConfigHVC1`、NAL type で振り分ける `GetParameterSetHVC1`、conformance window 込みで解像度を求める `DecodeSPSHVC1` |
+| `pkg/mp4/muxer.go` | 上記3つを使うよう差し替え |
 | `main.go` | バージョン文字列に `-hvc1` を付与（HA のログタブで判別できるようにするため） |
 
 `hvcc.go` がやっていること:
@@ -77,12 +97,18 @@ coded size: [0,8], has extra data: false
 | `general_level_idc` | **0** | **93** | 93 |
 | `chromaFormat` | **0**（モノクロ） | **1**（4:2:0） | 1 |
 | `bitDepthLuma` | 未設定 | 8 | 8 |
-| `numTemporalLayers` | 0 | 1 | 1 |
-| 先頭 23 バイト | 不完全 | ffmpeg と一致 | — |
+| `array_completeness` | 0 | 1 | 1 |
+| ヘッダ + VPS/SPS/PPS 配列 | 不完全 | **ffmpeg とバイト単位で一致** | — |
 
-この一致は `hvcc_test.go` としてビルドに組み込んであり、**一致しなければイメージは
-作られません**。H.264 ストリームは従来どおり `avc1` / `avcC` のままで、影響はあり
-ません。
+さらに、上記の SwitchBot カメラが実際に返した SDP を使ったテストで、
+
+- 上流の挙動（サンプルエントリが `0x8` になること）を再現できること
+- 振り分け修正後に `2592x1620` / `level 150` になること
+- ラベルが正しい SDP では振り分けが何も変えないこと
+
+を検証しています。これらは `hvcc_test.go` としてビルドに組み込んであり、
+**通らなければイメージは作られません**。H.264 ストリームは従来どおり
+`avc1` / `avcC` のままで、影響はありません。
 
 ## 公式アドオンとの違い
 

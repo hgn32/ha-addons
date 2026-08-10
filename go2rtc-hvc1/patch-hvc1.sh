@@ -103,6 +103,30 @@ expect_present "$SRC_MUXER" 'h265.EncodeConfigHVC1(vps, sps, pps)'
 expect_absent  "$SRC_MUXER" 'h265.EncodeConfig(vps, sps, pps)'
 
 # ---------------------------------------------------------------------------
+# Bug C: SDP の sprop-* のラベルを信用しない
+#
+# SDP のラベルと中身がずれているカメラが実在する。実例 (SwitchBot):
+#   sprop-vps の中身が PPS / sprop-sps の中身が VPS / sprop-pps の中身が SPS
+#
+# 上流はラベルをそのまま信じるため VPS を SPS としてパースしてしまい、
+#   - サンプルエントリの解像度が 0x8 になる (Chrome: "coded size: [0,8]")
+#   - hvcC の general_level_idc が 0 になる (Chrome: "level: not available")
+# となってブラウザが init セグメントを拒否する。NAL unit type で振り分ける。
+#
+# 併せて解像度も conformance window 込みで求める (上流は CTU 境界に切り上げられた
+# pic_height をそのまま書くため、1620 の映像が 1624 になる)。
+# ---------------------------------------------------------------------------
+expect_present "$SRC_MUXER" 'h265.GetParameterSet(codec.FmtpLine)'
+sed -i 's/h265\.GetParameterSet(codec\.FmtpLine)/h265.GetParameterSetHVC1(codec.FmtpLine)/' "$SRC_MUXER"
+expect_present "$SRC_MUXER" 'h265.GetParameterSetHVC1(codec.FmtpLine)'
+expect_absent  "$SRC_MUXER" 'h265.GetParameterSet(codec.FmtpLine)'
+
+expect_present "$SRC_MUXER" 'if s := h265.DecodeSPS(sps); s != nil {'
+sed -i 's/if s := h265\.DecodeSPS(sps); s != nil {/if s := h265.DecodeSPSHVC1(sps); s != nil {/' "$SRC_MUXER"
+expect_present "$SRC_MUXER" 'if s := h265.DecodeSPSHVC1(sps); s != nil {'
+expect_absent  "$SRC_MUXER" 'if s := h265.DecodeSPS(sps); s != nil {'
+
+# ---------------------------------------------------------------------------
 # バージョン文字列にパッチ済みであることを埋め込む。
 #
 # ユーザーが確認できるのは HA の画面 (アドオンのログタブ / go2rtc の Web UI) だけ
@@ -116,5 +140,5 @@ expect_match "$SRC_MAIN" '^[[:space:]]*app\.Version = "[0-9][0-9.]*-hvc1"$'
 echo "patch-hvc1: applied successfully"
 grep -n 'StartAtom("hvc1")' "$SRC_WRITER"
 grep -n 'case "avc1", "hev1", "hvc1":' "$SRC_READER"
-grep -n 'h265.EncodeConfigHVC1' "$SRC_MUXER"
+grep -n 'h265.EncodeConfigHVC1\|h265.GetParameterSetHVC1\|h265.DecodeSPSHVC1' "$SRC_MUXER"
 grep -n 'app.Version =' "$SRC_MAIN"
