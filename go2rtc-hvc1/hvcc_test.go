@@ -270,3 +270,87 @@ func TestDiagArmSetsOnce(t *testing.T) {
 		t.Fatal("2回目の DiagArm で armedAt が上書きされた")
 	}
 }
+
+// --- アクセスユニット丸ごと1 NAL 問題の修復テスト ---
+//
+// 実機 (SwitchBot カメラ) では、キーフレームのアクセスユニットが
+// 「型 32(VPS) の単一 NAL」として組み上がり、IsKeyframe が false を返していた。
+// 中身が Annex-B で連結されていた場合に、正しい AVCC に組み直せることを確認する。
+
+func avcc(nalus ...[]byte) []byte {
+	var out []byte
+	for _, n := range nalus {
+		out = append(out, byte(len(n)>>24), byte(len(n)>>16), byte(len(n)>>8), byte(len(n)))
+		out = append(out, n...)
+	}
+	return out
+}
+
+func nalu(t byte, body ...byte) []byte {
+	return append([]byte{t << 1, 1}, body...)
+}
+
+func TestRepairAggregatedAU(t *testing.T) {
+	vps := nalu(32, 0x0c, 0x01, 0xff)
+	sps := nalu(33, 0x01, 0x01, 0x60)
+	pps := nalu(34, 0xc0, 0x73)
+	idr := nalu(19, 0xaf, 0x06, 0x18, 0x99)
+
+	// カメラの送り方: VPS + 開始コード + SPS + 開始コード + PPS + 開始コード + IDR
+	// を「1つの NAL」として送ってくる
+	var body []byte
+	body = append(body, vps...)
+	body = append(body, 0, 0, 0, 1)
+	body = append(body, sps...)
+	body = append(body, 0, 0, 1) // 3バイト開始コードも混ざり得る
+	body = append(body, pps...)
+	body = append(body, 0, 0, 0, 1)
+	body = append(body, idr...)
+	broken := avcc(body)
+
+	// 修復前: キーフレームと判定されない (実機の症状の再現)
+	if IsKeyframe(broken) {
+		t.Fatal("再現の前提が崩れている: 修復前にキーフレームと判定された")
+	}
+
+	fixed := RepairAggregatedAU(broken)
+	if hex.EncodeToString(fixed) == hex.EncodeToString(broken) {
+		t.Fatal("修復されなかった")
+	}
+
+	gotTypes := Types(fixed)
+	wantTypes := []byte{32, 33, 34, 19}
+	if hex.EncodeToString(gotTypes) != hex.EncodeToString(wantTypes) {
+		t.Fatalf("NAL の並びが違う: got %v want %v", gotTypes, wantTypes)
+	}
+	if !IsKeyframe(fixed) {
+		t.Fatal("修復後もキーフレームと判定されない")
+	}
+	t.Logf("修復前: types=%v keyframe=%v", Types(broken), IsKeyframe(broken))
+	t.Logf("修復後: types=%v keyframe=%v", gotTypes, IsKeyframe(fixed))
+}
+
+func TestRepairAggregatedAUNoop(t *testing.T) {
+	cases := map[string][]byte{
+		"正常な AVCC (VPS/SPS/PPS/IDR)": avcc(nalu(32, 1, 2), nalu(33, 3, 4), nalu(34, 5), nalu(19, 6, 7)),
+		"通常の P フレーム 1 NAL":         avcc(nalu(1, 0xaa, 0xbb, 0xcc)),
+		"パラメータセット単体":              avcc(nalu(33, 0x01, 0x02, 0x03)),
+		"短すぎる":                    {0, 0},
+		"開始コードの無い単一 VPS":          avcc(nalu(32, 0x0c, 0x01, 0xff, 0xff)),
+	}
+	for name, in := range cases {
+		out := RepairAggregatedAU(in)
+		if hex.EncodeToString(out) != hex.EncodeToString(in) {
+			t.Fatalf("%s: 触ってはいけないのに変更された\n in: % x\nout: % x", name, in, out)
+		}
+	}
+}
+
+func TestRepairKeepsSliceAUUntouched(t *testing.T) {
+	// スライス (型 1) の中にたまたま 00 00 01 が現れても触らない
+	body := append(nalu(1, 0x11), 0, 0, 1, 0x22, 0x33)
+	in := avcc(body)
+	if hex.EncodeToString(RepairAggregatedAU(in)) != hex.EncodeToString(in) {
+		t.Fatal("スライスの AU が書き換えられた")
+	}
+}
