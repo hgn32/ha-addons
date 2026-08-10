@@ -138,10 +138,15 @@ expect_absent  "$SRC_MUXER" 'if s := h265.DecodeSPS(sps); s != nil {'
 # 正常時は何も出力しない。
 # ---------------------------------------------------------------------------
 [ -f "$PATCH_DIR/hvc1diag.go" ] || fail "missing $PATCH_DIR/hvc1diag.go"
+[ -f "$PATCH_DIR/hvc1repair.go" ] || fail "missing $PATCH_DIR/hvc1repair.go"
 if [ -e pkg/h265/hvc1diag.go ]; then
     fail "pkg/h265/hvc1diag.go already exists upstream; review the patch"
 fi
+if [ -e pkg/h265/hvc1repair.go ]; then
+    fail "pkg/h265/hvc1repair.go already exists upstream; review the patch"
+fi
 cp "$PATCH_DIR/hvc1diag.go" pkg/h265/hvc1diag.go
+cp "$PATCH_DIR/hvc1repair.go" pkg/h265/hvc1repair.go
 
 # 診断が使う上流の関数が存在すること
 expect_present pkg/h265/helper.go 'func IsKeyframe(b []byte) bool {'
@@ -153,8 +158,8 @@ sed -i 's/nuType := (data\[0\] >> 1) \& 0x3F/nuType := (data[0] >> 1) \& 0x3F; D
 expect_present "$SRC_RTP" 'DiagRTP(nuType, packet.Marker, data)'
 
 expect_present "$SRC_RTP" 'clone.Version = h264.RTPPacketVersionAVC'
-sed -i 's/clone\.Version = h264\.RTPPacketVersionAVC/clone.Version = h264.RTPPacketVersionAVC; DiagAU(buf)/' "$SRC_RTP"
-expect_present "$SRC_RTP" 'DiagAU(buf)'
+sed -i 's/clone\.Version = h264\.RTPPacketVersionAVC/clone.Version = h264.RTPPacketVersionAVC; buf = RepairAggregatedAU(buf); DiagAU(buf)/' "$SRC_RTP"
+expect_present "$SRC_RTP" 'RepairAggregatedAU(buf); DiagAU(buf)'
 
 expect_present "$SRC_MUXER_CONSUMER" 'if !h265.IsKeyframe(packet.Payload) {'
 sed -i 's/if !h265\.IsKeyframe(packet\.Payload) {/if !h265.IsKeyframeDiag(packet.Payload) {/' "$SRC_MUXER_CONSUMER"
@@ -184,5 +189,5 @@ grep -n 'StartAtom("hvc1")' "$SRC_WRITER"
 grep -n 'case "avc1", "hev1", "hvc1":' "$SRC_READER"
 grep -n 'h265.EncodeConfigHVC1\|h265.GetParameterSetHVC1\|h265.DecodeSPSHVC1' "$SRC_MUXER"
 grep -n 'h265.IsKeyframeDiag' "$SRC_MUXER_CONSUMER"
-grep -n 'DiagRTP\|DiagAU(buf)' "$SRC_RTP"
+grep -n 'DiagRTP\|RepairAggregatedAU' "$SRC_RTP"
 grep -n 'app.Version =' "$SRC_MAIN"

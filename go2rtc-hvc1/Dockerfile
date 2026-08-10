@@ -40,7 +40,7 @@ RUN git clone --depth 1 --branch "v${GO2RTC_VERSION}" https://github.com/AlexxIT
 # パッチ適用。行番号はバージョンで動くため、必ず文字列で検索・置換する。
 # sed は「1件も置換しなくても成功する」ため、置換前後を grep で検証し、
 # 想定外のソース変更で無言のうちに未パッチのイメージが出来ることを防ぐ。
-COPY patch-hvc1.sh hvcc.go hvcc_test.go hvc1diag.go /patch/
+COPY patch-hvc1.sh hvcc.go hvcc_test.go hvc1diag.go hvc1repair.go /patch/
 RUN sh /patch/patch-hvc1.sh /patch
 
 # 生成される hvcC が ffmpeg (基準実装) と一致することをビルド時に検証する。

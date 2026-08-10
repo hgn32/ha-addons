@@ -1,6 +1,9 @@
 package h265
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"sort"
@@ -46,6 +49,15 @@ type hvc1Diag struct {
 	auNotKey    uint64
 	lastAUTypes []byte
 	keyframes   uint64
+
+	// 先頭 NAL がスライスではない (= パラメータセット系の) AU の実バイト。
+	// キーフレームのはずの AU が何で出来ているのかを確かめるための標本。
+	oddAULen      int
+	oddAUTypes    []byte
+	oddAUHead     []byte
+	oddAUAnnexB   bool
+	oddAUSingle   bool
+	oddAUSamples  uint64
 }
 
 var diag = &hvc1Diag{
@@ -98,6 +110,22 @@ func DiagAU(au []byte) {
 	diag.auEmitted++
 	if diag.auEmitted <= 20 || diag.keyframes == 0 {
 		diag.lastAUTypes = Types(au)
+	}
+
+	// 先頭 NAL がスライスでない AU は「キーフレームのはずなのに認識されない AU」の
+	// 候補なので、中身を標本として控えておく。
+	if diag.keyframes == 0 && len(au) >= 6 && (au[4]>>1)&0x3F >= nalVPS {
+		diag.oddAUSamples++
+		diag.oddAULen = len(au)
+		diag.oddAUTypes = Types(au)
+		diag.oddAUSingle = int(binary.BigEndian.Uint32(au))+4 == len(au)
+		diag.oddAUAnnexB = bytes.Contains(au[4:], []byte{0, 0, 1})
+
+		n := len(au)
+		if n > 96 {
+			n = 96
+		}
+		diag.oddAUHead = append(diag.oddAUHead[:0], au[:n]...)
 	}
 }
 
@@ -157,6 +185,17 @@ func (d *hvc1Diag) reportLocked() {
 		now.Sub(since).Seconds(), cause,
 		d.rtpPackets, d.auEmitted, d.auNotKey, d.formatNALs(), d.lastAUTypes,
 	)
+
+	// 先頭 NAL がスライスでない AU (= キーフレームのはずの AU) の標本。
+	// 中身がどう組み立てられているのかを実バイトで示す。
+	if d.oddAUSamples > 0 {
+		fmt.Fprintf(os.Stderr,
+			"[hvc1-diag]   キーフレーム候補の AU: count=%d len=%d types=%v"+
+				" single_nal=%t annexb_inside=%t head=%s\n",
+			d.oddAUSamples, d.oddAULen, d.oddAUTypes,
+			d.oddAUSingle, d.oddAUAnnexB, hex.EncodeToString(d.oddAUHead),
+		)
+	}
 }
 
 func (d *hvc1Diag) formatNALs() string {
