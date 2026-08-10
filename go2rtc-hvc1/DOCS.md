@@ -100,22 +100,40 @@ MIME で `hvc1.1.6.L153.B0` と宣言していました。ISO/IEC 14496-15 §8.4
 拒否します。go2rtc はパラメータセットを既に `hvcC` に正しく書いているため、
 ボックス名を `hvc1` に直すのが正しい修正になります。
 
+さらに、ボックス名を直すだけでは足りませんでした。上流の go2rtc は `hvcC`
+(HEVCDecoderConfigurationRecord) に profile_tier_level の先頭 3 バイトしか書いて
+おらず、`general_level_idc` / `chromaFormat` / `bitDepth` が 0 のままです。
+`hev1` ならブラウザは in-band のパラメータセットを読むので表面化しませんが、
+`hvc1` ではブラウザは `hvcC` だけを信頼するため、
+
+```
+CHUNK_DEMUXER_ERROR_APPEND_FAILED: Invalid video decoder config:
+codec: hevc, profile: hevc main, level: not available, coded size: [0,8]
+```
+
+で拒否されます。そこで `hvcC` も SPS から組み立て直しています。
+
 ビルド時に上流ソースへ当てている変更:
 
 | ファイル | 変更 |
 |---|---|
 | `pkg/iso/codecs.go` | `m.StartAtom("hev1")` → `m.StartAtom("hvc1")` |
 | `pkg/iso/reader.go` | MP4 パーサが `hvc1` も受け付けるよう追加（`hev1` 互換は維持） |
+| `pkg/h265/hvcc.go`（新規） | 完全な `hvcC` を組み立てる `EncodeConfigHVC1` |
+| `pkg/mp4/muxer.go` | `h265.EncodeConfig` → `h265.EncodeConfigHVC1` |
 | `main.go` | バージョン文字列に `-hvc1` を付与 |
 
-実イメージで検証した結果:
+実イメージで検証した結果（同じ映像を ffmpeg が `-tag:v hvc1` で multiplex した
+ものを基準にした比較）:
 
-| | 公式イメージ | 本アドオン |
-|---|---|---|
-| offset 421 のボックス名 | `hev1` | `hvc1` |
-| `hvcC`(パラメータセット) | offset 507 | offset 507（変化なし） |
-| 宣言 (`hvc1.1.6.L153.B0`) との整合 | ❌ 不一致 | ✅ 一致 |
-| H.264 ストリーム | `avc1` / `avcC` | `avc1` / `avcC`（影響なし） |
+| `hvcC` のフィールド | 公式イメージ | 本アドオン | ffmpeg（基準） |
+|---|---|---|---|
+| サンプルエントリ名 | `hev1` | `hvc1` | `hvc1` |
+| `general_level_idc` | **0** | **93** | 93 |
+| `chromaFormat` | **0**（モノクロ） | **1**（4:2:0） | 1 |
+| `bitDepthLuma` | 未設定 | 8 | 8 |
+| 先頭 23 バイト | 不完全 | ffmpeg と一致 | — |
+| H.264 ストリーム | `avc1` / `avcC` | `avc1` / `avcC`（影響なし） | — |
 
 ---
 

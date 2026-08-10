@@ -1,8 +1,9 @@
 #!/bin/sh
 # go2rtc の H.265 (HEVC) MSE 再生バグを修正するビルド時パッチ。
-# go2rtc issue #2205 / PR #2253 相当。
+# go2rtc issue #2205 / PR #2253 + hvcC (HEVCDecoderConfigurationRecord) の修正。
 #
 # 実行位置: go2rtc のソースツリーのルート (Dockerfile の /build)
+# 第1引数: 追加ソース (hvcc.go / hvcc_test.go) が置いてあるディレクトリ
 #
 # 重要: sed は「1件も置換しなかった」場合でも終了コード 0 を返す。
 # 上流のソースが変わってパターンに当たらなくなったとき、パッチが当たっていない
@@ -13,6 +14,8 @@
 # 使わずに POSIX の範囲で書く。
 
 set -eu
+
+PATCH_DIR="${1:-/patch}"
 
 fail() {
     echo "patch-hvc1: ERROR: $1" >&2
@@ -64,6 +67,42 @@ expect_present "$SRC_READER" 'case "avc1", "hev1", "hvc1":'
 expect_absent  "$SRC_READER" 'case "avc1", "hev1":'
 
 # ---------------------------------------------------------------------------
+# Bug A-2 (本命その2): hvcC (HEVCDecoderConfigurationRecord) を正しく埋める
+#
+# 上流の h265.EncodeConfig は profile_tier_level の先頭 3 バイトしか書かず、
+# general_level_idc / chromaFormat / bitDepth を 0 のまま残す。
+# `hev1` ならブラウザは in-band のパラメータセットを読むので再生できるが、
+# `hvc1` ではブラウザは hvcC だけを信頼するため、サンプルエントリ名を直しただけ
+# では Chrome/Edge が
+#   "Invalid video decoder config: ... level: not available, ... chroma ..."
+# で init セグメントを拒否する。
+#
+# 完全な hvcC を組み立てる EncodeConfigHVC1 を pkg/h265 に追加し、MP4 muxer の
+# 呼び出しをそちらに差し替える。同じ SPS に対して ffmpeg が書く hvcC と先頭 23
+# バイトが一致することを hvcc_test.go でビルド時に検証する。
+# ---------------------------------------------------------------------------
+[ -f "$PATCH_DIR/hvcc.go" ] || fail "missing $PATCH_DIR/hvcc.go"
+[ -f "$PATCH_DIR/hvcc_test.go" ] || fail "missing $PATCH_DIR/hvcc_test.go"
+[ -d pkg/h265 ] || fail "pkg/h265 not found"
+
+# 追加先が既に存在する = 上流が同名の実装を入れた可能性があるので止める
+if [ -e pkg/h265/hvcc.go ]; then
+    fail "pkg/h265/hvcc.go already exists upstream; review the patch"
+fi
+
+# EncodeConfigHVC1 は上流の EncodeConfig を土台にするので、存在を確認する
+expect_present pkg/h265/mpeg4.go 'func EncodeConfig(vps, sps, pps []byte) []byte'
+
+cp "$PATCH_DIR/hvcc.go" pkg/h265/hvcc.go
+cp "$PATCH_DIR/hvcc_test.go" pkg/h265/hvcc_test.go
+
+SRC_MUXER="pkg/mp4/muxer.go"
+expect_present "$SRC_MUXER" 'h265.EncodeConfig(vps, sps, pps)'
+sed -i 's/h265\.EncodeConfig(vps, sps, pps)/h265.EncodeConfigHVC1(vps, sps, pps)/' "$SRC_MUXER"
+expect_present "$SRC_MUXER" 'h265.EncodeConfigHVC1(vps, sps, pps)'
+expect_absent  "$SRC_MUXER" 'h265.EncodeConfig(vps, sps, pps)'
+
+# ---------------------------------------------------------------------------
 # バージョン文字列にパッチ済みであることを埋め込む。
 #
 # ユーザーが確認できるのは HA の画面 (アドオンのログタブ / go2rtc の Web UI) だけ
@@ -77,4 +116,5 @@ expect_match "$SRC_MAIN" '^[[:space:]]*app\.Version = "[0-9][0-9.]*-hvc1"$'
 echo "patch-hvc1: applied successfully"
 grep -n 'StartAtom("hvc1")' "$SRC_WRITER"
 grep -n 'case "avc1", "hev1", "hvc1":' "$SRC_READER"
+grep -n 'h265.EncodeConfigHVC1' "$SRC_MUXER"
 grep -n 'app.Version =' "$SRC_MAIN"
