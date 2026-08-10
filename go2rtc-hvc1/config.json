@@ -1,0 +1,27 @@
+{
+  "name": "go2rtc (hvc1 patched)",
+  "description": "H.265(HEVC) が MSE で再生できないバグ (hev1 サンプルエントリ) を修正した go2rtc。公式のハードウェア版がベース (Intel VAAPI/QSV, AMD VAAPI, NVIDIA CUDA)",
+  "url": "https://github.com/AlexxIT/go2rtc/issues/2205",
+  "version": "1.9.14-hvc1.1",
+  "slug": "go2rtc_hvc1",
+  "init": false,
+  "arch": [
+    "amd64"
+  ],
+  "startup": "system",
+  "boot": "manual",
+  "host_network": true,
+  "homeassistant_api": true,
+  "full_access": true,
+  "video": true,
+  "audio": true,
+  "ingress": true,
+  "ingress_port": 1984,
+  "panel_icon": "mdi:camera-wireless",
+  "map": [
+    "config:rw",
+    "media",
+    "ssl"
+  ],
+  "image": "ghcr.io/hgn32/go2rtc-hvc1"
+}
