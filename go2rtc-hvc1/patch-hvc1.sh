@@ -174,15 +174,18 @@ sed -i 's/init, err := c\.muxer\.GetInit()/h265.DiagArm(); init, err := c.muxer.
 expect_present "$SRC_MUXER_CONSUMER" 'h265.DiagArm(); init, err := c.muxer.GetInit()'
 
 # ---------------------------------------------------------------------------
-# バージョン文字列にパッチ済みであることを埋め込む。
+# go2rtc の app.Version は **書き換えない**。
 #
-# ユーザーが確認できるのは HA の画面 (アドオンのログタブ / go2rtc の Web UI) だけ
-# なので、そこに出るバージョン表記でパッチ版だと分かるようにしておく。
+# 以前は "-hvc1" を足してパッチ版だと分かるようにしていたが、Home Assistant コアの
+# go2rtc 統合がサーバのバージョンを
+#     if version < AwesomeVersion(RECOMMENDED_VERSION)   # "1.9.14"
+# で比較しており、AwesomeVersion は "1.9.14-hvc1+dev..." を SemVer と解釈して
+# "-" 以降をプレリリース修飾子として扱う。その結果 1.9.14 より古いと判定され、
+# 「古い go2rtc サーバーが検出されました」の修理項目が出てしまった。
+#
+# 識別は pkg/h265/hvc1diag.go の init() が出す "[hvc1] patched build: ..." の行で行う。
 # ---------------------------------------------------------------------------
-SRC_MAIN="main.go"
-expect_match "$SRC_MAIN" '^[[:space:]]*app\.Version = "[0-9][0-9.]*"$'
-sed -i 's/app\.Version = "\([0-9][0-9.]*\)"/app.Version = "\1-hvc1"/' "$SRC_MAIN"
-expect_match "$SRC_MAIN" '^[[:space:]]*app\.Version = "[0-9][0-9.]*-hvc1"$'
+expect_absent main.go 'app.Version = "1.9.14-hvc1"'
 
 echo "patch-hvc1: applied successfully"
 grep -n 'StartAtom("hvc1")' "$SRC_WRITER"
@@ -190,4 +193,4 @@ grep -n 'case "avc1", "hev1", "hvc1":' "$SRC_READER"
 grep -n 'h265.EncodeConfigHVC1\|h265.GetParameterSetHVC1\|h265.DecodeSPSHVC1' "$SRC_MUXER"
 grep -n 'h265.IsKeyframeDiag' "$SRC_MUXER_CONSUMER"
 grep -n 'DiagRTP\|RepairAggregatedAU' "$SRC_RTP"
-grep -n 'app.Version =' "$SRC_MAIN"
+grep -n 'app.Version =' main.go

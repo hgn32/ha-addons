@@ -1,3 +1,29 @@
+## 1.9.14.7
+
+- **修正: 「古い go2rtc サーバーが検出されました」の警告が出る問題**
+  - 症状: `configuration.yaml` で HA コアの go2rtc 統合をこのアドオンに向けると
+    修理項目が出る（`現在、バージョン 1.9.14-hvc1+dev.b5948cf.dirty を使用しています`）
+  - 原因: **本アドオンが go2rtc の `app.Version` に `-hvc1` を足していたため。**
+    HA コアは `if version < AwesomeVersion(RECOMMENDED_VERSION)`（"1.9.14"）で
+    比較しており、`AwesomeVersion` は `-` 以降を SemVer のプレリリース修飾子と
+    解釈する。実測:
+
+    ```
+    AwesomeVersion('1.9.14-hvc1+dev.b5948cf.dirty') < 1.9.14  -> True   ← 警告
+    AwesomeVersion('1.9.14+dev.b5948cf.dirty')      < 1.9.14  -> False
+    ```
+
+  - 対策: `app.Version` を書き換えるのをやめた。パッチ版の識別は、起動時に出す
+    次の1行で行う
+
+    ```
+    [hvc1] patched build: hvc1 sample entry / full hvcC / sprop reorder by NAL type / aggregated-AU repair
+    ```
+
+- ドキュメントに、`custom:webrtc-camera` カードで **`media: video` を指定すると
+  H.265 の MSE 再生が最初の1フレームで止まる**ことと、その外し方を追記した
+  （実機で確認。go2rtc 側は送信を続けており、ブラウザ側で描画が進まない）
+
 ## 1.9.14.6
 
 - **修正: キーフレームが永久に検出されず、映像が1枚も送られなかった問題**
@@ -46,31 +72,3 @@
   - 正常に再生できているときは何も出力しない。WebRTC / RTSP で視聴している
     場合も出力しない（そもそもキーフレーム待ちを通らないため）
   - 最大 5 回まで、60 秒間隔
-
-## 1.9.14.4
-
-- **修正: SwitchBot カメラで H.265 が再生できなかった真の原因**
-  - 症状: Chrome/Edge が `CHUNK_DEMUXER_ERROR_APPEND_FAILED: Invalid video
-    decoder config: ... level: not available, coded size: [0,8],
-    has extra data: false` で init セグメントを拒否する
-  - 原因: **カメラが SDP の `sprop-*` のラベルを取り違えて送っていた**
-
-    | SDP のラベル | 実際の中身 |
-    |---|---|
-    | `sprop-vps` | PPS (NAL type 34) |
-    | `sprop-sps` | VPS (NAL type 32) |
-    | `sprop-pps` | SPS (NAL type 33) |
-
-    上流の go2rtc はラベルをそのまま信じるため、**VPS を SPS としてパース**して
-    しまい、サンプルエントリの解像度が `0x8` に、`hvcC` の
-    `general_level_idc` が `0` になっていた。Chrome の
-    `coded size: [0,8]` / `level: not available` はこれをそのまま表している
-  - 対策: パラメータセットを **ラベルではなく NAL unit type で振り分ける**
-    ようにした。ラベルが正しいカメラでは挙動は変わらない
-  - 併せて解像度を conformance window 込みで求めるようにした
-    (上流は CTU 境界に切り上げられた値をそのまま書くため 1620 の映像が 1624 になる)
-  - `array_completeness` を 1 にした (`hvc1` ではパラメータセットは全て `hvcC` に
-    ある、という意味。ffmpeg も同じ)
-- 検証: このカメラの実際の SDP を使ったテストをビルドに組み込んだ。
-  上流の挙動 (0x8 になること) の再現と、修正後に 2592x1620 / level 150 になること、
-  および `hvcC` が **ffmpeg の出力とバイト単位で一致**することを検証している
