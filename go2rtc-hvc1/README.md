@@ -114,7 +114,6 @@ if size < len(b) { b = b[size:]; continue } else { return false }
 | `pkg/mp4/muxer.go` | 上記を使うよう差し替え |
 | `pkg/h265/rtp.go` | デペイロード直後に修復と計測を挟む |
 | `pkg/mp4/consumer.go` | キーフレーム判定に計測を挟む |
-| `main.go` | バージョン文字列に `-hvc1` を付与 |
 
 `hvcc.go` がやっていること:
 
@@ -209,18 +208,25 @@ MSE / MP4 で視聴中に 10 秒キーフレームを検出できないと、こ
 
 ### 1. パッチ版が動いているか
 
-アドオンの **ログ** タブに、起動時のバージョン行が出ます。
+アドオンの **ログ** タブに、起動時に次の2行が出ます。
 
 ```
-INF go2rtc platform=linux/amd64 revision=... version=1.9.14-hvc1+dev....
+[hvc1] patched build: hvc1 sample entry / full hvcC / sprop reorder by NAL type / aggregated-AU repair
+INF go2rtc platform=linux/amd64 revision=... version=1.9.14+dev....
 ```
 
-`version` に **`-hvc1`** が入っていればパッチ版です。
+**`[hvc1] patched build:` の行**が出ていればパッチ版です。
+
 （`+dev.<commit>.dirty` は「上流のタグ付きリリースにローカル修正を加えたビルド」を
 Go が自動で付ける表記で、異常ではありません）
 
 > この文字列は**アドオンの版を区別しません**。どの版が入っているかは
-> HA のアドオン画面のバージョン（例: `1.9.14.6`）で確認してください。
+> HA のアドオン画面のバージョン（例: `1.9.14.7`）で確認してください。
+>
+> go2rtc の `app.Version` に `-hvc1` のような接尾辞を付けてはいけません。
+> HA コアの go2rtc 統合が `version < AwesomeVersion("1.9.14")` で比較しており、
+> `-` 以降が SemVer のプレリリース修飾子と解釈されて「古い go2rtc サーバーが
+> 検出されました」の修理項目が出ます（1.9.14.7 で修正済み）。
 
 ### 2. H.265 が再生できるか
 

@@ -65,6 +65,22 @@ var diag = &hvc1Diag{
 	nalMarker: make(map[byte]uint64),
 }
 
+// 起動時に「パッチ版である」ことを1行出す。
+//
+// 以前は go2rtc の app.Version に "-hvc1" を足していたが、それをやめた。
+// Home Assistant コアの go2rtc 統合はサーバのバージョンを
+//
+//	if version < AwesomeVersion(RECOMMENDED_VERSION)  // "1.9.14"
+//
+// で比較する。AwesomeVersion は "1.9.14-hvc1+dev..." を SemVer と解釈して
+// "-" 以降をプレリリース修飾子として扱うため、1.9.14 より **古い** と判定され、
+// 「古い go2rtc サーバーが検出されました」の修理項目が出てしまう。
+// バージョン文字列は素のままにして、識別はこの行で行う。
+func init() {
+	fmt.Fprintln(os.Stderr,
+		"[hvc1] patched build: hvc1 sample entry / full hvcC / sprop reorder by NAL type / aggregated-AU repair")
+}
+
 // DiagArm は MP4/MSE のコンシューマが接続したことを知らせる。
 //
 // 診断はこれが呼ばれて初めて有効になる。WebRTC や RTSP で視聴している場合は
