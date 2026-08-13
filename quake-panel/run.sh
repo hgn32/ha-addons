@@ -15,6 +15,11 @@ echo "----------------------------------------------------------------"
 echo " Quake Panel — 常時表示型 地震速報パネル"
 echo "   画像取得間隔      : 平常時 ${KMONI_IDLE_FRAME_INTERVAL_SEC}秒 / EEW 中 ${KMONI_ACTIVE_FRAME_INTERVAL_SEC}秒"
 echo "   ログレベル        : ${LOG_LEVEL}"
+if [ -n "${HA_API_URL}" ]; then
+  echo "   HA への通知       : 有効 (binary_sensor.quake_panel_eew 等を更新します)"
+else
+  echo "   HA への通知       : 無効"
+fi
 echo ""
 echo " 利用地・津波予報区・地図の表示位置は、パネル右上の「設定」で"
 echo " 端末ごとに決めます (このアドオンの設定タブにはありません)。"

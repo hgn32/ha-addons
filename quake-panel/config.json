@@ -1,11 +1,11 @@
 {
   "name": "Quake Panel",
   "description": "常時表示型の地震速報パネル。強震モニタのリアルタイム震度マップを表示し、緊急地震速報・地震情報・津波予報を音と画面明滅で知らせます。",
-  "version": "0.5",
+  "version": "0.1.0",
   "slug": "quake_panel",
   "url": "https://github.com/hgn32/quake-panel",
   "init": false,
-  "homeassistant_api": false,
+  "homeassistant_api": true,
   "hassio_api": false,
   "arch": [
     "amd64",
@@ -25,11 +25,13 @@
     "8080/tcp": "キオスク端末 (Raspberry Pi 等) から認証なしで開くための直接アクセス用。LAN 内に留めること"
   },
   "options": {
+    "notify_home_assistant": true,
     "kmoni_idle_frame_interval_sec": 1,
     "kmoni_active_frame_interval_sec": 1,
     "log_level": "info"
   },
   "schema": {
+    "notify_home_assistant": "bool",
     "kmoni_idle_frame_interval_sec": "float(0.5,60)",
     "kmoni_active_frame_interval_sec": "float(0.5,60)",
     "log_level": "list(debug|info|warn|error)"

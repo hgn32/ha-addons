@@ -9,8 +9,8 @@
 
 ARG NODE_VERSION="22"
 ARG QUAKE_PANEL_REPO="https://github.com/hgn32/quake-panel.git"
-# 凡例を地図の色に合わせ、観測点の青を明るくしたコミット
-ARG QUAKE_PANEL_REF="ec86e2891ceda8f8ef04734e997fb5ecdd587446"
+# 緊急地震速報などを Home Assistant へ通知するようにしたコミット
+ARG QUAKE_PANEL_REF="9f41574c415fd001773e4121a7bb86c7763c3f2c"
 
 # ---- stage 1: 上流を取得してビルド ----
 FROM node:${NODE_VERSION}-bookworm-slim AS build

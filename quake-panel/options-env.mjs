@@ -11,6 +11,7 @@ const OPTIONS_PATH = process.env.OPTIONS_PATH ?? '/data/options.json';
 
 /** 既定値は config.json の options と揃えること */
 const DEFAULTS = {
+  notify_home_assistant: true,
   kmoni_idle_frame_interval_sec: 1,
   kmoni_active_frame_interval_sec: 1,
   log_level: 'info',
@@ -40,7 +41,12 @@ if (raw !== null) {
   }
 }
 
+const notify = flag('notify_home_assistant');
+
 const env = {
+  // 通知するときだけコア API の場所を渡す (SUPERVISOR_TOKEN は Supervisor が
+  // コンテナへ自動で入れる)。空なら quake-panel 側は何もしない。
+  HA_API_URL: notify ? 'http://supervisor/core/api' : '',
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
   LOG_LEVEL: text('log_level'),
@@ -63,6 +69,10 @@ function pick(key, ok) {
 
 function text(key) {
   return String(pick(key, (v) => typeof v === 'string'));
+}
+
+function flag(key) {
+  return pick(key, (v) => typeof v === 'boolean') === true;
 }
 
 function number(key) {
