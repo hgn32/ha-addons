@@ -9,8 +9,8 @@
 
 ARG NODE_VERSION="22"
 ARG QUAKE_PANEL_REPO="https://github.com/hgn32/quake-panel.git"
-# 実機で出た表示・操作まわりの指摘をまとめて直したコミット
-ARG QUAKE_PANEL_REF="04d6a9e1360417752b9b9987699f94795d926ae0"
+# 凡例を地図の色に合わせ、観測点の青を明るくしたコミット
+ARG QUAKE_PANEL_REF="ec86e2891ceda8f8ef04734e997fb5ecdd587446"
 
 # ---- stage 1: 上流を取得してビルド ----
 FROM node:${NODE_VERSION}-bookworm-slim AS build
