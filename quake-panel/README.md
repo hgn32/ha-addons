@@ -78,6 +78,7 @@ Chromium に `--autoplay-policy=no-user-gesture-required` を付けると出な�
 
 | 項目 | 既定 | 説明 |
 |---|---|---|
+| Home Assistant へ通知する | 有効 | 緊急地震速報などをイベントとセンサーに流す（下記） |
 | 画像の取得間隔（平常時） | 1 秒 | 外部への通信量は平常時で約 8.5KB/s（1 日 700MB 程度）。2 秒にすると半分になる |
 | 画像の取得間隔（EEW 中） | 1 秒 | 毎秒のままを推奨 |
 | ログレベル | info | 動作を追いたいときだけ debug |
@@ -94,7 +95,7 @@ Chromium に `--autoplay-policy=no-user-gesture-required` を付けると出な�
 |---|---|
 | EEW の通知範囲 | 予報から鳴らすか、警報のみか |
 | 音量 / テスト | 実際の警報と同じ音と画面明滅を数秒出して確認できる |
-| 利用地 | 緯度経度を直接入れるか、「地図から選ぶ」でクリックして決める（クリックは仮選択で、「決定」を押すまで保存されません）。地震情報の履歴で自分の都道府県を前に出すのに使う |
+| 利用地 | 緯度経度を直接入れるか、「地図から選ぶ」でクリックして決める（クリックは仮選択で、「決定」を押すまで保存されません）。地図の中心と、津波予報区の自動判定に使う |
 | 強調する津波予報区 | 既定は**利用地の都道府県から自動**。手動で都道府県を複数選ぶこともできる |
 | 表示位置を固定 | 常時表示の端末で誤って動かさないためのキオスク向け設定 |
 | 観測点の発光表示 / 履歴の表示件数 | 見た目の調整 |
@@ -119,6 +120,56 @@ http://<Home Assistant の IP>:8080/?lat=35.681&lon=139.767&tsunami=東京都,�
 |---|---|
 | `lat` / `lon` | 利用地。両方揃っているときだけ効く |
 | `tsunami` | 強調する津波予報区（カンマ区切り） |
+
+## Home Assistant への通知
+
+「Home Assistant へ通知する」を有効にすると（既定で有効）、緊急地震速報などを
+HA のイベントとセンサーに流します。**画面を見ていなくても HA 側で気づける**
+ようにするためで、オートメーションでダッシュボードを切り替える、照明を点ける、
+といった使い方ができます。
+
+### イベント
+
+続報のたびではなく、**意味が変わったときだけ**発火します（同じ地震で震度や
+警報種別が変わらない続報では出ません）。
+
+| イベント | いつ | 主なデータ |
+|---|---|---|
+| `quake_panel_eew` | 緊急地震速報の受信・格上げ・取消 | `is_warning` / `max_intensity` / `hypocenter` / `report_number` / `is_cancel` / `is_training` |
+| `quake_panel_tsunami` | 津波予報の発表・解除 | `active` / `areas` / `grades` |
+| `quake_panel_quake` | 地震情報の受信 | `max_intensity` / `hypocenter` / `magnitude` / `occurred_at` |
+
+### エンティティ
+
+| エンティティ | 内容 |
+|---|---|
+| `binary_sensor.quake_panel_eew` | 緊急地震速報の発表中（訓練報・取消では `off`） |
+| `sensor.quake_panel_eew_intensity` | 予想最大震度（`5強` など） |
+| `binary_sensor.quake_panel_tsunami` | 津波予報の発表中 |
+| `sensor.quake_panel_last_quake` | 最新の地震情報の最大震度 |
+
+### オートメーションの例
+
+緊急地震速報（警報）でダッシュボードを地震パネルに切り替える例です。
+画面の切り替え自体は使っているカード／アドオン（browser_mod など）に合わせて
+書き換えてください。
+
+```yaml
+alias: 緊急地震速報でダッシュボードを切り替える
+triggers:
+  - trigger: event
+    event_type: quake_panel_eew
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.is_warning and not trigger.event.data.is_training }}"
+actions:
+  - action: browser_mod.navigate
+    data:
+      path: /lovelace/quake
+```
+
+センサーで判定したい場合は `binary_sensor.quake_panel_eew` が `on` になったこと
+をトリガーにできます。
 
 ## 外部への接続先
 
