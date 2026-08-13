@@ -9,8 +9,8 @@
 
 ARG NODE_VERSION="22"
 ARG QUAKE_PANEL_REPO="https://github.com/hgn32/quake-panel.git"
-# 前置きパス (Ingress) 対応を入れたコミット
-ARG QUAKE_PANEL_REF="d0dc49dbee1cdf2aa5f43638fa324151de82c4f7"
+# 実機で出た表示・設定まわりの指摘を直したコミット
+ARG QUAKE_PANEL_REF="a08366812c53fa2e314a1da2a076ae0a1ff9e0d1"
 
 # ---- stage 1: 上流を取得してビルド ----
 FROM node:${NODE_VERSION}-bookworm-slim AS build

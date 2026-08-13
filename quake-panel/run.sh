@@ -13,7 +13,7 @@ eval "${OPTIONS_ENV}"
 
 echo "----------------------------------------------------------------"
 echo " Quake Panel — 常時表示型 地震速報パネル"
-echo "   利用地           : ${HOME_NAME} (${HOME_LAT}, ${HOME_LON})"
+echo "   利用地の座標      : ${HOME_LAT}, ${HOME_LON}"
 echo "   津波予報の強調    : ${TSUNAMI_HOME_AREAS}"
 echo "   画像取得間隔      : 平常時 ${KMONI_IDLE_FRAME_INTERVAL_MS}ms / EEW 中 ${KMONI_ACTIVE_FRAME_INTERVAL_MS}ms"
 echo "   地震情報の保持件数 : ${QUAKE_HISTORY_SIZE}"
