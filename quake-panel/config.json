@@ -1,7 +1,7 @@
 {
   "name": "Quake Panel",
   "description": "常時表示型の地震速報パネル。強震モニタのリアルタイム震度マップを表示し、緊急地震速報・地震情報・津波予報を音と画面明滅で知らせます。",
-  "version": "0.1",
+  "version": "0.2",
   "slug": "quake_panel",
   "url": "https://github.com/hgn32/quake-panel",
   "init": false,
@@ -25,11 +25,10 @@
     "8080/tcp": "キオスク端末 (Raspberry Pi 等) から認証なしで開くための直接アクセス用。LAN 内に留めること"
   },
   "options": {
-    "home_name": "宮崎県延岡市",
-    "home_lat": 32.582,
-    "home_lon": 131.665,
+    "home_lat": 35.681,
+    "home_lon": 139.767,
     "tsunami_home_areas": [
-      "宮崎県"
+      "東京都"
     ],
     "kmoni_idle_frame_interval_ms": 1000,
     "kmoni_active_frame_interval_ms": 1000,
@@ -37,7 +36,6 @@
     "log_level": "info"
   },
   "schema": {
-    "home_name": "str",
     "home_lat": "float(-90,90)",
     "home_lon": "float(-180,180)",
     "tsunami_home_areas": [

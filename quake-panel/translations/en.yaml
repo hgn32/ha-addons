@@ -1,16 +1,13 @@
 configuration:
-  home_name:
-    name: Home location name
-    description: Used to center the map and to highlight nearby entries in the quake history (e.g. 宮崎県延岡市).
   home_lat:
     name: Home latitude
-    description: Latitude of the home location (decimal degrees). Used as the map center.
+    description: Latitude of the home location (decimal degrees). Centers the map and highlights your prefecture in the quake history — the prefecture is derived from the coordinates, so no place name is needed.
   home_lon:
     name: Home longitude
     description: Longitude of the home location (decimal degrees). Used as the map center.
   tsunami_home_areas:
     name: Highlighted tsunami forecast areas
-    description: Forecast areas to highlight when a tsunami forecast covers them (e.g. 宮崎県). One per line. Leave empty to use the default.
+    description: Forecast areas to highlight when a tsunami forecast covers them (e.g. 東京都). One per line. Leave empty to use the default.
   kmoni_idle_frame_interval_ms:
     name: Frame interval, idle (ms)
     description: How often the Kyoshin Monitor image is fetched. Default 1000 (every second). Set 2000 to halve the outbound traffic.

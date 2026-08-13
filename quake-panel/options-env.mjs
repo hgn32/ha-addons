@@ -11,10 +11,9 @@ const OPTIONS_PATH = process.env.OPTIONS_PATH ?? '/data/options.json';
 
 /** 既定値は config.json の options と揃えること */
 const DEFAULTS = {
-  home_name: '宮崎県延岡市',
-  home_lat: 32.582,
-  home_lon: 131.665,
-  tsunami_home_areas: ['宮崎県'],
+  home_lat: 35.681,
+  home_lon: 139.767,
+  tsunami_home_areas: ['東京都'],
   kmoni_idle_frame_interval_ms: 1000,
   kmoni_active_frame_interval_ms: 1000,
   quake_history_size: 12,
@@ -46,7 +45,6 @@ if (raw !== null) {
 }
 
 const env = {
-  HOME_NAME: text('home_name'),
   HOME_LAT: String(number('home_lat')),
   HOME_LON: String(number('home_lon')),
   TSUNAMI_HOME_AREAS: list('tsunami_home_areas').join(','),
