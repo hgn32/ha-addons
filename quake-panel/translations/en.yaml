@@ -1,24 +1,10 @@
 configuration:
-  home_lat:
-    name: Home latitude
-    description: Latitude of the home location (decimal degrees). Centers the map and highlights your prefecture in the quake history — the prefecture is derived from the coordinates, so no place name is needed.
-  home_lon:
-    name: Home longitude
-    description: Longitude of the home location (decimal degrees). Used as the map center.
-  tsunami_home_areas:
-    name: Highlighted tsunami forecast areas
-    description: Forecast areas to highlight when a tsunami forecast covers them (e.g. 東京都). One per line. Leave empty to use the default.
-  kmoni_idle_frame_interval_ms:
-    name: Frame interval, idle (ms)
-    description: How often the Kyoshin Monitor image is fetched. Default 1000 (every second). Set 2000 to halve the outbound traffic.
-  kmoni_active_frame_interval_ms:
-    name: Frame interval, during EEW (ms)
-    description: How often images are fetched while an earthquake early warning is active. Keeping 1000 (every second) is recommended.
-  quake_history_size:
-    name: Quake history size
-    description: How many quake reports the server keeps. How many are shown is a per-device setting in the panel itself.
+  kmoni_idle_frame_interval_sec:
+    name: Frame interval, idle (seconds)
+    description: How often the Kyoshin Monitor image is fetched. Default 1 second. Set 2 to halve the outbound traffic.
+  kmoni_active_frame_interval_sec:
+    name: Frame interval, during EEW (seconds)
+    description: Fetch interval while an earthquake early warning is active. Keeping 1 second is recommended.
   log_level:
     name: Log level
-    description: How much detail is written to this log tab. Use debug only when tracing a problem.
-network:
-  8080/tcp: Direct access for kiosk devices (e.g. a Raspberry Pi) without authentication. Keep it on the LAN and do not expose it to the internet. Leave empty to close it and use ingress only.
+    description: Set to debug only when you need to trace the add-on's behaviour.

@@ -1,24 +1,10 @@
 configuration:
-  home_lat:
-    name: 利用地の緯度
-    description: 利用地の緯度（10進）。地図の中心と、地震情報の履歴で自宅の都道府県を強調するのに使います。都道府県は座標から判定するので地名の入力は要りません。
-  home_lon:
-    name: 利用地の経度
-    description: 利用地の経度（10進）。地図の中心に使います。
-  tsunami_home_areas:
-    name: 強調する津波予報区
-    description: 津波予報でこの予報区が対象になったとき強調表示します（例：東京都）。1 行に 1 つ書いてください。空にすると既定値を使います。
-  kmoni_idle_frame_interval_ms:
-    name: 画像取得間隔（平常時・ミリ秒）
-    description: 強震モニタの画像を取りに行く間隔。既定は 1000（毎秒）です。外部への通信量を半分にしたい場合は 2000 にしてください。
-  kmoni_active_frame_interval_ms:
-    name: 画像取得間隔（緊急地震速報中・ミリ秒）
-    description: 緊急地震速報の発表中に画像を取りに行く間隔。ここは 1000（毎秒）のままを推奨します。
-  quake_history_size:
-    name: 地震情報の保持件数
-    description: サーバーが保持する地震情報の件数。画面に何件表示するかは端末ごとの設定（画面右上の「設定」）で変えられます。
+  kmoni_idle_frame_interval_sec:
+    name: 画像の取得間隔（平常時・秒）
+    description: 強震モニタの画像を何秒おきに取りに行くか。既定は 1 秒。外部への通信量を半分にしたいときは 2 にしてください。
+  kmoni_active_frame_interval_sec:
+    name: 画像の取得間隔（緊急地震速報の発表中・秒）
+    description: 緊急地震速報が出ている間の取得間隔。1 秒のままを推奨します。
   log_level:
     name: ログレベル
-    description: このログタブに出す情報の量。動作を追いたいときだけ debug にしてください。
-network:
-  8080/tcp: キオスク端末（Raspberry Pi など）から認証なしで開くための直接アクセス用ポート。LAN 内に留め、インターネットへ公開しないでください。空欄にすると閉じられ、Ingress（サイドバーの「地震速報」）からのみ開けます。
+    description: 動作を詳しく追いたいときだけ debug にしてください。

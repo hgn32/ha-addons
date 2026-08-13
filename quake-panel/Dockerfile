@@ -9,8 +9,8 @@
 
 ARG NODE_VERSION="22"
 ARG QUAKE_PANEL_REPO="https://github.com/hgn32/quake-panel.git"
-# 実機で出た表示・設定まわりの指摘を直したコミット
-ARG QUAKE_PANEL_REF="a08366812c53fa2e314a1da2a076ae0a1ff9e0d1"
+# 利用地と表示を端末ごとの設定にし、地図を直接動かせるようにしたコミット
+ARG QUAKE_PANEL_REF="c448cc504fc964e26d9b567194c32a152be87937"
 
 # ---- stage 1: 上流を取得してビルド ----
 FROM node:${NODE_VERSION}-bookworm-slim AS build
