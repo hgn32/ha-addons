@@ -1,0 +1,27 @@
+configuration:
+  home_name:
+    name: 利用地の名前
+    description: 地図の初期表示位置と、地震情報の履歴で自宅付近を強調するのに使います（例：宮崎県延岡市）。
+  home_lat:
+    name: 利用地の緯度
+    description: 利用地の緯度（10進）。地図の中心に使います。
+  home_lon:
+    name: 利用地の経度
+    description: 利用地の経度（10進）。地図の中心に使います。
+  tsunami_home_areas:
+    name: 強調する津波予報区
+    description: 津波予報でこの予報区が対象になったとき強調表示します（例：宮崎県）。1 行に 1 つ書いてください。空にすると既定値を使います。
+  kmoni_idle_frame_interval_ms:
+    name: 画像取得間隔（平常時・ミリ秒）
+    description: 強震モニタの画像を取りに行く間隔。既定は 1000（毎秒）です。外部への通信量を半分にしたい場合は 2000 にしてください。
+  kmoni_active_frame_interval_ms:
+    name: 画像取得間隔（緊急地震速報中・ミリ秒）
+    description: 緊急地震速報の発表中に画像を取りに行く間隔。ここは 1000（毎秒）のままを推奨します。
+  quake_history_size:
+    name: 地震情報の保持件数
+    description: サーバーが保持する地震情報の件数。画面に何件表示するかは端末ごとの設定（画面右上の「設定」）で変えられます。
+  log_level:
+    name: ログレベル
+    description: このログタブに出す情報の量。動作を追いたいときだけ debug にしてください。
+network:
+  8080/tcp: キオスク端末（Raspberry Pi など）から認証なしで開くための直接アクセス用ポート。LAN 内に留め、インターネットへ公開しないでください。空欄にすると閉じられ、Ingress（サイドバーの「地震速報」）からのみ開けます。

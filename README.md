@@ -43,6 +43,10 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 毎朝決まった時刻に最小トークンのタスクを送信し、Claude Pro/Max の5時間セッションを起点にするアドオンです。
 
+### [Quake Panel](./quake-panel)
+
+常時表示型の地震速報パネルです。[強震モニタ](https://www.kmoni.bosai.go.jp/)のリアルタイム震度マップを常に表示し、緊急地震速報・地震情報・津波予報を受けると音と画面明滅で知らせます。サイドバー（Ingress）のほか、Raspberry Pi などのキオスク端末から直接開くこともできます。アプリ本体は [hgn32/quake-panel](https://github.com/hgn32/quake-panel) にあります。
+
 ## インストール方法
 
 1. Home Assistant の **設定 → アドオン → アドオンストア** を開く
