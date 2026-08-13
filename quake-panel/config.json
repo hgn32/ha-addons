@@ -1,7 +1,7 @@
 {
   "name": "Quake Panel",
   "description": "常時表示型の地震速報パネル。強震モニタのリアルタイム震度マップを表示し、緊急地震速報・地震情報・津波予報を音と画面明滅で知らせます。",
-  "version": "0.2",
+  "version": "0.3",
   "slug": "quake_panel",
   "url": "https://github.com/hgn32/quake-panel",
   "init": false,
@@ -25,25 +25,13 @@
     "8080/tcp": "キオスク端末 (Raspberry Pi 等) から認証なしで開くための直接アクセス用。LAN 内に留めること"
   },
   "options": {
-    "home_lat": 35.681,
-    "home_lon": 139.767,
-    "tsunami_home_areas": [
-      "東京都"
-    ],
-    "kmoni_idle_frame_interval_ms": 1000,
-    "kmoni_active_frame_interval_ms": 1000,
-    "quake_history_size": 12,
+    "kmoni_idle_frame_interval_sec": 1,
+    "kmoni_active_frame_interval_sec": 1,
     "log_level": "info"
   },
   "schema": {
-    "home_lat": "float(-90,90)",
-    "home_lon": "float(-180,180)",
-    "tsunami_home_areas": [
-      "str"
-    ],
-    "kmoni_idle_frame_interval_ms": "int(500,10000)",
-    "kmoni_active_frame_interval_ms": "int(500,10000)",
-    "quake_history_size": "int(1,50)",
+    "kmoni_idle_frame_interval_sec": "float(0.5,60)",
+    "kmoni_active_frame_interval_sec": "float(0.5,60)",
     "log_level": "list(debug|info|warn|error)"
   },
   "image": "ghcr.io/hgn32/quake-panel"

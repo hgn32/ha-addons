@@ -11,12 +11,8 @@ const OPTIONS_PATH = process.env.OPTIONS_PATH ?? '/data/options.json';
 
 /** 既定値は config.json の options と揃えること */
 const DEFAULTS = {
-  home_lat: 35.681,
-  home_lon: 139.767,
-  tsunami_home_areas: ['東京都'],
-  kmoni_idle_frame_interval_ms: 1000,
-  kmoni_active_frame_interval_ms: 1000,
-  quake_history_size: 12,
+  kmoni_idle_frame_interval_sec: 1,
+  kmoni_active_frame_interval_sec: 1,
   log_level: 'info',
 };
 
@@ -45,12 +41,8 @@ if (raw !== null) {
 }
 
 const env = {
-  HOME_LAT: String(number('home_lat')),
-  HOME_LON: String(number('home_lon')),
-  TSUNAMI_HOME_AREAS: list('tsunami_home_areas').join(','),
-  KMONI_IDLE_FRAME_INTERVAL_MS: String(number('kmoni_idle_frame_interval_ms')),
-  KMONI_ACTIVE_FRAME_INTERVAL_MS: String(number('kmoni_active_frame_interval_ms')),
-  QUAKE_HISTORY_SIZE: String(number('quake_history_size')),
+  KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
+  KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
   LOG_LEVEL: text('log_level'),
 };
 
@@ -75,26 +67,6 @@ function text(key) {
 
 function number(key) {
   return pick(key, (v) => typeof v === 'number' && Number.isFinite(v));
-}
-
-function list(key) {
-  const value = pick(key, (v) => Array.isArray(v) && v.every((item) => typeof item === 'string'));
-  const items = [];
-  for (const item of value) {
-    const trimmed = item.trim();
-    if (trimmed === '') continue;
-    // 予報区名はカンマ区切りで渡すので、値にカンマが入っていると分割されてしまう
-    if (trimmed.includes(',')) {
-      warn(`設定 ${key} の "${trimmed}" はカンマを含むため無視します (1 行に 1 つ書いてください)。`);
-      continue;
-    }
-    items.push(trimmed);
-  }
-  if (items.length === 0) {
-    warn(`設定 ${key} が空です。既定値 ${JSON.stringify(DEFAULTS[key])} を使います。`);
-    return DEFAULTS[key];
-  }
-  return items;
 }
 
 /** シェルの単一引用符で括る。中の ' は '\'' で閉じ直す。 */
