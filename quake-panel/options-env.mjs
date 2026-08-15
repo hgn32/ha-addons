@@ -13,7 +13,7 @@ const OPTIONS_PATH = process.env.OPTIONS_PATH ?? '/data/options.json';
 const DEFAULTS = {
   notify_home_assistant: true,
   notify_min_intensity: 'すべて',
-  notify_prefectures: '',
+  notify_prefectures: [],
   kmoni_layer: 'acmap',
   kmoni_idle_frame_interval_sec: 1,
   kmoni_active_frame_interval_sec: 1,
@@ -57,7 +57,9 @@ const env = {
   // 通知する地震の絞り込み。ラベルのまま渡し、震度コードへの読み替えは
   // サーバー側 (shared/src/haFilter.ts) で行う。対応表を 2 か所に置かないため。
   HA_NOTIFY_MIN_INTENSITY: text('notify_min_intensity'),
-  HA_NOTIFY_PREFECTURES: text('notify_prefectures'),
+  // 設定タブでは都道府県を一覧から選ばせる (自由入力だと表記ゆれで効かない)。
+  // サーバーへはカンマ区切りで渡す。
+  HA_NOTIFY_PREFECTURES: stringList('notify_prefectures').join(','),
   KMONI_LAYER: text('kmoni_layer'),
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
@@ -85,6 +87,13 @@ function text(key) {
 
 function flag(key) {
   return pick(key, (v) => typeof v === 'boolean') === true;
+}
+
+/** 文字列の配列で受ける設定 (config.json の schema が ["list(...)"] のもの) */
+function stringList(key) {
+  const value = pick(key, (v) => Array.isArray(v) && v.every((item) => typeof item === 'string'));
+  // 空白だけの要素が混ざっても環境変数を汚さないよう、ここで落とす
+  return value.map((item) => item.trim()).filter((item) => item !== '');
 }
 
 function number(key) {

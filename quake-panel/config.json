@@ -1,7 +1,7 @@
 {
   "name": "Quake Panel",
   "description": "常時表示型の地震速報パネル。強震モニタの揺れをリアルタイムに地図表示し、緊急地震速報・地震情報・津波予報を音と画面明滅で知らせます。",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "slug": "quake_panel",
   "url": "https://github.com/hgn32/quake-panel",
   "init": false,
@@ -27,7 +27,7 @@
   "options": {
     "notify_home_assistant": true,
     "notify_min_intensity": "すべて",
-    "notify_prefectures": "",
+    "notify_prefectures": [],
     "kmoni_layer": "acmap",
     "kmoni_idle_frame_interval_sec": 1,
     "kmoni_active_frame_interval_sec": 1,
@@ -36,7 +36,9 @@
   "schema": {
     "notify_home_assistant": "bool",
     "notify_min_intensity": "list(すべて|震度1以上|震度2以上|震度3以上|震度4以上|震度5弱以上|震度5強以上|震度6弱以上)",
-    "notify_prefectures": "str?",
+    "notify_prefectures": [
+      "list(北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県)"
+    ],
     "kmoni_layer": "list(jma|acmap|vcmap|dcmap)",
     "kmoni_idle_frame_interval_sec": "float(0.5,60)",
     "kmoni_active_frame_interval_sec": "float(0.5,60)",
