@@ -44,9 +44,13 @@ if (raw !== null) {
 const notify = flag('notify_home_assistant');
 
 const env = {
-  // 通知するときだけコア API の場所を渡す (SUPERVISOR_TOKEN は Supervisor が
-  // コンテナへ自動で入れる)。空なら quake-panel 側は何もしない。
-  HA_API_URL: notify ? 'http://supervisor/core/api' : '',
+  // コア API の場所は常に渡す (SUPERVISOR_TOKEN は Supervisor がコンテナへ
+  // 自動で入れる)。通知の有無は HA_NOTIFY で切り替える。
+  //
+  // 通知を切っていても、パネルの「HA の自宅位置を使う」でコア API を読むため
+  // ここを空にしてはならない。位置は HA から取る向きで、通知とは別の機能。
+  HA_API_URL: 'http://supervisor/core/api',
+  HA_NOTIFY: notify ? 'true' : 'false',
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
   LOG_LEVEL: text('log_level'),

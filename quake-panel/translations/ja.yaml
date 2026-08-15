@@ -1,7 +1,7 @@
 configuration:
   notify_home_assistant:
     name: Home Assistant へ通知する
-    description: 緊急地震速報などを Home Assistant のイベントとセンサーに流します（binary_sensor.quake_panel_eew など）。オートメーションでダッシュボードを切り替える、といった使い方ができます。
+    description: 緊急地震速報などを Home Assistant のイベントとセンサーに流します（binary_sensor.quake_panel_eew など）。オートメーションでダッシュボードを切り替える、といった使い方ができます。無効にしても、パネルの設定にある「HA の自宅位置を使う」は使えます。
   kmoni_idle_frame_interval_sec:
     name: 画像の取得間隔（平常時・秒）
     description: 強震モニタの画像を何秒おきに取りに行くか。既定は 1 秒。外部への通信量を半分にしたいときは 2 にしてください。
