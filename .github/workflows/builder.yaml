@@ -1,7 +1,7 @@
 name: Builder
 
 env:
-  MONITORED_FILES: "config.json Dockerfile"
+  MONITORED_FILES: "config.json Dockerfile upstream.env"
 
 on:
   pull_request:

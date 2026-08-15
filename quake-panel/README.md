@@ -197,6 +197,23 @@ P2P地震情報の WebSocket は IP あたり 2 本までという制限があ�
 ## 上流の固定について
 
 アプリ本体は [hgn32/quake-panel](https://github.com/hgn32/quake-panel) にあり、
-`Dockerfile` の `QUAKE_PANEL_REF` でコミットを固定してビルドしています。
-上流を取り込むときは `QUAKE_PANEL_REF` を新しいコミットにして、
+`upstream.env` でコミットを固定してビルドしています。上流は private なので
+Dockerfile では clone せず、GitHub Actions がトークン付きで取得して
+ビルドコンテキストへ置き、Dockerfile はそれを取り込みます。
+
+上流を取り込むときは `upstream.env` の `UPSTREAM_REF` を新しいコミットにして、
 `config.json` の `version` も必ず上げてください。
+
+private リポジトリを取得するため、このリポジトリの
+**Actions シークレット `UPSTREAM_REPO_TOKEN`** に、上流の読み取り権限がある
+トークン（fine-grained PAT: Contents = Read-only）を登録しておく必要があります。
+上流が public なら不要です。
+
+手元でビルドするときは自分でソースを置いてください:
+
+```bash
+set -a; . quake-panel/upstream.env; set +a
+git clone https://github.com/${UPSTREAM_REPO}.git quake-panel/upstream
+git -C quake-panel/upstream checkout --detach "${UPSTREAM_REF}"
+docker build -t quake-panel quake-panel/
+```

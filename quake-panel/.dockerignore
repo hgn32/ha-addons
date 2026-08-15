@@ -1,0 +1,5 @@
+# Actions が置く上流ソースのうち、ビルドに要らないもの
+upstream/.git
+upstream/node_modules
+upstream/**/node_modules
+upstream/**/dist
