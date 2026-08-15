@@ -2,9 +2,15 @@ configuration:
   notify_home_assistant:
     name: Notify Home Assistant
     description: Fires events and updates sensors in Home Assistant (binary_sensor.quake_panel_eew and friends) so automations can react — for example switching the dashboard when an earthquake early warning arrives. Turning this off does not disable the panel's "use the home location from HA" button.
+  notify_min_intensity:
+    name: Notify only above this intensity
+    description: Earthquakes below this JMA intensity are not reported to Home Assistant, so automations do not fire for every small quake in the country. Early warnings are judged by their forecast maximum intensity. Cancellation reports are always sent regardless of this setting, otherwise an automation could never turn its lights back off. The quake list shown on the panel is filtered separately.
+  notify_prefectures:
+    name: Notify only for these prefectures
+    description: Only report earthquakes that shook the listed prefectures. Separate several with commas (for example 宮崎県,鹿児島県). Leave empty for the whole country. Quake reports are matched on the prefecture of the observation points; early warnings on the regions with a forecast intensity.
   kmoni_layer:
     name: Map metric
-    description: Which Kyoshin Monitor metric to draw. The default (realtime intensity) stays almost entirely blue when nothing is happening, which suits an always-on panel. Max acceleration reacts 1-2 seconds earlier but picks up traffic and machinery, so the whole map flickers all the time. Each device can override this from the panel's settings.
+    description: Which Kyoshin Monitor metric to draw. The default (max acceleration) reacts 1-2 seconds earlier, which suits catching a quake as early as possible, but it picks up traffic and machinery so the whole map flickers all the time. Choose realtime intensity for a quiet screen — it stays almost entirely blue when nothing is happening. Each device can override this from the panel's settings.
   kmoni_idle_frame_interval_sec:
     name: Frame interval, idle (seconds)
     description: How often the Kyoshin Monitor image is fetched. Default 1 second. Set 2 to halve the outbound traffic.
