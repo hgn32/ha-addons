@@ -4,31 +4,25 @@
 # Home Assistant アドオンとして動かす。アプリ本体は上流リポジトリにあり、
 # ここではビルドとアドオン設定の受け渡しだけを行う。
 #
-# 上流は QUAKE_PANEL_REF で固定する。ここを動かしたら config.json の
-# version も必ず上げること (でないと HA が更新を検知しない)。
+# 上流は private なので、ここでは clone しない。どのコミットを使うかは
+# upstream.env に書いてあり、GitHub Actions がトークン付きで取得して
+# ビルドコンテキストの upstream/ へ置く。手元でビルドするときは
+# 自分で clone して同じ場所に置くこと:
+#
+#   git clone https://github.com/hgn32/quake-panel.git quake-panel/upstream \
+#     && git -C quake-panel/upstream checkout --detach <UPSTREAM_REF>
+#
+# ref を動かしたら config.json の version も必ず上げること
+# (でないと HA が更新を検知しない)。
 
 ARG NODE_VERSION="22"
-ARG QUAKE_PANEL_REPO="https://github.com/hgn32/quake-panel.git"
-# 観測点の拾い方を直したコミット (上流 main)
-ARG QUAKE_PANEL_REF="4f02e1dc0f71ba6c9e0aeeb99d08bd23ce80a8e4"
 
-# ---- stage 1: 上流を取得してビルド ----
+# ---- stage 1: 置かれた上流のソースをビルド ----
 FROM node:${NODE_VERSION}-bookworm-slim AS build
-
-ARG QUAKE_PANEL_REPO
-ARG QUAKE_PANEL_REF
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 
-# ブランチ名ではなくコミットで固定する。どのブランチに乗っていても
-# 取り出せるよう、いったん全体を取得してから detach する。
-RUN git clone --no-checkout "${QUAKE_PANEL_REPO}" . \
-    && git checkout --detach "${QUAKE_PANEL_REF}" \
-    && git --no-pager log -1 --format='built from quake-panel %H (%ad) %s'
+COPY upstream/ ./
 
 # npm test はビルドを含む。固定した ref が壊れていればここで落ちるので、
 # 中身が動かないイメージが出来上がることはない。

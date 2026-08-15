@@ -81,6 +81,31 @@ jobs:
       - name: Restore image field disabled for dev (_image)
         run: sed -i 's/"_image"/"image"/g' "./${{ inputs.app }}/config.json"
 
+      # アプリ本体を別リポジトリに置いているアドオン用。upstream.env があれば
+      # そこに書かれたコミットを取得してビルドコンテキストへ置く。
+      # private リポジトリでも UPSTREAM_REPO_TOKEN があれば取得できる。
+      - name: Read upstream source pin
+        id: upstream
+        run: |
+          file="./${{ inputs.app }}/upstream.env"
+          if [[ -f "$file" ]]; then
+            # shellcheck disable=SC1090
+            . "$file"
+            echo "repo=${UPSTREAM_REPO}" >> "$GITHUB_OUTPUT"
+            echo "ref=${UPSTREAM_REF}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out upstream source
+        if: steps.upstream.outputs.repo != ''
+        uses: actions/checkout@v6.0.2
+        with:
+          repository: ${{ steps.upstream.outputs.repo }}
+          ref: ${{ steps.upstream.outputs.ref }}
+          token: ${{ secrets.UPSTREAM_REPO_TOKEN || secrets.GITHUB_TOKEN }}
+          path: ${{ inputs.app }}/upstream
+          # 取得したソースはイメージに入るので、認証情報を残さない
+          persist-credentials: false
+
       - name: Build image
         uses: home-assistant/builder/actions/build-image@2026.03.2
         with:

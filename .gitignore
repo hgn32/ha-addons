@@ -7,3 +7,5 @@ __pycache__/
 .claude/*
 !.claude/settings.json
 backend/prisma/migrations
+# アドオンのビルド時に置く上流ソース (Actions が取得する)
+quake-panel/upstream/
