@@ -15,15 +15,22 @@ echo "----------------------------------------------------------------"
 echo " Quake Panel — 常時表示型 地震速報パネル"
 echo "   画像取得間隔      : 平常時 ${KMONI_IDLE_FRAME_INTERVAL_SEC}秒 / EEW 中 ${KMONI_ACTIVE_FRAME_INTERVAL_SEC}秒"
 case "${KMONI_LAYER}" in
-  acmap) LAYER_NAME="最大加速度 (平常時もざわつきます)" ;;
+  jma)   LAYER_NAME="リアルタイム震度" ;;
   vcmap) LAYER_NAME="最大速度" ;;
   dcmap) LAYER_NAME="最大変位" ;;
-  *)     LAYER_NAME="リアルタイム震度" ;;
+  *)     LAYER_NAME="最大加速度 (既定。検知は速いが平常時もざわつきます)" ;;
 esac
 echo "   地図に出す指標    : ${LAYER_NAME}"
 echo "   ログレベル        : ${LOG_LEVEL}"
 if [ "${HA_NOTIFY}" = "true" ]; then
   echo "   HA への通知       : 有効 (binary_sensor.quake_panel_eew 等を更新します)"
+  if [ -n "${HA_NOTIFY_PREFECTURES}" ]; then
+    NOTIFY_AREA="${HA_NOTIFY_PREFECTURES}"
+  else
+    NOTIFY_AREA="全国"
+  fi
+  echo "     通知する地震    : ${HA_NOTIFY_MIN_INTENSITY} / ${NOTIFY_AREA}"
+  echo "                       (取消報は絞り込みに関わらず通知します)"
 else
   echo "   HA への通知       : 無効 (パネルの「HA の自宅位置を使う」は通知とは別に使えます)"
 fi
