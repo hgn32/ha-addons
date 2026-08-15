@@ -4,8 +4,8 @@
 # Home Assistant アドオンとして動かす。アプリ本体は上流リポジトリにあり、
 # ここではビルドとアドオン設定の受け渡しだけを行う。
 #
-# 上流は private なので、ここでは clone しない。どのコミットを使うかは
-# upstream.env に書いてあり、GitHub Actions がトークン付きで取得して
+# 上流が private へ戻っても取得できるよう、ここでは clone しない。どのコミットを
+# 使うかは upstream.env に書いてあり、GitHub Actions がトークン付きで取得して
 # ビルドコンテキストの upstream/ へ置く。手元でビルドするときは
 # 自分で clone して同じ場所に置くこと:
 #
