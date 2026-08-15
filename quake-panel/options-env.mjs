@@ -12,6 +12,7 @@ const OPTIONS_PATH = process.env.OPTIONS_PATH ?? '/data/options.json';
 /** 既定値は config.json の options と揃えること */
 const DEFAULTS = {
   notify_home_assistant: true,
+  kmoni_layer: 'jma',
   kmoni_idle_frame_interval_sec: 1,
   kmoni_active_frame_interval_sec: 1,
   log_level: 'info',
@@ -51,6 +52,7 @@ const env = {
   // ここを空にしてはならない。位置は HA から取る向きで、通知とは別の機能。
   HA_API_URL: 'http://supervisor/core/api',
   HA_NOTIFY: notify ? 'true' : 'false',
+  KMONI_LAYER: text('kmoni_layer'),
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
   LOG_LEVEL: text('log_level'),

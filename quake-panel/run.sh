@@ -14,6 +14,13 @@ eval "${OPTIONS_ENV}"
 echo "----------------------------------------------------------------"
 echo " Quake Panel — 常時表示型 地震速報パネル"
 echo "   画像取得間隔      : 平常時 ${KMONI_IDLE_FRAME_INTERVAL_SEC}秒 / EEW 中 ${KMONI_ACTIVE_FRAME_INTERVAL_SEC}秒"
+case "${KMONI_LAYER}" in
+  acmap) LAYER_NAME="最大加速度 (平常時もざわつきます)" ;;
+  vcmap) LAYER_NAME="最大速度" ;;
+  dcmap) LAYER_NAME="最大変位" ;;
+  *)     LAYER_NAME="リアルタイム震度" ;;
+esac
+echo "   地図に出す指標    : ${LAYER_NAME}"
 echo "   ログレベル        : ${LOG_LEVEL}"
 if [ "${HA_NOTIFY}" = "true" ]; then
   echo "   HA への通知       : 有効 (binary_sensor.quake_panel_eew 等を更新します)"
