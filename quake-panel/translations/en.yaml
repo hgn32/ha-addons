@@ -2,6 +2,9 @@ configuration:
   notify_home_assistant:
     name: Notify Home Assistant
     description: Fires events and updates sensors in Home Assistant (binary_sensor.quake_panel_eew and friends) so automations can react — for example switching the dashboard when an earthquake early warning arrives. Turning this off does not disable the panel's "use the home location from HA" button.
+  kmoni_layer:
+    name: Map metric
+    description: Which Kyoshin Monitor metric to draw. The default (realtime intensity) stays almost entirely blue when nothing is happening, which suits an always-on panel. Max acceleration reacts 1-2 seconds earlier but picks up traffic and machinery, so the whole map flickers all the time. Each device can override this from the panel's settings.
   kmoni_idle_frame_interval_sec:
     name: Frame interval, idle (seconds)
     description: How often the Kyoshin Monitor image is fetched. Default 1 second. Set 2 to halve the outbound traffic.
