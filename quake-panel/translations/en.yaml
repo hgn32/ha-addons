@@ -7,7 +7,7 @@ configuration:
     description: Earthquakes below this JMA intensity are not reported to Home Assistant, so automations do not fire for every small quake in the country. Early warnings are judged by their forecast maximum intensity. Cancellation reports are always sent regardless of this setting, otherwise an automation could never turn its lights back off. The quake list shown on the panel is filtered separately.
   notify_prefectures:
     name: Notify only for these prefectures
-    description: Only report earthquakes that shook the selected prefectures. Use "Add" to pick as many as you like; select none for the whole country. Quake reports are matched on the prefecture of the observation points; early warnings on the regions with a forecast intensity.
+    description: Only report earthquakes, early warnings and tsunami forecasts that concern the selected prefectures. Use "Add" to pick as many as you like; select none for the whole country. Matching differs per report — quake reports use the prefecture of the observation points, early warnings the regions with a forecast intensity, and tsunami forecasts the tsunami areas belonging to that prefecture (including wide areas such as 東北地方太平洋沿岸 and bays such as 有明・八代海). This is the only setting that filters tsunami — the "regions" setting below does not.
   notify_areas:
     name: Notify only for these regions
     description: A finer alternative to prefectures. Choose from the JMA regions used in quake reports and early warnings (188 nationwide). Use "Add" to pick as many as you like. If both prefectures and regions are set, a quake matching either one is reported. Select none to disable this condition. Does not apply to tsunami forecasts, which use a different set of areas.
