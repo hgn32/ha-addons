@@ -5,7 +5,9 @@ ARG BUILD_ARCH=amd64
 ARG BUILD_FROM=ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
 FROM ${BUILD_FROM}
 
-RUN apk add --no-cache nodejs npm \
+# util-linux-misc は `script`（疑似端末）用。`claude setup-token` は
+# 端末が無いと動かないため、長期トークンの発行に必要。
+RUN apk add --no-cache nodejs npm util-linux-misc \
     && npm install -g @anthropic-ai/claude-code \
     && npm cache clean --force
 

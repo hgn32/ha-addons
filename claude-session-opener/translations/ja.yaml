@@ -2,3 +2,6 @@ configuration:
   accounts:
     name: アカウント
     description: ログインするアカウントごとに、名前と毎日の実行時刻（HH:MM、24時間表記、UTC）を設定します。
+  notify_home_assistant:
+    name: Home Assistant へ通知する
+    description: 認証が切れたときや毎朝の実行が失敗したときに、HA の通知パネルへ通知を出し、オートメーション用のイベントも送ります。
