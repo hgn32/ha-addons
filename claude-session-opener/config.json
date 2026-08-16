@@ -16,7 +16,7 @@
   "ingress": true,
   "ingress_port": 8099,
   "panel_icon": "mdi:login-variant",
-  "panel_title": "Claude Login",
+  "panel_title": "Claude 認証",
   "options": {
     "accounts": [
       {
