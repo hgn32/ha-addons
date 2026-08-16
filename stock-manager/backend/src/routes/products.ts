@@ -139,8 +139,10 @@ router.delete("/products/barcodes/:barcodeId", async (req, res) => {
 router.put("/products/reorder", async (req, res) => {
   const { ids } = req.body as { ids: string[] };
   if (!Array.isArray(ids)) return res.status(400).json({ detail: "ids must be array" });
+  // 画面側のリストが古く、消された品目のIDが混ざることがある。update だと
+  // そこで例外になり並べ替え全体が失敗するので、updateMany で無視する。
   await Promise.all(
-    ids.map((id, index) => prisma.product.update({ where: { id }, data: { sort_order: index } }))
+    ids.map((id, index) => prisma.product.updateMany({ where: { id }, data: { sort_order: index } }))
   );
   res.status(204).end();
 });
