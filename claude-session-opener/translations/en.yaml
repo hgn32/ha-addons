@@ -2,3 +2,6 @@ configuration:
   accounts:
     name: Accounts
     description: For each account to log in, set a name and a daily run time (HH:MM, 24-hour, UTC).
+  notify_home_assistant:
+    name: Notify Home Assistant
+    description: Post a Home Assistant notification (and fire an event for automations) when authentication expires or a daily run fails.

@@ -232,8 +232,10 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
       jan_code: overrides.jan_code ?? item.jan_code,
       amazon_asin: item.asin,
       amazon_url: item.product_url,
-      category_id: overrides.category_id ?? "",
-      location_id: overrides.location_id ?? "",
+      // 未選択は null。空文字だと存在しないカテゴリ/置き場を参照することになり、
+      // 外部キー制約違反で登録そのものが失敗する（どちらも任意項目）。
+      category_id: overrides.category_id || null,
+      location_id: overrides.location_id || null,
       note: overrides.note ?? "",
       photo,
       quantity: quantity,
@@ -255,7 +257,9 @@ export async function manageQueueItemNew(id: string, rawOverrides: ManageOverrid
       type: "add",
       product_id: product.id,
       quantity: quantity,
-      supplier_id: amazonSupplier?.id ?? "",
+      unit_price: item.unit_price,
+      // 仕入先「Amazon.co.jp」が未登録なら null。空文字だと外部キー制約違反になる。
+      supplier_id: amazonSupplier?.id ?? null,
       note: `Amazon取込:${item.order_id}`,
     },
   });
@@ -292,7 +296,7 @@ export async function manageQueueItemMerge(id: string, productId: string, quanti
       product_id: productId,
       quantity: quantity,
       unit_price: item.unit_price,
-      supplier_id: (await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } }))?.id ?? "",
+      supplier_id: (await prisma.supplier.findFirst({ where: { name: "Amazon.co.jp" } }))?.id ?? null,
       note: `Amazon取込(マージ) 注文:${item.order_id}`,
     },
   });

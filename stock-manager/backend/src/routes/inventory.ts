@@ -69,8 +69,10 @@ router.post("/inventory/add", async (req, res) => {
       note: note || autoNote,
     });
     res.json({ product_id, quantity: updated.quantity });
-  } catch {
-    res.status(404).json({ detail: "品目が見つかりません" });
+  } catch (e) {
+    // 品目の有無は上で確認済み。ここに来るのは別の原因（仕入先の指定が不正など）
+    // なので、「品目が見つかりません」で隠さず理由を返す。
+    res.status(400).json({ detail: (e as Error).message });
   }
 });
 

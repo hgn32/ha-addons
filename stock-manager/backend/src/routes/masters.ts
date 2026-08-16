@@ -27,8 +27,9 @@ function crudRouter(path: string, delegate: Delegate, fields: string[]): Router 
   r.put(`/${path}/reorder`, async (req, res) => {
     const { ids } = req.body as { ids: string[] };
     if (!Array.isArray(ids)) return res.status(400).json({ detail: "ids must be array" });
+    // 消された項目のIDが混ざっても並べ替え全体が失敗しないよう updateMany を使う。
     await Promise.all(
-      ids.map((id, index) => delegate.update({ where: { id }, data: { sort_order: index } }))
+      ids.map((id, index) => delegate.updateMany({ where: { id }, data: { sort_order: index } }))
     );
     res.status(204).end();
   });
