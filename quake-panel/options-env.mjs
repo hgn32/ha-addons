@@ -14,6 +14,7 @@ const DEFAULTS = {
   notify_home_assistant: true,
   notify_min_intensity: 'すべて',
   notify_prefectures: [],
+  notify_areas: [],
   kmoni_layer: 'acmap',
   kmoni_idle_frame_interval_sec: 1,
   kmoni_active_frame_interval_sec: 1,
@@ -60,6 +61,8 @@ const env = {
   // 設定タブでは都道府県を一覧から選ばせる (自由入力だと表記ゆれで効かない)。
   // サーバーへはカンマ区切りで渡す。
   HA_NOTIFY_PREFECTURES: stringList('notify_prefectures').join(','),
+  // 細分区域 (気象庁の「地域」)。都道府県より細かく、どちらかに当たれば通知する。
+  HA_NOTIFY_AREAS: stringList('notify_areas').join(','),
   KMONI_LAYER: text('kmoni_layer'),
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),

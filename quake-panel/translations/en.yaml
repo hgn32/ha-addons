@@ -8,6 +8,9 @@ configuration:
   notify_prefectures:
     name: Notify only for these prefectures
     description: Only report earthquakes that shook the selected prefectures. Use "Add" to pick as many as you like; select none for the whole country. Quake reports are matched on the prefecture of the observation points; early warnings on the regions with a forecast intensity.
+  notify_areas:
+    name: Notify only for these regions
+    description: A finer alternative to prefectures. Choose from the JMA regions used in quake reports and early warnings (188 nationwide). Use "Add" to pick as many as you like. If both prefectures and regions are set, a quake matching either one is reported. Select none to disable this condition. Does not apply to tsunami forecasts, which use a different set of areas.
   kmoni_layer:
     name: Map metric
     description: Which Kyoshin Monitor metric to draw. The default (max acceleration) reacts 1-2 seconds earlier, which suits catching a quake as early as possible, but it picks up traffic and machinery so the whole map flickers all the time. Choose realtime intensity for a quiet screen — it stays almost entirely blue when nothing is happening. Each device can override this from the panel's settings.
