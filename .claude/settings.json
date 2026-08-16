@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "mcp__HA-yhc_jp"
+      "mcp__HA-yhc_jp",
+      "mcp__github",
+      "mcp__Claude_Code_Remote",
+      "Bash(git *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(docker *)",
+      "Bash(dockerd*)",
+      "Bash(curl *)",
+      "Bash(python3 *)",
+      "Bash(sed *)",
+      "Bash(ls *)",
+      "Bash(sleep *)",
+      "Read(//tmp/**)",
+      "Write(//tmp/**)"
     ]
   }
 }
