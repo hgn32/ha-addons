@@ -4,12 +4,10 @@
  * パネル本体 (上流 hgn32/quake-panel) は HA を知らないまま動かし、
  * HA へ流す部分だけをこのプロセスが受け持つ。受け口は 2 つある。
  *
- *   緊急地震速報 : パネルの webhook (EEW_WEBHOOK_URL) と WebSocket の両方。
- *                  webhook は上流が EewCoordinator の onEewEvent として用意した口で、
- *                  新規/続報/取消/表示終了が kind で明示される。ただしパネルの
- *                  デモ再生は coordinator を通さず Hub へ直接流す作りなので
- *                  webhook には出てこない。デモでも自動化を試せるように
- *                  WebSocket 側も受け、同じ内容は後から来たほうを捨てる。
+ *   緊急地震速報 : パネルの webhook (EEW_WEBHOOK_URL) を受ける。上流が
+ *                  EewCoordinator の onEewEvent として用意した口で、
+ *                  新規/続報/取消/表示終了が kind で明示される。デモ再生も
+ *                  ここを通る。
  *   地震情報・津波: パネルの WebSocket に「ブラウザと同じ立場で」つなぐ。
  *                  この 2 つには webhook が無いため。
  *
@@ -206,32 +204,7 @@ function isDemo(id) {
   return typeof id === 'string' && id.startsWith('demo-');
 }
 
-/** 直前に流した EEW の id。kind を自分で決めるときに使う。 */
-let lastEewId = '';
-
-/** webhook から kind が来ないとき (WebSocket 経由・デモ) は状態から決める。 */
-function deriveKind(next) {
-  if (!next) return 'expired';
-  if (next.isCancel) return 'cancel';
-  return next.id === lastEewId ? 'update' : 'new';
-}
-
-/**
- * EEW の現況を差し替える。webhook と WebSocket の両方から呼ばれるので、
- * 同じ内容なら後から来たほうを捨てる (二重通知の防止)。
- */
-function applyEew(next, kind) {
-  const key = eewKey(next);
-  if (key === lastKey.eew) return;
-  const resolved = kind ?? deriveKind(next);
-  lastKey.eew = key;
-  lastEewId = next?.id ?? '';
-  eew = next;
-  void fire('quake_panel_eew', { ...eewData(next), kind: resolved });
-  void pushStates();
-}
-
-/** WebSocket からは EEW・地震情報・津波を受ける。 */
+/** WebSocket から受けるのは地震情報と津波だけ。EEW は webhook で受ける。 */
 function handle(event) {
   switch (event.type) {
     // 接続直後の現況一括。つなぎ直したときにここへ戻ってくる。
@@ -243,12 +216,7 @@ function handle(event) {
       tsunami = snapshot.tsunami ?? null;
       quake = Array.isArray(snapshot.quakes) && snapshot.quakes.length > 0 ? snapshot.quakes[0] : null;
       lastKey = { eew: eewKey(eew), tsunami: tsunamiKey(tsunami), quake: quake?.id ?? '' };
-      lastEewId = eew?.id ?? '';
       void pushStates();
-      break;
-    }
-    case 'eew': {
-      applyEew(event.eew ?? null);
       break;
     }
     case 'tsunami': {
@@ -271,7 +239,8 @@ function handle(event) {
       break;
     }
     default:
-      // frame・health は HA へ流さない (毎秒来るうえ自動化の役に立たない)。
+      // eew は webhook で受ける。frame・health は HA へ流さない
+      // (毎秒来るうえ自動化の役に立たない)。
       break;
   }
 }
@@ -283,7 +252,21 @@ function handle(event) {
  */
 function handleEewWebhook(payload) {
   if (!payload || payload.type !== 'eew') return;
-  applyEew(payload.kind === 'expired' ? null : payload.eew ?? null, payload.kind);
+  const ended = payload.kind === 'expired';
+  eew = ended ? null : payload.eew ?? null;
+  // 続報は毎秒のように来る。意味が変わったときだけ HA へ流す。
+  // 鍵に kind は入れない。同じ内容で kind だけ new→update と変わったときに
+  // 二重に流れてしまうため。取消と表示終了は内容自体が変わるので取りこぼさない。
+  const key = eewKey(eew);
+  if (key !== lastKey.eew) {
+    lastKey.eew = key;
+    // 表示終了でも、どの地震が終わったのか (id・デモかどうか) は残す。
+    // 発表中でないことは active で示す。
+    const data = eewData(payload.eew ?? null);
+    if (ended) data.active = false;
+    void fire('quake_panel_eew', { ...data, kind: payload.kind });
+  }
+  void pushStates();
 }
 
 function startWebhookServer() {

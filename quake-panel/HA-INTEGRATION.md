@@ -26,12 +26,13 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 
 | 情報 | 受け取り方 |
 |---|---|
-| 緊急地震速報 | **webhook**（上流が `EewCoordinator` の `onEewEvent` として用意した口）。`kind` で new / update / cancel / expired が分かる |
-| 緊急地震速報（デモ再生） | **WebSocket**。デモは `coordinator` を通さず Hub へ直接流す作り（上流 `demo/runner.ts` のコメント参照）なので webhook には出てこない。デモでも自動化を試せるよう WebSocket 側でも受ける |
+| 緊急地震速報 | **webhook**（上流が `EewCoordinator` の `onEewEvent` として用意した口）。`kind` で new / update / cancel / expired が分かる。デモ再生もここを通る |
 | 地震情報・津波予報 | **WebSocket**。この 2 つには webhook が無い |
 
-- EEW は 2 経路から来るので、**同じ内容なら後から来たほうを捨てる**
-  （`applyEew` が id・警報種別・予想震度・取消・最終報で作った鍵で判定する）
+- 続報は毎秒のように来るので、**意味が変わったときだけ**流す。鍵は id・警報種別・
+  予想最大震度・取消・最終報。`kind` は鍵に入れない（同じ内容で `new`→`update` と
+  変わっただけのときに二重に流れてしまうため。取消と表示終了は内容自体が変わる
+  ので取りこぼさない）
 - ブリッジは WebSocket に「ブラウザと同じ立場で」つなぐ。パネル側に手を入れる
   必要はなく、上流をそのまま使える
 - `run.sh` は `BRIDGE_NOTIFY=true` のときだけブリッジを起こす。落ちたら
@@ -45,7 +46,7 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 
 | 上流 | このアドオン |
 |---|---|
-| `Hub` からイベントを直接受ける | webhook と WebSocket で受ける。**接続が切れるという概念が上流には無い**ので、指数バックオフ（1〜30秒）での再接続と、繋ぎ直した後の入れ直しを足した。2 経路から同じ EEW が来るので重複の間引きも足した |
+| `Hub` からイベントを直接受ける | webhook と WebSocket で受ける。**接続が切れるという概念が上流には無い**ので、指数バックオフ（1〜30秒）での再接続と、繋ぎ直した後の入れ直しを足した |
 | `Config`（環境変数から組む） | `run.sh` が渡す `HA_API_URL` / `SUPERVISOR_TOKEN` を直接読む |
 | `shared/src/haFilter.ts` による絞り込み | **持たない**（下記） |
 | `server/src/data/seismicAreas.ts`（4412行の細分区域表） | **持たない**。絞り込みをやめたので不要になった |
@@ -123,7 +124,9 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
    4 つのエンティティがコア API へ入ること。パネルのログに
    `eew webhook to http://127.0.0.1:8099/eew` が出ること
 2. **パネルのデモ再生**（設定画面、または WebSocket へ `{"type":"demo",…}`）を
-   流して、実際の配信経路で EEW・津波が HA まで届くこと
+   流して、実際の配信経路で EEW・津波が HA まで届くこと。EEW は
+   `new` → `update` → `cancel` → `expired` と流れ、同じ内容の続報が
+   間引かれていること
 3. **webhook を直接叩いて** new / update / cancel / expired の各 `kind`、
    同じ内容の再送を捨てること、壊れた本文でも落ちないことを確かめる
 4. 通知を無効にしたときに、ブリッジが起動せず、パネルも webhook を作らないこと
