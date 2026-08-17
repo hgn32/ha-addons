@@ -48,6 +48,8 @@ COPY --from=build /src/server/dist server/dist/
 COPY --from=build /src/client/dist public/
 
 COPY options-env.mjs /options-env.mjs
+# HA 連携。パネル本体とは別プロセスで動かす (HA-INTEGRATION.md)。
+COPY ha-bridge.mjs /ha-bridge.mjs
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
