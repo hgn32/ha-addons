@@ -24,9 +24,17 @@ WORKDIR /src
 
 COPY upstream/ ./
 
-# npm test はビルドを含む。固定した ref が壊れていればここで落ちるので、
-# 中身が動かないイメージが出来上がることはない。
-RUN npm ci && npm test && npm prune --omit=dev
+# 上流自身の release/Dockerfile と同じく build だけを走らせる。
+# 固定した ref がコンパイルできなければここで落ちるので、中身が動かない
+# イメージが出来上がることはない。
+#
+# npm test は使わない。上流のテストに実行環境を選ぶものが 2 つあり、
+# 素の Docker ビルドでは通らないため (どちらもアプリの不具合ではない):
+#   - server/test/staticRoot.test.mjs : /workspaces/server へ chdir する
+#   - server/test/shutdown.test.mjs   : listen 直後に SIGTERM を送るので、
+#     終了ハンドラの登録が間に合わずログが出ないことがある
+# テストは上流の CI で回すもので、アドオンのイメージ作成の役目ではない。
+RUN npm ci && npm run build && npm prune --omit=dev
 
 # ---- stage 2: 実行イメージ ----
 FROM node:${NODE_VERSION}-bookworm-slim

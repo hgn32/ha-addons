@@ -2,20 +2,27 @@
  * Quake Panel の Home Assistant 連携。
  *
  * パネル本体 (上流 hgn32/quake-panel) は HA を知らないまま動かし、
- * HA へ流す部分だけをこのプロセスが受け持つ。パネルが公開している
- * WebSocket に「ブラウザと同じ立場で」つなぎ、緊急地震速報・地震情報・
- * 津波予報をコア API へ流すだけ。
+ * HA へ流す部分だけをこのプロセスが受け持つ。受け口は 2 つある。
  *
- * 上流の実装 (server/src/haNotify.ts) を写したものではない。あちらは
- * パネルのプロセス内で Hub から直接イベントを受ける前提なので、接続が
- * 切れるという概念が無い。こちらは別プロセスなので再接続と、つなぎ直した
- * 後の入れ直しを自分で面倒みる。絞り込み (震度・地域) は持たない。
- * HA 側のオートメーションで条件を書けば足りるため。
+ *   緊急地震速報 : パネルの webhook (EEW_WEBHOOK_URL) と WebSocket の両方。
+ *                  webhook は上流が EewCoordinator の onEewEvent として用意した口で、
+ *                  新規/続報/取消/表示終了が kind で明示される。ただしパネルの
+ *                  デモ再生は coordinator を通さず Hub へ直接流す作りなので
+ *                  webhook には出てこない。デモでも自動化を試せるように
+ *                  WebSocket 側も受け、同じ内容は後から来たほうを捨てる。
+ *   地震情報・津波: パネルの WebSocket に「ブラウザと同じ立場で」つなぐ。
+ *                  この 2 つには webhook が無いため。
+ *
+ * 絞り込み (震度・地域) は持たない。HA 側のオートメーションで条件を
+ * 書けば足りるため。
  *
  * 詳細は HA-INTEGRATION.md を参照。
  */
+import { createServer } from 'node:http';
 
 const WS_URL = process.env.PANEL_WS_URL ?? 'ws://127.0.0.1:8080/ws';
+// パネルからの EEW webhook を受ける口。コンテナ内だけで完結させる。
+const WEBHOOK_PORT = Number(process.env.BRIDGE_PORT ?? 8099);
 const API_URL = (process.env.HA_API_URL ?? 'http://supervisor/core/api').replace(/\/$/, '');
 const TOKEN = process.env.SUPERVISOR_TOKEN ?? '';
 const REQUEST_TIMEOUT_MS = 4000;
@@ -63,6 +70,7 @@ function eewData(state) {
   return {
     active: !state.isCancel,
     id: state.id,
+    is_demo: isDemo(state.id),
     alert: state.alert,
     is_warning: state.alert === 'warning',
     is_cancel: state.isCancel,
@@ -83,6 +91,7 @@ function tsunamiData(state) {
   return {
     active: !state.cancelled && areas.length > 0,
     id: state.id,
+    is_demo: isDemo(state.id),
     cancelled: state.cancelled,
     areas: areas.map((area) => area.name),
     grades: [...new Set(areas.map((area) => area.grade))],
@@ -93,6 +102,7 @@ function quakeData(state) {
   if (!state) return {};
   return {
     id: state.id,
+    is_demo: isDemo(state.id),
     max_intensity: intensityLabel(state.maxIntensity),
     hypocenter: state.hypocenter?.name,
     magnitude: state.hypocenter?.magnitude,
@@ -191,6 +201,37 @@ function tsunamiKey(state) {
   return state ? `${state.id}:${state.cancelled}` : 'none';
 }
 
+/** デモ再生で流れた電文か。id の接頭辞で分かる (上流 protocol.ts と同じ判定)。 */
+function isDemo(id) {
+  return typeof id === 'string' && id.startsWith('demo-');
+}
+
+/** 直前に流した EEW の id。kind を自分で決めるときに使う。 */
+let lastEewId = '';
+
+/** webhook から kind が来ないとき (WebSocket 経由・デモ) は状態から決める。 */
+function deriveKind(next) {
+  if (!next) return 'expired';
+  if (next.isCancel) return 'cancel';
+  return next.id === lastEewId ? 'update' : 'new';
+}
+
+/**
+ * EEW の現況を差し替える。webhook と WebSocket の両方から呼ばれるので、
+ * 同じ内容なら後から来たほうを捨てる (二重通知の防止)。
+ */
+function applyEew(next, kind) {
+  const key = eewKey(next);
+  if (key === lastKey.eew) return;
+  const resolved = kind ?? deriveKind(next);
+  lastKey.eew = key;
+  lastEewId = next?.id ?? '';
+  eew = next;
+  void fire('quake_panel_eew', { ...eewData(next), kind: resolved });
+  void pushStates();
+}
+
+/** WebSocket からは EEW・地震情報・津波を受ける。 */
 function handle(event) {
   switch (event.type) {
     // 接続直後の現況一括。つなぎ直したときにここへ戻ってくる。
@@ -202,17 +243,12 @@ function handle(event) {
       tsunami = snapshot.tsunami ?? null;
       quake = Array.isArray(snapshot.quakes) && snapshot.quakes.length > 0 ? snapshot.quakes[0] : null;
       lastKey = { eew: eewKey(eew), tsunami: tsunamiKey(tsunami), quake: quake?.id ?? '' };
+      lastEewId = eew?.id ?? '';
       void pushStates();
       break;
     }
     case 'eew': {
-      eew = event.eew ?? null;
-      const key = eewKey(eew);
-      if (key !== lastKey.eew) {
-        lastKey.eew = key;
-        void fire('quake_panel_eew', eewData(eew));
-      }
-      void pushStates();
+      applyEew(event.eew ?? null);
       break;
     }
     case 'tsunami': {
@@ -235,9 +271,44 @@ function handle(event) {
       break;
     }
     default:
-      // frame や health は HA へ流さない (毎秒来るうえ自動化の役に立たない)
+      // frame・health は HA へ流さない (毎秒来るうえ自動化の役に立たない)。
       break;
   }
+}
+
+/**
+ * パネルからの EEW webhook。
+ * 本文は { type:'eew', kind:'new'|'update'|'cancel'|'expired', sentAt, eew }。
+ * kind='expired' は続報が途切れて表示を終了したときなので、現況から消す。
+ */
+function handleEewWebhook(payload) {
+  if (!payload || payload.type !== 'eew') return;
+  applyEew(payload.kind === 'expired' ? null : payload.eew ?? null, payload.kind);
+}
+
+function startWebhookServer() {
+  const server = createServer((req, res) => {
+    if (req.method !== 'POST') {
+      res.writeHead(405).end();
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      // 受け取れなかったことをパネルへ伝えても再送はされないので、
+      // 壊れた本文は握って 204 を返し、ログにだけ残す。
+      try {
+        handleEewWebhook(JSON.parse(body));
+      } catch (error) {
+        warn(`webhook の本文を読めません: ${describe(error)}`);
+      }
+      res.writeHead(204).end();
+    });
+  });
+  server.on('error', (error) => warn(`webhook の受け口を開けません: ${describe(error)}`));
+  server.listen(WEBHOOK_PORT, '127.0.0.1', () => {
+    log(`緊急地震速報の webhook を待ち受けます (127.0.0.1:${WEBHOOK_PORT})。`);
+  });
 }
 
 function connect() {
@@ -275,5 +346,6 @@ if (TOKEN === '') {
 }
 
 log('Home Assistant 連携を開始します。');
+startWebhookServer();
 connect();
 setInterval(() => void pushStates(), STATE_REFRESH_MS);

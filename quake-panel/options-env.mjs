@@ -43,17 +43,17 @@ if (raw !== null) {
 }
 
 const notify = flag('notify_home_assistant');
+// パネル -> ha-bridge の webhook。コンテナ内だけで閉じるので公開しない。
+const BRIDGE_PORT = 8099;
 
 const env = {
-  // コア API の場所は常に渡す (SUPERVISOR_TOKEN は Supervisor がコンテナへ
-  // 自動で入れる)。パネルの「HA の自宅位置を使う」もここを読むので、
-  // 通知を切っていても空にしてはならない。
-  HA_API_URL: 'http://supervisor/core/api',
-  // パネル本体が持っている HA 通知は常に切る。HA へ流すのは ha-bridge.mjs の
-  // 役目で、両方が動くと同じ通知が二重に飛ぶ。
-  HA_NOTIFY: 'false',
-  // ha-bridge.mjs を起こすかどうか (run.sh が見る)。
+  // 緊急地震速報の送り先。パネルはここへ POST するだけで HA を知らない。
+  // 通知を切るときは空にする (空ならパネルは webhook を作らない)。
+  EEW_WEBHOOK_URL: notify ? `http://127.0.0.1:${BRIDGE_PORT}/eew` : '',
+  // 以下は ha-bridge.mjs だけが読む。パネル本体はもう HA を触らない。
   BRIDGE_NOTIFY: notify ? 'true' : 'false',
+  BRIDGE_PORT: String(BRIDGE_PORT),
+  HA_API_URL: 'http://supervisor/core/api',
   KMONI_LAYER: text('kmoni_layer'),
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
