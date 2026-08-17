@@ -12,9 +12,6 @@ const OPTIONS_PATH = process.env.OPTIONS_PATH ?? '/data/options.json';
 /** 既定値は config.json の options と揃えること */
 const DEFAULTS = {
   notify_home_assistant: true,
-  notify_min_intensity: 'すべて',
-  notify_prefectures: [],
-  notify_areas: [],
   kmoni_layer: 'acmap',
   kmoni_idle_frame_interval_sec: 1,
   kmoni_active_frame_interval_sec: 1,
@@ -46,23 +43,17 @@ if (raw !== null) {
 }
 
 const notify = flag('notify_home_assistant');
+// パネル -> ha-bridge の webhook。コンテナ内だけで閉じるので公開しない。
+const BRIDGE_PORT = 8099;
 
 const env = {
-  // コア API の場所は常に渡す (SUPERVISOR_TOKEN は Supervisor がコンテナへ
-  // 自動で入れる)。通知の有無は HA_NOTIFY で切り替える。
-  //
-  // 通知を切っていても、パネルの「HA の自宅位置を使う」でコア API を読むため
-  // ここを空にしてはならない。位置は HA から取る向きで、通知とは別の機能。
+  // 緊急地震速報の送り先。パネルはここへ POST するだけで HA を知らない。
+  // 通知を切るときは空にする (空ならパネルは webhook を作らない)。
+  EEW_WEBHOOK_URL: notify ? `http://127.0.0.1:${BRIDGE_PORT}/eew` : '',
+  // 以下は ha-bridge.mjs だけが読む。パネル本体はもう HA を触らない。
+  BRIDGE_NOTIFY: notify ? 'true' : 'false',
+  BRIDGE_PORT: String(BRIDGE_PORT),
   HA_API_URL: 'http://supervisor/core/api',
-  HA_NOTIFY: notify ? 'true' : 'false',
-  // 通知する地震の絞り込み。ラベルのまま渡し、震度コードへの読み替えは
-  // サーバー側 (shared/src/haFilter.ts) で行う。対応表を 2 か所に置かないため。
-  HA_NOTIFY_MIN_INTENSITY: text('notify_min_intensity'),
-  // 設定タブでは都道府県を一覧から選ばせる (自由入力だと表記ゆれで効かない)。
-  // サーバーへはカンマ区切りで渡す。
-  HA_NOTIFY_PREFECTURES: stringList('notify_prefectures').join(','),
-  // 細分区域 (気象庁の「地域」)。都道府県より細かく、どちらかに当たれば通知する。
-  HA_NOTIFY_AREAS: stringList('notify_areas').join(','),
   KMONI_LAYER: text('kmoni_layer'),
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
@@ -90,13 +81,6 @@ function text(key) {
 
 function flag(key) {
   return pick(key, (v) => typeof v === 'boolean') === true;
-}
-
-/** 文字列の配列で受ける設定 (config.json の schema が ["list(...)"] のもの) */
-function stringList(key) {
-  const value = pick(key, (v) => Array.isArray(v) && v.every((item) => typeof item === 'string'));
-  // 空白だけの要素が混ざっても環境変数を汚さないよう、ここで落とす
-  return value.map((item) => item.trim()).filter((item) => item !== '');
 }
 
 function number(key) {

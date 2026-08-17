@@ -3,92 +3,131 @@
 ## これは何か
 
 Quake Panel の HA 連携（通知・センサー）を、**上流のパネル本体ではなく
-このアドオン側で実装する**ための方針を書いたもの。
+このアドオン側で実装している**。実体は `ha-bridge.mjs` の 1 ファイル。
 
-上流 [hgn32/quake-panel](https://github.com/hgn32/quake-panel) からは HA 連携を
-取り除く。パネルは「地震速報を表示するだけのアプリ」に戻し、HA に依存する部分は
-すべてアドオンが持つ。パネルを HA 以外で動かす人に HA の都合を背負わせないため。
-
-## 原則: 上流のコードをそのまま持ってこない
-
-上流の HA 連携はパネルのサーバープロセスの**内側**に置かれた実装で、
-アドオンが置かれる環境とは前提が違う。写して動かすのではなく、
-アドオン側の前提に合わせて作り直す。前提の違いは主に3つ:
-
-1. **別プロセスになる。** 上流は Hub からイベントを直接受け取っていたので、
-   接続が切れる・取りこぼすという概念が無い。アドオンは WebSocket 越しになるので、
-   再接続と再同期を自分で面倒みる必要がある
-2. **設定の入口が違う。** 上流は環境変数。アドオンは `/data/options.json` を直接読める
-3. **ログの出口が違う。** アドオンのログは HA の「ログ」タブに出る。
-   ユーザーはそこしか見られない（リポジトリ直下の `CLAUDE.md` を参照）
-
-## 外から見える契約（変えないもの）
-
-ユーザーのオートメーションが壊れるので、次は上流にあったものをそのまま維持する。
-
-| 種類 | 名前 |
-|---|---|
-| エンティティ | `binary_sensor.quake_panel_eew` |
-| | `sensor.quake_panel_eew_intensity` |
-| | `binary_sensor.quake_panel_tsunami` |
-| | `sensor.quake_panel_last_quake` |
-| イベント | `quake_panel_eew` / `quake_panel_tsunami` / `quake_panel_quake` |
-| 設定タブ | `notify_home_assistant` / `notify_min_intensity` / `notify_prefectures` / `notify_areas` |
+上流 [hgn32/quake-panel](https://github.com/hgn32/quake-panel) はいずれ HA 連携を
+落とす。パネルは「地震速報を表示するだけのアプリ」に戻し、HA に依存する部分は
+アドオンが持つ。パネルを HA 以外で動かす人に HA の都合を背負わせないため。
 
 ## 構成
 
-同じコンテナ内で 2 つのプロセスを動かす。
+同じコンテナ内で 2 つのプロセスが動く。受け口は 2 つある。
 
 ```
-パネル本体 (上流のまま。HA を一切知らない)
-   :8080  ── WebSocket /ws ──▶  HA連携プロセス (このリポジトリ)
-                                     │
-                                     ▼
-                          http://supervisor/core/api
-                          （SUPERVISOR_TOKEN。config.json の
-                            homeassistant_api: true が必要）
+パネル本体（上流をそのまま。HA のことは何も知らない）
+   │
+   ├─ EEW webhook (EEW_WEBHOOK_URL) ──▶ ha-bridge.mjs :8099/eew
+   │                                          │
+   └─ WebSocket /ws  ◀───────────────────────┘（地震情報・津波・EEW）
+                                              │
+                                              ▼
+                                   http://supervisor/core/api
 ```
 
-WebSocket は認証なしでパネルが公開しているもの（キオスク端末が直接開くのと同じ口）。
-`eew` / `quake` / `tsunami` が流れてくるので、HA 連携に必要な材料はここで揃う。
-
-## 上流から引き取るもの と、どう作り直すか
-
-| 上流 | アドオンでどうするか |
+| 情報 | 受け取り方 |
 |---|---|
-| `server/src/haNotify.ts` の `HomeAssistantNotifier`（`Hub` と `Config` を受け取るクラス） | Hub 依存を外し、WebSocket の受信ループから駆動する形に組み直す。**上流には無い再接続の考慮を足す**: 切断時の指数バックオフと、つなぎ直した後に `hello` の snapshot で現在値を入れ直す処理 |
-| `server/src/config.ts` の HA 設定（env から組む） | `/data/options.json` を直接読む。`options-env.mjs` から HA 関連の受け渡しを削る |
-| `shared/src/haFilter.ts` | 受け取るのは WebSocket に出てきた確定イベントだけなので、パネル内部の状態を前提にした分岐は要らない。震度・都道府県・細分区域の判定だけに絞って書き直す |
-| `server/src/data/seismicAreas.ts`（4412行の TypeScript） | 丸写ししない。使うのは `seismicAreaOf`（観測点名・市区町村名 → 細分区域名）だけなので、**判定に必要なデータへ整形して持つ**。上流のファイルから生成するスクリプトを置き、上流が更新されたら作り直せるようにする。生成物は `config.json` の `notify_areas` の選択肢（188区）も同時に吐かせて、いま手で二重管理になっている並びを一本化する |
-| `server/src/logger.ts` | 使わない。HA のログタブで読める形式に合わせる |
-| States API の定期入れ直し | **残す。** HA を再起動すると States API で作った状態は消えるため |
-| 上流の HA 関連テスト（計 568 行） | 写さない。入力が Hub から WebSocket に変わるので、WebSocket のモックから通知内容を確かめるテストとして書き直す |
+| 緊急地震速報 | **webhook**（上流が `EewCoordinator` の `onEewEvent` として用意した口）。`kind` で new / update / cancel / expired が分かる。デモ再生もここを通る |
+| 地震情報・津波予報 | **WebSocket**。この 2 つには webhook が無い |
 
-## 引き取らないもの
+- 続報は毎秒のように来るので、**意味が変わったときだけ**流す。鍵は id・警報種別・
+  予想最大震度・取消・最終報。`kind` は鍵に入れない（同じ内容で `new`→`update` と
+  変わっただけのときに二重に流れてしまうため。取消と表示終了は内容自体が変わる
+  ので取りこぼさない）
+- ブリッジは WebSocket に「ブラウザと同じ立場で」つなぐ。パネル側に手を入れる
+  必要はなく、上流をそのまま使える
+- `run.sh` は `BRIDGE_NOTIFY=true` のときだけブリッジを起こす。落ちたら
+  5 秒おきに起こし直し、その旨をログタブに残す
+- 通知を切ると `EEW_WEBHOOK_URL` が空になり、パネルは webhook を作らない
 
-- **`server/src/haLocation.ts`（HA の自宅位置を使う）** — パネルが HA の `/api/config` を
-  読んで自宅の緯度経度を取る機能。これはパネルが HA を呼ぶ方向なので、外側にいる
-  アドオンからは戻せない。**機能ごと廃止する。** 利用地はパネルの設定で手動指定になる。
-  廃止にあわせて、README・設定タブの説明・`run.sh` の起動メッセージから
-  「HA の自宅位置を使う」の記述を消すこと（`homeassistant_api: true` は通知側で
-  引き続き必要なので残す）
+## 上流のコードを写していない
+
+上流の `server/src/haNotify.ts` はパネルのプロセス内で Hub から直接イベントを
+受ける前提の実装で、前提が違う。作り直した箇所は次のとおり。
+
+| 上流 | このアドオン |
+|---|---|
+| `Hub` からイベントを直接受ける | webhook と WebSocket で受ける。**接続が切れるという概念が上流には無い**ので、指数バックオフ（1〜30秒）での再接続と、繋ぎ直した後の入れ直しを足した |
+| `Config`（環境変数から組む） | `run.sh` が渡す `HA_API_URL` / `SUPERVISOR_TOKEN` を直接読む |
+| `shared/src/haFilter.ts` による絞り込み | **持たない**（下記） |
+| `server/src/data/seismicAreas.ts`（4412行の細分区域表） | **持たない**。絞り込みをやめたので不要になった |
+| `server/src/logger.ts` | 使わない。HA のログタブで読める `[quake-panel][ha]` 付きの 1 行に揃えた |
+| 震度ラベルの変換（`shared/src/intensity.ts`） | 使うのは 10 個の対応表だけなので、その表だけを持つ |
+
+依存は増やしていない。WebSocket クライアントは Node 22 の組み込みを使う。
+
+## 絞り込みを持たない
+
+震度・都道府県・細分区域での絞り込みはしない。受け取ったものをそのまま流す。
+**同じことは HA のオートメーションの条件で書けるため**、アドオン側に気象庁の
+区域表（4000 行超）と判定ロジックを抱える必要がない。README にオートメーション
+での絞り方の例を置いてある。
+
+## 変えていないもの（外から見える契約）
+
+ユーザーのオートメーションが壊れるので、上流にあったものをそのまま維持する。
+
+| 種類 | 名前 |
+|---|---|
+| エンティティ | `binary_sensor.quake_panel_eew` / `sensor.quake_panel_eew_intensity` / `binary_sensor.quake_panel_tsunami` / `sensor.quake_panel_last_quake` |
+| イベント | `quake_panel_eew` / `quake_panel_tsunami` / `quake_panel_quake` |
+| 属性名 | `max_intensity` / `is_warning` / `is_training` / `areas` / `grades` など |
+
+上流から引き継いだ振る舞い:
+
+- 訓練報・取消報では `binary_sensor.quake_panel_eew` を `on` にしない
+  （訓練でダッシュボードが切り替わると困るため）
+- 続報のたびには流さず、**意味が変わったときだけ**イベントを流す
+- States API で作った状態は HA を再起動すると消えるので、60 秒ごとに入れ直す
+- 送信は 1 本ずつ順番に。並行に投げると古い状態が後から届いて上書きする
+
+繋ぎ直したときの `hello`（現況一括）では、センサーの値だけ現況に合わせて
+**イベントは流さない**。過去の発表でオートメーションを走らせないため。
+
+## 引き取っていないもの
+
+- **「HA の自宅位置を使う」** — パネルが HA の `/api/config` を読んで自宅の
+  緯度経度を取っていた機能。パネルが HA を呼ぶ方向なので外側からは実装できない。
+  上流の `54f94ba` で `server/src/haLocation.ts` ごと削除され、**この機能は無くなった**。
+  利用地は「直接入力 / 地図をクリック / 現在地」の 3 つで決める。
+  README・設定タブの説明からも記述を削除済み
+  （`homeassistant_api: true` は通知側で引き続き必要なので残している）
 
 ## 上流が更新されたときの手順
 
 1. `upstream.env` の `UPSTREAM_REF` を新しいコミットに更新する
-2. WebSocket のプロトコル（`shared/src/protocol.ts` の `ServerEvent`、`ENDPOINTS.ws`）に
-   変更が無いか見る。`eew` / `quake` / `tsunami` の形が変わっていれば HA 連携側も直す
-3. `server/src/data/seismicAreas.ts` が変わっていれば、生成スクリプトを流し直す
-4. `config.json` の `version` を上げ、`CHANGELOG.md` を書く（リポジトリ直下の
-   `CLAUDE.md` のリリース手順に従う）
-5. マージ後、GitHub Actions のビルドが通ることを確認する
+2. `server/src/config.ts` が読む環境変数に変更が無いか見る
+   （`EEW_WEBHOOK_URL` の名前が変わればここが壊れる）
+3. webhook の本文（`server/src/notify/webhookNotifier.ts` の `WebhookPayload`）と、
+   WebSocket のプロトコル（`shared/src/protocol.ts` の `ServerEvent`・`ENDPOINTS.ws`・
+   `StateSnapshot`）に変更が無いか見る
+4. `shared/src/models.ts` の `EewState` / `QuakeInfo` / `TsunamiInfo` の
+   フィールド名に変更が無いか見る（ブリッジがそのまま読んでいる）
+5. `config.json` の `version` を上げ、`CHANGELOG.md` を書く
+   （リポジトリ直下の `CLAUDE.md` のリリース手順に従う）
+6. マージ後、GitHub Actions のビルドが通ることを確認する
+
+### イメージのビルドで `npm test` を使わない理由
+
+上流のテストには実行環境を選ぶものが 2 つあり、素の Docker ビルドでは通らない
+（どちらもアプリの不具合ではない）。上流自身の `release/Dockerfile` も
+`npm run build` だけを走らせている。
+
+- `server/test/staticRoot.test.mjs` — `/workspaces/server` へ `chdir` する
+- `server/test/shutdown.test.mjs` — `listening` のログを見た直後に SIGTERM を
+  送るため、終了ハンドラの登録が間に合わず `received SIGTERM` が出ないことがある
 
 ## 検証
 
 `CLAUDE.md` の「推測でリリースしない」に従い、実際にイメージをビルドして確認する。
 
-- HA のコア API はモックを立てて、送られる JSON（エンティティ名・イベント名・属性）を確かめる
-- **パネルを落とした状態から起こす**など、WebSocket が切れた場合に再接続し、
-  つなぎ直した後にエンティティの値が現在の状態に戻ることを確かめる
-- 絞り込み（震度・都道府県・細分区域）が効いていることを、実際の電文の形で確かめる
-- 通知を無効にしたときに HA へ一切送らないことを確かめる
+1. **実パネルと一緒に起動**して、ブリッジが `/ws` につながり、`hello` を受けて
+   4 つのエンティティがコア API へ入ること。パネルのログに
+   `eew webhook to http://127.0.0.1:8099/eew` が出ること
+2. **パネルのデモ再生**（設定画面、または WebSocket へ `{"type":"demo",…}`）を
+   流して、実際の配信経路で EEW・津波が HA まで届くこと。EEW は
+   `new` → `update` → `cancel` → `expired` と流れ、同じ内容の続報が
+   間引かれていること
+3. **webhook を直接叩いて** new / update / cancel / expired の各 `kind`、
+   同じ内容の再送を捨てること、壊れた本文でも落ちないことを確かめる
+4. 通知を無効にしたときに、ブリッジが起動せず、パネルも webhook を作らないこと
+5. HA のコア API はモックを立て、送られる JSON を実際に突き合わせる

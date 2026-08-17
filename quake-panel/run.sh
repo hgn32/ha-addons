@@ -22,24 +22,12 @@ case "${KMONI_LAYER}" in
 esac
 echo "   地図に出す指標    : ${LAYER_NAME}"
 echo "   ログレベル        : ${LOG_LEVEL}"
-if [ "${HA_NOTIFY}" = "true" ]; then
+if [ "${BRIDGE_NOTIFY}" = "true" ]; then
   echo "   HA への通知       : 有効 (binary_sensor.quake_panel_eew 等を更新します)"
-  # 都道府県と地域は「どちらかに当たれば通知」なので、まとめて 1 行に出す
-  NOTIFY_AREA="${HA_NOTIFY_PREFECTURES}"
-  if [ -n "${HA_NOTIFY_AREAS}" ]; then
-    if [ -n "${NOTIFY_AREA}" ]; then
-      NOTIFY_AREA="${NOTIFY_AREA},${HA_NOTIFY_AREAS}"
-    else
-      NOTIFY_AREA="${HA_NOTIFY_AREAS}"
-    fi
-  fi
-  if [ -z "${NOTIFY_AREA}" ]; then
-    NOTIFY_AREA="全国"
-  fi
-  echo "     通知する地震    : ${HA_NOTIFY_MIN_INTENSITY} / ${NOTIFY_AREA}"
-  echo "                       (取消報・津波の解除は絞り込みに関わらず通知します)"
+  echo "                       絞り込みはしません。必要なら HA のオートメーション側で"
+  echo "                       条件を書いてください"
 else
-  echo "   HA への通知       : 無効 (パネルの「HA の自宅位置を使う」は通知とは別に使えます)"
+  echo "   HA への通知       : 無効"
 fi
 echo ""
 echo " 利用地・津波予報区・地図の表示位置は、パネル右上の「設定」で"
@@ -52,5 +40,16 @@ echo ""
 echo " 強震モニタのコンテンツは再配布禁止です。インターネットへ素で公開せず、"
 echo " 画面左下のクレジット表示も消さないでください。"
 echo "----------------------------------------------------------------"
+
+# HA 連携は別プロセス。パネル本体は HA を知らないまま動かす。
+# 落ちても気づけるよう、再起動をログへ残しながら起こし直す。
+if [ "${BRIDGE_NOTIFY}" = "true" ]; then
+  (
+    while true; do
+      node /ha-bridge.mjs || echo "[quake-panel][ha] 停止しました。5秒後に起こし直します。" >&2
+      sleep 5
+    done
+  ) &
+fi
 
 exec node /app/server/dist/index.js
