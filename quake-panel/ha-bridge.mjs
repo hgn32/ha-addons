@@ -77,9 +77,21 @@ function eewData(state) {
     report_number: state.reportNumber,
     max_intensity: intensityLabel(state.maxIntensity),
     hypocenter: state.hypocenter?.name,
+    // 震源の緯度経度。地域別の予想震度がまだ無い第一報でも、HA 側で
+    // distance() を使って「自宅からどれくらいか」で絞れるようにする。
+    hypocenter_lat: state.hypocenter?.lat ?? null,
+    hypocenter_lon: state.hypocenter?.lon ?? null,
     magnitude: state.hypocenter?.magnitude,
     depth_km: state.hypocenter?.depthKm,
     origin_time: state.originTime,
+    // 予想震度が出ている地域と、その都道府県。オートメーションで
+    // 「自分の県に関わるものだけ」と絞るために渡す。
+    // kmoni の予報は地域別の予想震度を持たないので、第一報では空になる
+    // (空を「該当なし」と扱うと第一報を落としてしまうので注意)。
+    regions: (state.regions ?? []).map((region) => region.name),
+    // 電文の値をそのまま渡す。緊急地震速報の pref は「宮崎」のように
+    // 県が付かない表記で来る (地震情報の観測点は「宮崎県」と付く別語彙)。
+    prefectures: [...new Set((state.regions ?? []).map((region) => region.pref).filter(Boolean))],
   };
 }
 
