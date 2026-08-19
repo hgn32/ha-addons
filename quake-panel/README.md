@@ -225,6 +225,10 @@ conditions:
 ```
 
 地域で絞りたいときは `prefectures`（予想震度が出ている地域の都道府県）を使います。
+値は**電文のままで、緊急地震速報では `宮崎` のように県が付きません**
+（地震情報の観測点は `宮崎県` と付く別の語彙なので、混同しないでください）。
+細かく見たいときは `regions`（`宮崎県南部平野部` などの地域名）を使います。
+
 **第一報では空になることがある**ので、空のときは落とさないようにしてください
 （kmoni の予報は地域別の予想震度を持たないためです）。
 
@@ -233,7 +237,7 @@ conditions:
   - condition: template
     value_template: >-
       {{ not trigger.event.data.prefectures
-         or '宮崎県' in trigger.event.data.prefectures }}
+         or '宮崎' in trigger.event.data.prefectures }}
 ```
 
 第一報を素通しにしたくない場合は、震源の緯度経度で代替できます。
@@ -249,7 +253,7 @@ conditions:
       {% set lon = d.hypocenter_lon %}
       {% set near = lat is none or lon is none
                     or (distance(lat, lon) or 0) <= 300 %}
-      {{ '宮崎県' in prefs if prefs else near }}
+      {{ '宮崎' in prefs if prefs else near }}
 ```
 
 `kind` は `new`（新規発表）/ `update`（続報）/ `cancel`（取消）/ `expired`
