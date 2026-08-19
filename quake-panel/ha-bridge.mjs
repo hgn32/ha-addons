@@ -89,6 +89,10 @@ function eewData(state) {
     report_number: state.reportNumber,
     max_intensity: intensityLabel(state.maxIntensity),
     hypocenter: state.hypocenter?.name,
+    // 震源の緯度経度。地域別の予想震度がまだ無い第一報でも、HA 側で
+    // distance() を使って「自宅からどれくらいか」で絞れるようにする。
+    hypocenter_lat: state.hypocenter?.lat ?? null,
+    hypocenter_lon: state.hypocenter?.lon ?? null,
     magnitude: state.hypocenter?.magnitude,
     depth_km: state.hypocenter?.depthKm,
     origin_time: state.originTime,

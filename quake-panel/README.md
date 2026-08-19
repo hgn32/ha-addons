@@ -178,7 +178,7 @@ HA のイベントとセンサーに流します。**画面を見ていなくて
 
 | イベント | いつ | 主なデータ |
 |---|---|---|
-| `quake_panel_eew` | 緊急地震速報の受信・格上げ・取消・表示終了 | `kind` / `is_warning` / `max_intensity` / `hypocenter` / `report_number` / `is_cancel` / `is_training` / `regions` / `prefectures` / `is_demo` |
+| `quake_panel_eew` | 緊急地震速報の受信・格上げ・取消・表示終了 | `kind` / `is_warning` / `max_intensity` / `hypocenter` / `report_number` / `is_cancel` / `is_training` / `regions` / `prefectures` / `hypocenter_lat` / `hypocenter_lon` / `is_demo` |
 | `quake_panel_tsunami` | 津波予報の発表・解除 | `active` / `areas` / `grades` |
 | `quake_panel_quake` | 地震情報の受信 | `max_intensity` / `hypocenter` / `magnitude` / `occurred_at` |
 
@@ -234,6 +234,22 @@ conditions:
     value_template: >-
       {{ not trigger.event.data.prefectures
          or '宮崎県' in trigger.event.data.prefectures }}
+```
+
+第一報を素通しにしたくない場合は、震源の緯度経度で代替できます。
+`distance()` は HA の自宅（`zone.home`）からの距離（km）を返します。
+
+```yaml
+conditions:
+  - condition: template
+    value_template: >-
+      {% set d = trigger.event.data %}
+      {% set prefs = d.prefectures or [] %}
+      {% set lat = d.hypocenter_lat %}
+      {% set lon = d.hypocenter_lon %}
+      {% set near = lat is none or lon is none
+                    or (distance(lat, lon) or 0) <= 300 %}
+      {{ '宮崎県' in prefs if prefs else near }}
 ```
 
 `kind` は `new`（新規発表）/ `update`（続報）/ `cancel`（取消）/ `expired`
