@@ -61,6 +61,18 @@ function intensityLabel(scale) {
   return scale == null ? null : INTENSITY_LABELS.get(scale) ?? null;
 }
 
+// 気象庁の電文は「宮崎」のように県を落とした表記で来る。オートメーションでは
+// 「宮崎県」と書きたいので、正式名称に揃えてから渡す。
+const PREF_SUFFIX = { 東京: '都', 大阪: '府', 京都: '府', 北海道: '' };
+
+function fullPrefName(pref) {
+  // 例外表を先に見る。「京都」は末尾が「都」なので、先に語尾で判定すると
+  // 「京都府」にならない。
+  const suffix = PREF_SUFFIX[pref];
+  if (suffix !== undefined) return pref + suffix;
+  return /[都道府県]$/.test(pref) ? pref : `${pref}県`;
+}
+
 // --- HA へ見せる中身 (エンティティ名・イベント名・属性名は上流のまま) ---
 
 function eewData(state) {
@@ -80,6 +92,12 @@ function eewData(state) {
     magnitude: state.hypocenter?.magnitude,
     depth_km: state.hypocenter?.depthKm,
     origin_time: state.originTime,
+    // 予想震度が出ている地域と、その都道府県。オートメーションで
+    // 「自分の県に関わるものだけ」と絞るために渡す。
+    // kmoni の予報は地域別の予想震度を持たないので、第一報では空になる
+    // (空を「該当なし」と扱うと第一報を落としてしまうので注意)。
+    regions: (state.regions ?? []).map((region) => region.name),
+    prefectures: [...new Set((state.regions ?? []).map((region) => region.pref).filter(Boolean).map(fullPrefName))],
   };
 }
 

@@ -178,7 +178,7 @@ HA のイベントとセンサーに流します。**画面を見ていなくて
 
 | イベント | いつ | 主なデータ |
 |---|---|---|
-| `quake_panel_eew` | 緊急地震速報の受信・格上げ・取消 | `is_warning` / `max_intensity` / `hypocenter` / `report_number` / `is_cancel` / `is_training` |
+| `quake_panel_eew` | 緊急地震速報の受信・格上げ・取消・表示終了 | `kind` / `is_warning` / `max_intensity` / `hypocenter` / `report_number` / `is_cancel` / `is_training` / `regions` / `prefectures` / `is_demo` |
 | `quake_panel_tsunami` | 津波予報の発表・解除 | `active` / `areas` / `grades` |
 | `quake_panel_quake` | 地震情報の受信 | `max_intensity` / `hypocenter` / `magnitude` / `occurred_at` |
 
@@ -224,8 +224,21 @@ conditions:
       {{ trigger.event.data.max_intensity in ['5弱', '5強', '6弱', '6強', '7'] }}
 ```
 
-地域で絞りたいときは、地震情報の `hypocenter`（震源地名）や、通知に含まれる
-津波予報区（`areas`）を条件に使えます。
+地域で絞りたいときは `prefectures`（予想震度が出ている地域の都道府県）を使います。
+**第一報では空になることがある**ので、空のときは落とさないようにしてください
+（kmoni の予報は地域別の予想震度を持たないためです）。
+
+```yaml
+conditions:
+  - condition: template
+    value_template: >-
+      {{ not trigger.event.data.prefectures
+         or '宮崎県' in trigger.event.data.prefectures }}
+```
+
+`kind` は `new`（新規発表）/ `update`（続報）/ `cancel`（取消）/ `expired`
+（表示終了）です。**`expired` にも発表内容がそのまま入っている**ので、
+発表を知らせる用途では `kind` で除いてください。
 
 ## 外部への接続先
 
