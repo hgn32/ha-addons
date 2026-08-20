@@ -103,8 +103,10 @@ function tsunamiData(state) {
     id: state.id,
     is_demo: isDemo(state.id),
     cancelled: state.cancelled,
-    areas: areas.map((area) => area.name),
-    grades: [...new Set(areas.map((area) => area.grade))],
+    // 電文の予報区をそのまま渡す。名前だけに潰すと「宮崎県は注意報なのか
+    // 大津波警報なのか」が分からなくなり、オートメーションで判定できない。
+    // 予報区名は「宮崎県」と県が付く (緊急地震速報の pref は付かない別語彙)。
+    areas,
   };
 }
 

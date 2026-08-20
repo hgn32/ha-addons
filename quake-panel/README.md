@@ -179,7 +179,7 @@ HA のイベントとセンサーに流します。**画面を見ていなくて
 | イベント | いつ | 主なデータ |
 |---|---|---|
 | `quake_panel_eew` | 緊急地震速報の受信・格上げ・取消・表示終了 | `kind` / `is_warning` / `max_intensity` / `hypocenter` / `report_number` / `is_cancel` / `is_training` / `regions` / `prefectures` / `hypocenter_lat` / `hypocenter_lon` / `is_demo` |
-| `quake_panel_tsunami` | 津波予報の発表・解除 | `active` / `areas` / `grades` |
+| `quake_panel_tsunami` | 津波予報の発表・解除 | `active` / `cancelled` / `areas` / `is_demo` |
 | `quake_panel_quake` | 地震情報の受信 | `max_intensity` / `hypocenter` / `magnitude` / `occurred_at` |
 
 ### エンティティ
@@ -259,6 +259,28 @@ conditions:
 `kind` は `new`（新規発表）/ `update`（続報）/ `cancel`（取消）/ `expired`
 （表示終了）です。**`expired` にも発表内容がそのまま入っている**ので、
 発表を知らせる用途では `kind` で除いてください。
+
+津波で絞りたいときは `areas`（津波予報区）を使います。**電文の予報区を
+そのまま渡している**ので、1 区ごとに `name`・`grade`（`MajorWarning` /
+`Warning` / `Watch` / `Unknown`）・第一波の到達予測・最大波高が入っています。
+予報区名は `宮崎県` と**県が付きます**（緊急地震速報の `prefectures` は
+付かない別の語彙です）。
+
+解除（取消）では `active` が `false`、`cancelled` が `true` になります。
+発表だけを知らせたいときは `active` で絞ってください。
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: quake_panel_tsunami
+    event_data:
+      active: true
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.event.data.areas
+         | selectattr('name', 'eq', '宮崎県') | list | count > 0 }}
+```
 
 ## 外部への接続先
 
