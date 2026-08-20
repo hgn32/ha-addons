@@ -264,6 +264,11 @@ conditions:
 （表示終了）です。**`expired` にも発表内容がそのまま入っている**ので、
 発表を知らせる用途では `kind` で除いてください。
 
+`expired` を取りこぼしたときは、最後に受け取ってから 5 分でアドオン側が畳み、
+`kind: expired` を流します（ログタブに警告が出ます）。発表中のまま固まって、
+次の地震で `binary_sensor.quake_panel_eew` が `off` → `on` に変化しなくなるのを
+防ぐためです。
+
 津波で絞りたいときは `areas`（津波予報区・全 98 区）を使います。**電文の予報区を
 そのまま渡している**ので、1 区ごとに `name`・`grade`（`MajorWarning` /
 `Warning` / `Watch` / `Unknown`）・`immediate`・第一波の到達予測・最大波高が
