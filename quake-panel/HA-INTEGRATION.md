@@ -70,7 +70,7 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 |---|---|
 | エンティティ | `binary_sensor.quake_panel_eew` / `sensor.quake_panel_eew_intensity` / `binary_sensor.quake_panel_tsunami` / `sensor.quake_panel_last_quake` |
 | イベント | `quake_panel_eew` / `quake_panel_tsunami` / `quake_panel_quake` |
-| 属性名 | `max_intensity` / `is_warning` / `is_training` / `areas` / `grades` など |
+| 属性名 | `max_intensity` / `is_warning` / `is_training` / `areas` など |
 
 上流から引き継いだ振る舞い:
 
