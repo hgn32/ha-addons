@@ -26,11 +26,25 @@ const TOKEN = process.env.SUPERVISOR_TOKEN ?? '';
 const REQUEST_TIMEOUT_MS = 4000;
 // States API で作った状態は HA を再起動すると消えるので、定期的に入れ直す。
 const STATE_REFRESH_MS = 60_000;
+/**
+ * 表示終了 (kind: expired) の webhook を取りこぼしたときに、発表中のまま
+ * 残さないための保険。上流 docs/eew-events.md §9 が受け側に求めているもの。
+ *
+ * 残ったままだと binary_sensor.quake_panel_eew が on で固まり、次の地震で
+ * off→on の変化が起きない。状態変化をトリガーにしたオートメーションが
+ * 動かなくなるので、こちらから畳む。
+ *
+ * パネル側の保持は 180 秒 (上流 EEW_RETENTION_MS の既定) なので、それより
+ * 十分長く待つ。続報が来ない発表でも、本来はその 180 秒後に expired が来る。
+ */
+const EEW_STALE_MS = Number(process.env.BRIDGE_EEW_STALE_MS ?? 300_000);
 const RECONNECT_MIN_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
 /** いま HA に見せている現況 */
 let eew = null;
+/** 緊急地震速報を最後に受け取った時刻 (取りこぼしの見張り用) */
+let eewSeenAt = 0;
 let tsunami = null;
 let quake = null;
 /** 同じ内容でイベントを流し続けないための記録 (続報は毎秒来る) */
@@ -230,6 +244,7 @@ function handle(event) {
     case 'hello': {
       const snapshot = event.snapshot ?? {};
       eew = snapshot.eew ?? null;
+      eewSeenAt = Date.now();
       tsunami = snapshot.tsunami ?? null;
       quake = Array.isArray(snapshot.quakes) && snapshot.quakes.length > 0 ? snapshot.quakes[0] : null;
       lastKey = { eew: eewKey(eew), tsunami: tsunamiKey(tsunami), quake: quake?.id ?? '' };
@@ -269,6 +284,7 @@ function handle(event) {
  */
 function handleEewWebhook(payload) {
   if (!payload || payload.type !== 'eew') return;
+  eewSeenAt = Date.now();
   const ended = payload.kind === 'expired';
   eew = ended ? null : payload.eew ?? null;
   // 続報は毎秒のように来る。意味が変わったときだけ HA へ流す。
@@ -283,6 +299,21 @@ function handleEewWebhook(payload) {
     if (ended) data.active = false;
     void fire('quake_panel_eew', { ...data, kind: payload.kind });
   }
+  void pushStates();
+}
+
+/**
+ * 表示終了を受け取れないまま時間が経った発表を、こちらから畳む。
+ * 遅れて本物の expired が届いても、鍵が既に 'none' なので二重には流れない。
+ */
+function sweepStaleEew() {
+  if (eew === null || Date.now() - eewSeenAt < EEW_STALE_MS) return;
+  warn('緊急地震速報の表示終了を受け取れませんでした。発表中の表示を消します。');
+  const data = eewData(eew);
+  data.active = false;
+  eew = null;
+  lastKey.eew = eewKey(null);
+  void fire('quake_panel_eew', { ...data, kind: 'expired' });
   void pushStates();
 }
 
@@ -349,3 +380,5 @@ log('Home Assistant 連携を開始します。');
 startWebhookServer();
 connect();
 setInterval(() => void pushStates(), STATE_REFRESH_MS);
+// 見張りは入れ直しより短い間隔で回す (期限を過ぎてから消えるまでを短くするため)。
+setInterval(sweepStaleEew, Math.min(15_000, EEW_STALE_MS));
