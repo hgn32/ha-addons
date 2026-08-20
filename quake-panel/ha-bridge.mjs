@@ -73,6 +73,9 @@ function eewData(state) {
     is_warning: state.alert === 'warning',
     is_cancel: state.isCancel,
     is_training: state.isTraining,
+    // 仮定震源要素 (P2P 556 の condition に「仮定」を含む報)。上流が電文の
+    // 見分け方として挙げているので、そのまま渡して HA 側で除けるようにする。
+    is_assumption: state.isAssumption,
     is_final: state.isFinal,
     report_number: state.reportNumber,
     max_intensity: intensityLabel(state.maxIntensity),
