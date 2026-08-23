@@ -1,0 +1,130 @@
+name: Upstream check
+
+# 各アドオンが載せている上流(上位)が更新されていないか、リビルドが要るかを
+# 毎月まとめてチェックし、GitHub Issue 1件を書き換えて報告する。
+#
+# - チェック定義: .github/upstream-checks.yaml
+# - 判定ロジック: .github/scripts/check_upstream.py
+# - 動くタグ用の記録: .github/upstream-state.json (このワークフローが main へ commit する)
+#
+# main 以外のブランチへ push したときは、チェックの動作確認だけを行い
+# (結果は Actions のジョブサマリに出る)、Issue も state も書き換えない。
+
+on:
+  schedule:
+    # 毎月1日 00:00 UTC (日本時間 09:00)
+    - cron: "0 0 1 * *"
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - ".github/workflows/upstream-check.yaml"
+      - ".github/scripts/check_upstream.py"
+      - ".github/upstream-checks.yaml"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check upstream versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python3 -m pip install --quiet pyyaml
+
+      - name: Check upstream versions
+        id: check
+        env:
+          # public リポジトリは GITHUB_TOKEN で足りる。private の上流
+          # (quake-panel など) を見るときだけ UPSTREAM_REPO_TOKEN を使う。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_REPO_TOKEN: ${{ secrets.UPSTREAM_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=()
+          # main 以外(= 動作確認の push)では記録ファイルを書き換えない
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            args+=(--no-state-write)
+          fi
+          python3 .github/scripts/check_upstream.py \
+            --manifest .github/upstream-checks.yaml \
+            --state .github/upstream-state.json \
+            --report "${RUNNER_TEMP}/report.md" \
+            "${args[@]}"
+
+      - name: Write job summary
+        run: cat "${RUNNER_TEMP}/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update the report issue
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIONABLE: ${{ steps.check.outputs.actionable }}
+        run: |
+          set -euo pipefail
+          gh label create upstream-check \
+            --color 0e8a16 \
+            --description "上流の月次更新チェック" >/dev/null 2>&1 || true
+
+          if [[ "${ACTIONABLE}" == "0" ]]; then
+            title="上流の更新チェック (対応不要)"
+          else
+            title="上流の更新チェック (要対応 ${ACTIONABLE} 件)"
+          fi
+
+          number=$(gh issue list --label upstream-check --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+
+          if [[ -z "${number}" ]]; then
+            number=$(gh issue create --title "${title}" \
+              --body-file "${RUNNER_TEMP}/report.md" \
+              --label upstream-check | grep -oE '[0-9]+$')
+            echo "Created issue #${number}"
+          else
+            gh issue edit "${number}" --title "${title}" \
+              --body-file "${RUNNER_TEMP}/report.md"
+            echo "Updated issue #${number}"
+          fi
+
+          # 要対応があるときだけコメントする(通知を出すのはこのときだけ)。
+          if [[ "${ACTIONABLE}" != "0" ]]; then
+            gh issue comment "${number}" --body \
+              "$(date -u '+%Y-%m-%d') のチェックで対応が要るものが ${ACTIONABLE} 件あります。詳細は本文を参照。"
+          fi
+
+      - name: Commit the state file
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .github/upstream-state.json; then
+            echo "No state change."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/upstream-state.json
+          git commit -m "chore: record upstream check state"
+          for attempt in 1 2 3 4; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            git pull --rebase origin main
+            sleep $((2 ** attempt))
+          done
+          echo "::error::Failed to push the upstream check state."
+          exit 1

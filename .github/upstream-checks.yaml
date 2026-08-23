@@ -1,0 +1,200 @@
+# 上流(上位)バージョンの月次チェック定義
+#
+# .github/workflows/upstream-check.yaml が毎月これを読み、各アドオンが載せている
+# 上流の最新版を調べて GitHub Issue に報告する。
+#
+# 用語:
+#   - pin あり  … Dockerfile 等にバージョンが直接書いてあるもの。
+#                 「最新 != pin」なら pin を書き換えて config.json の version を上げる。
+#   - pin なし  … `:latest` や `:stable` のように動くタグ / 常に最新を入れる npm。
+#                 ファイルは変わらないので、前回チェック時からダイジェストや
+#                 バージョンが動いたかどうかで「リビルドすれば新しくなる」を判定する。
+#                 判定結果は .github/upstream-state.json に記録し、config.json の
+#                 version が上がる(= リビルドして publish した)まで「未取り込み」と
+#                 して報告し続ける。
+#
+# kind の種類:
+#   github_release  repo の最新リリースのタグ           (repo, 任意で tag_regex)
+#   github_head     repo の既定ブランチの HEAD コミット (repo)
+#   docker_tag      Docker Hub のタグ一覧から最大版     (image, tag_regex)
+#   ghcr_tag        ghcr.io のタグ一覧から最大版        (image, tag_regex)
+#   digest          そのタグが今指しているダイジェスト  (image ※タグ込み)
+#   npm             npm の latest バージョン            (package)
+#
+# category:
+#   upstream … アプリ本体の上流。更新は基本的に取り込む対象
+#   base     … ベースイメージ・ツール類。セキュリティ更新目的のリビルド判断用
+#
+# info: true を付けたものは「参考表示」だけで、要対応としては数えない。
+#
+# 対象外(意図的):
+#   - vscode/vscode.extensions の拡張バージョン
+#     … Marketplace に公開 API が無く、非公式エンドポイントは壊れやすいため手動。
+
+checks:
+  - app: go2rtc-hvc1
+    id: go2rtc
+    category: upstream
+    kind: github_release
+    repo: AlexxIT/go2rtc
+    pin:
+      file: go2rtc-hvc1/Dockerfile
+      regex: 'ARG GO2RTC_VERSION="([^"]+)"'
+    note: パッチ適用のベース。上げるときは patch-hvc1.sh が当たるか要確認
+
+  - app: guacamole
+    id: guacamole-image
+    category: upstream
+    kind: docker_tag
+    image: abesnier/guacamole
+    tag_regex: '^(\d+\.\d+\.\d+)-alpine-pg17$'
+    pin:
+      file: guacamole/Dockerfile
+      regex: '^FROM abesnier/guacamole:(\d+\.\d+\.\d+)-alpine-pg17'
+
+  - app: wireguard-ui
+    id: wireguard-ui
+    category: upstream
+    kind: docker_tag
+    image: ngoduykhanh/wireguard-ui
+    tag_regex: '^(\d+\.\d+\.\d+)$'
+    pin:
+      file: wireguard-ui/Dockerfile
+      regex: '^FROM ngoduykhanh/wireguard-ui:(\S+) '
+
+  - app: wireguard-ui
+    id: ha-base
+    category: base
+    kind: digest
+    image: ghcr.io/home-assistant/amd64-base:latest
+
+  - app: vscode
+    id: code-server
+    category: upstream
+    kind: github_release
+    repo: coder/code-server
+    pin:
+      file: vscode/Dockerfile
+      regex: 'ARG CODE_SERVER_VERSION="([^"]+)"'
+
+  - app: vscode
+    id: ha-cli
+    category: upstream
+    kind: github_release
+    repo: home-assistant/cli
+    pin:
+      file: vscode/Dockerfile
+      regex: 'ARG HA_CLI_VERSION="([^"]+)"'
+
+  - app: vscode
+    id: debian-base
+    category: base
+    kind: ghcr_tag
+    image: hassio-addons/debian-base
+    tag_regex: '^(\d+\.\d+\.\d+)$'
+    pin:
+      file: vscode/build.yaml
+      regex: 'debian-base:(\S+)'
+    note: Dockerfile の ARG BUILD_FROM 既定値も同じ版に揃えること
+
+  - app: vscode
+    id: claude-code
+    category: base
+    kind: npm
+    package: "@anthropic-ai/claude-code"
+    note: ビルド時に常に最新を入れる。リビルドで新しくなる
+
+  - app: quake-panel
+    id: quake-panel
+    category: upstream
+    kind: github_head
+    repo: hgn32/quake-panel
+    pin:
+      file: quake-panel/upstream.env
+      regex: '^UPSTREAM_REF=(\S+)'
+    note: private の場合は secrets.UPSTREAM_REPO_TOKEN が必要
+
+  - app: suwayomi-server
+    id: suwayomi-image
+    category: upstream
+    kind: digest
+    image: ghcr.io/suwayomi/suwayomi-server:stable
+
+  - app: suwayomi-server
+    id: suwayomi-release
+    category: upstream
+    kind: github_release
+    repo: Suwayomi/Suwayomi-Server
+    info: true
+
+  - app: voicevox
+    id: voicevox-image
+    category: upstream
+    kind: digest
+    image: docker.io/voicevox/voicevox_engine:cpu-latest
+
+  - app: voicevox
+    id: voicevox-release
+    category: upstream
+    kind: github_release
+    repo: VOICEVOX/voicevox_engine
+    info: true
+
+  - app: nginx-gateway
+    id: geoipupdate
+    category: upstream
+    kind: github_release
+    repo: maxmind/geoipupdate
+    pin:
+      file: nginx-gateway/Dockerfile
+      regex: 'ENV GEOIPUPDATE_VERSION=(\S+)'
+
+  - app: nginx-gateway
+    id: ha-base
+    category: base
+    kind: digest
+    image: ghcr.io/home-assistant/base:latest
+
+  - app: claude-session-opener
+    id: claude-code
+    category: upstream
+    kind: npm
+    package: "@anthropic-ai/claude-code"
+    note: ビルド時に常に最新を入れる。リビルドで新しくなる
+
+  - app: claude-session-opener
+    id: ha-base
+    category: base
+    kind: digest
+    image: ghcr.io/home-assistant/amd64-base:latest
+
+  - app: discord-cleanup
+    id: base-python
+    category: base
+    kind: digest
+    image: ghcr.io/home-assistant/base-python:3.13-alpine3.23
+
+  - app: discord-cleanup
+    id: base-python-tag
+    category: base
+    kind: ghcr_tag
+    image: home-assistant/base-python
+    tag_regex: '^(\d+\.\d+-alpine\d+\.\d+)$'
+    pin:
+      file: discord-cleanup/Dockerfile
+      regex: 'base-python:(\S+)'
+
+  - app: stock-manager
+    id: node-base
+    category: base
+    kind: digest
+    image: docker.io/library/node:22-slim
+
+  - app: stock-manager
+    id: npm
+    category: base
+    kind: npm
+    package: npm
+    pin:
+      file: stock-manager/Dockerfile
+      regex: 'npm install -g npm@(\S+)'

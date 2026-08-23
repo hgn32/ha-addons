@@ -1,0 +1,56 @@
+{
+  "claude-session-opener/claude-code": {
+    "app_version": "0.5.0",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "2.1.241"
+  },
+  "claude-session-opener/ha-base": {
+    "app_version": "0.5.0",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "sha256:db83d263152a02d6daf3415a73132b2386f43a03a9c248bdaabe047b067c8eea"
+  },
+  "discord-cleanup/base-python": {
+    "app_version": "0.8.2",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "sha256:34b2976323b976d5d304d9f5889304eadb281ebd5b096f69a1c91d8bc83b9253"
+  },
+  "nginx-gateway/ha-base": {
+    "app_version": "0.10.5",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "sha256:93ef607824e3f27e868f11b10938283a98bf880ed57bcf8eaa81c6c2d521f6f5"
+  },
+  "stock-manager/node-base": {
+    "app_version": "0.10.3",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436"
+  },
+  "suwayomi-server/suwayomi-image": {
+    "app_version": "0.23",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "sha256:e59f212ccf91b26de8676a063a2db90256c148c6261535c7c477d47a43d9751b"
+  },
+  "voicevox/voicevox-image": {
+    "app_version": "0.15",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "sha256:eb8c7f46a7d01217d1ff2b6f018261faedeceded3cc756b4fbbf371791ad6c90"
+  },
+  "vscode/claude-code": {
+    "app_version": "6.0.4",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "2.1.241"
+  },
+  "wireguard-ui/ha-base": {
+    "app_version": "0.9.8",
+    "pending": false,
+    "seen_at": "2026-08-23",
+    "value": "sha256:db83d263152a02d6daf3415a73132b2386f43a03a9c248bdaabe047b067c8eea"
+  }
+}

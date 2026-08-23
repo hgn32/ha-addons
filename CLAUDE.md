@@ -44,6 +44,20 @@
      エラーなく完了することを必ず確認する
    - 失敗している場合は原因を調べて修正し、成功するまで対応すること
 
+## 上流の更新チェック（月次）
+
+上流を載せているアドオンの更新確認は `.github/workflows/upstream-check.yaml` が
+毎月1日に自動で行い、`upstream-check` ラベルの Issue に結果を書く。
+
+- チェック対象の定義は `.github/upstream-checks.yaml`。**アドオンを追加したり、
+  Dockerfile のバージョンピンの書き方を変えたら、ここも合わせて直すこと**
+  （pin の正規表現が一致しなくなると、更新があっても気付けなくなる）
+- `:latest` / `:stable` のような動くタグは `.github/upstream-state.json` に
+  前回値を記録して差分を見ている。この記録はワークフローが main へ commit するので
+  手で編集しないこと
+- 「リビルド待ち」は `config.json` の `version` が上がると自動で解消される扱い
+  （version を上げる = 再ビルドして publish される、という前提）
+
 ## shell スクリプト（run.sh・cont-init.d・services.d 配下）を変更するときの検証義務
 
 - **「ロジック的に正しいはず」という推測だけでリリースしてはならない。** `set -e` 系の

@@ -59,6 +59,20 @@ https://github.com/hgn32/ha-addons
 
 または上部のバッジをクリックして自動追加することもできます。
 
+## 上流の更新チェック（メンテナ向け）
+
+上流のアプリやベースイメージを載せているアドオンについて、毎月1日に
+GitHub Actions（[upstream-check](./.github/workflows/upstream-check.yaml)）が
+自動でチェックし、`upstream-check` ラベルの付いた Issue 1件を書き換えて報告します。
+
+- 上流に新しい版が出ている（`Dockerfile` などにピンしている版が古い）
+- `:latest` / `:stable` のような動くタグや、ビルド時に最新を入れているものが動いた
+  = リビルドすれば新しくなる（`config.json` の `version` を上げるまで報告し続けます）
+
+チェック対象の定義は [.github/upstream-checks.yaml](./.github/upstream-checks.yaml) です。
+アドオンを追加したときや、ピンの書き方を変えたときはここも直してください。
+手動で走らせたいときは Actions タブから `Upstream check` を workflow_dispatch できます。
+
 ## ライセンス
 
 [MIT License](./LICENSE)
