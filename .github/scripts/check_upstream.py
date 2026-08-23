@@ -97,6 +97,29 @@ def normalize(value: str) -> str:
     return re.sub(r"^v(?=\d)", "", value.strip())
 
 
+def unordered(value: str) -> bool:
+    """ダイジェストやコミット SHA のように、大小を比べられない値か。"""
+    return value.startswith("sha256:") or bool(re.fullmatch(r"[0-9a-f]{40}", value))
+
+
+def is_held(check: dict, latest: str) -> bool:
+    """`hold:` で「この版は見送る」と書かれていて、まだそれ以下かどうか。
+
+    バージョンのように順序が付けられるものは、保留した版**以下**なら保留のまま。
+    それより新しいものが上流に出たら保留は自動で切れて、また報告される。
+    ダイジェストやコミット SHA は大小が無いので、完全一致のときだけ保留する。
+    """
+    hold = check.get("hold")
+    if hold in (None, ""):
+        return False
+    hold = str(hold)
+    if normalize(hold) == normalize(latest):
+        return True
+    if unordered(latest) or unordered(hold):
+        return False
+    return version_key(normalize(latest)) <= version_key(normalize(hold))
+
+
 def pick_latest(tags: list[str], tag_regex: str) -> str:
     matched = []
     pattern = re.compile(tag_regex)
@@ -275,6 +298,24 @@ def short(value: str, width: int = 24) -> str:
 # --------------------------------------------------------------------------
 # 判定
 # --------------------------------------------------------------------------
+def apply_hold(check: dict, result: dict, latest: str) -> dict:
+    """`hold:` の指定を結果に反映する。
+
+    要対応 (update / rebuild) だったものだけを「保留」に落とす。状態ファイルは
+    そのまま更新してあるので、hold を外せば本来の状態 (リビルド待ち等) に戻る。
+    すでに追いついているのに hold が残っている場合は、消してよい印を付ける。
+    """
+    if not check.get("hold"):
+        return result
+    result["hold"] = str(check["hold"])
+    result["hold_reason"] = check.get("hold_reason", "")
+    if result["status"] in ("update", "rebuild") and is_held(check, latest):
+        result["status"] = "hold"
+    elif result["status"] == "ok":
+        result["hold_stale"] = True
+    return result
+
+
 def evaluate(check: dict, root: str, state: dict, today: str) -> dict:
     app = check["app"]
     key = f"{app}/{check['id']}"
@@ -304,7 +345,7 @@ def evaluate(check: dict, root: str, state: dict, today: str) -> dict:
         result["status"] = (
             "ok" if normalize(current) == normalize(latest) else "update"
         )
-        return result
+        return apply_hold(check, result, latest)
 
     # 動くタグ / 常に最新を入れるもの。前回チェック時からの変化を見る
     entry = state.get(key)
@@ -317,7 +358,7 @@ def evaluate(check: dict, root: str, state: dict, today: str) -> dict:
         }
         result["current"] = latest
         result["status"] = "first"
-        return result
+        return apply_hold(check, result, latest)
 
     if entry.get("value") != latest:
         entry.update(
@@ -333,7 +374,7 @@ def evaluate(check: dict, root: str, state: dict, today: str) -> dict:
     result["current"] = entry.get("value")
     result["seen_at"] = entry.get("seen_at", "")
     result["status"] = "rebuild" if entry.get("pending") else "ok"
-    return result
+    return apply_hold(check, result, latest)
 
 
 # --------------------------------------------------------------------------
@@ -342,11 +383,19 @@ def evaluate(check: dict, root: str, state: dict, today: str) -> dict:
 STATUS_LABEL = {
     "update": "🔺 上流に新しい版",
     "rebuild": "🔁 リビルド待ち",
+    "hold": "⏸ 保留中",
     "first": "🆕 今回から記録",
     "ok": "✅ 最新",
     "info": "ℹ️ 参考",
     "error": "⚠️ 失敗",
 }
+
+HOLD_HOWTO = (
+    "見送ると決めたものは `.github/upstream-checks.yaml` の該当エントリに "
+    "`hold: \"<見送る版>\"` (と任意で `hold_reason:`) を足してください。"
+    "その版以下の間は⏸へ落ちて通知されず、上流がそれより新しくなると自動で戻ります。"
+    "ダイジェスト(`sha256:...`)やコミット SHA は完全一致のときだけ保留になります。"
+)
 
 
 def table(rows: list[dict], with_seen: bool = False) -> list[str]:
@@ -360,7 +409,13 @@ def table(rows: list[dict], with_seen: bool = False) -> list[str]:
         status = STATUS_LABEL[row["status"]]
         if with_seen and row.get("seen_at"):
             status += f" ({row['seen_at']} に検知)"
+        if row["status"] == "hold":
+            status += f" (`{short(row.get('hold', ''))}` まで)"
+        if row.get("hold_stale"):
+            status += " — `hold` は消してよい"
         note = f"<br>{row['note']}" if row.get("note") else ""
+        if row["status"] == "hold" and row.get("hold_reason"):
+            note += f"<br>理由: {row['hold_reason']}"
         lines.append(
             f"| `{row['app']}` (v{row['app_version']}) | {row['label']}{note} "
             f"| `{current}` | `{latest}` | {status} |"
@@ -371,6 +426,7 @@ def table(rows: list[dict], with_seen: bool = False) -> list[str]:
 def build_report(results: list[dict], errors: list[dict], today: str) -> tuple[str, int]:
     updates = [r for r in results if r["status"] == "update"]
     rebuilds = [r for r in results if r["status"] == "rebuild"]
+    holds = [r for r in results if r["status"] == "hold"]
     rest = [r for r in results if r["status"] in ("ok", "first", "info")]
     actionable = len(updates) + len(rebuilds)
 
@@ -399,6 +455,15 @@ def build_report(results: list[dict], errors: list[dict], today: str) -> tuple[s
             "",
         ] + table(rebuilds, with_seen=True) + [""]
 
+    if holds:
+        out += [
+            "## ⏸ 保留中 (見送ると決めたもの)",
+            "",
+            "`hold:` が書いてあるので通知しない。上流が保留した版より新しくなれば",
+            "自動でここから外れて 🔺 に戻る。",
+            "",
+        ] + table(holds) + [""]
+
     if rest:
         out += ["## その他 (対応不要)", "", "<details><summary>一覧を開く</summary>", ""]
         out += table(rest)
@@ -418,6 +483,8 @@ def build_report(results: list[dict], errors: list[dict], today: str) -> tuple[s
 
     out += [
         "---",
+        "",
+        f"**今回は見送るとき**: {HOLD_HOWTO}",
         "",
         "この Issue は `.github/workflows/upstream-check.yaml` が毎月書き換えています。"
         "定義は `.github/upstream-checks.yaml`。",

@@ -69,7 +69,11 @@ GitHub Actions（[upstream-check](./.github/workflows/upstream-check.yaml)）が
 - `:latest` / `:stable` のような動くタグや、ビルド時に最新を入れているものが動いた
   = リビルドすれば新しくなる（`config.json` の `version` を上げるまで報告し続けます）
 
-チェック対象の定義は [.github/upstream-checks.yaml](./.github/upstream-checks.yaml) です。
+今回は見送ると決めたものは、[.github/upstream-checks.yaml](./.github/upstream-checks.yaml) の
+該当エントリに `hold: "<見送る版>"`（と任意で `hold_reason:`）を書きます。その版以下の間は
+「⏸ 保留中」へ落ちて通知されず、上流がそれより新しくなると自動で報告が再開します。
+
+チェック対象の定義も同じ [.github/upstream-checks.yaml](./.github/upstream-checks.yaml) です。
 アドオンを追加したときや、ピンの書き方を変えたときはここも直してください。
 手動で走らせたいときは Actions タブから `Upstream check` を workflow_dispatch できます。
 
