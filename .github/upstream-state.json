@@ -1,9 +1,9 @@
 {
   "claude-session-opener/claude-code": {
     "app_version": "0.5.0",
-    "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "2.1.241"
+    "pending": true,
+    "seen_at": "2026-09-01",
+    "value": "2.1.252"
   },
   "claude-session-opener/ha-base": {
     "app_version": "0.5.0",
@@ -25,9 +25,9 @@
   },
   "stock-manager/node-base": {
     "app_version": "0.10.3",
-    "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436"
+    "pending": true,
+    "seen_at": "2026-09-01",
+    "value": "sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5"
   },
   "suwayomi-server/suwayomi-image": {
     "app_version": "0.23",
@@ -43,9 +43,9 @@
   },
   "vscode/claude-code": {
     "app_version": "6.0.4",
-    "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "2.1.241"
+    "pending": true,
+    "seen_at": "2026-09-01",
+    "value": "2.1.252"
   },
   "wireguard-ui/ha-base": {
     "app_version": "0.9.8",
