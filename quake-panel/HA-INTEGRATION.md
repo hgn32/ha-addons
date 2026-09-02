@@ -40,8 +40,9 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 - 通知を切ると `EEW_WEBHOOK_URL` が空になり、パネルは webhook を作らない
 - **表示終了（`kind: expired`）を取りこぼしたときの保険を持つ**（上流
   docs/eew-events.md §9 が受け側に求めているもの）。最後に webhook を受けてから
-  5 分（`EEW_STALE_MS`。パネル側の保持 180 秒より十分長く取る）を過ぎても発表中の
-  ままなら、ブリッジ側から畳んで `kind: expired` を流し、ログタブに警告を残す。
+  5 分（`EEW_STALE_MS`。パネル側の保持は通常 180 秒 = `EEW_RETENTION_MS`、最終報
+  だけは 60 秒 = `EEW_FINAL_RETENTION_MS`。そのどちらより十分長く取る）を過ぎても
+  発表中のままなら、ブリッジ側から畳んで `kind: expired` を流し、ログタブに警告を残す。
   残したままだと `binary_sensor.quake_panel_eew` が `on` で固まり、**次の地震で
   off→on の変化が起きず、状態変化をトリガーにしたオートメーションが動かなくなる**
 
@@ -126,13 +127,16 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 
 ### イメージのビルドで `npm test` を使わない理由
 
-上流のテストには実行環境を選ぶものが 2 つあり、素の Docker ビルドでは通らない
-（どちらもアプリの不具合ではない）。上流自身の `release/Dockerfile` も
+上流のテストには実行環境を選ぶものがあり、素の Docker ビルドでは通らない
+（アプリの不具合ではない）。上流自身の `release/Dockerfile` も
 `npm run build` だけを走らせている。
 
-- `server/test/staticRoot.test.mjs` — `/workspaces/server` へ `chdir` する
 - `server/test/shutdown.test.mjs` — `listening` のログを見た直後に SIGTERM を
   送るため、終了ハンドラの登録が間に合わず `received SIGTERM` が出ないことがある
+
+`server/test/staticRoot.test.mjs` が `/workspaces/server` へ `chdir` していて
+落ちていた件は、上流 `a7d6c37` で `os.tmpdir()` へ移るよう直り、環境を選ばなく
+なった。
 
 ## 検証
 

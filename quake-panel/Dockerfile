@@ -28,11 +28,12 @@ COPY upstream/ ./
 # 固定した ref がコンパイルできなければここで落ちるので、中身が動かない
 # イメージが出来上がることはない。
 #
-# npm test は使わない。上流のテストに実行環境を選ぶものが 2 つあり、
-# 素の Docker ビルドでは通らないため (どちらもアプリの不具合ではない):
-#   - server/test/staticRoot.test.mjs : /workspaces/server へ chdir する
-#   - server/test/shutdown.test.mjs   : listen 直後に SIGTERM を送るので、
+# npm test は使わない。上流のテストに実行環境を選ぶものがあり、素の Docker
+# ビルドでは通らないため (アプリの不具合ではない):
+#   - server/test/shutdown.test.mjs : listen 直後に SIGTERM を送るので、
 #     終了ハンドラの登録が間に合わずログが出ないことがある
+# (staticRoot.test.mjs が /workspaces/server へ chdir していた件は、上流
+#  a7d6c37 で os.tmpdir() へ移るよう直され、環境を選ばなくなった)
 # テストは上流の CI で回すもので、アドオンのイメージ作成の役目ではない。
 RUN npm ci && npm run build && npm prune --omit=dev
 

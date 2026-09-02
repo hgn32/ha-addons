@@ -34,8 +34,10 @@ const STATE_REFRESH_MS = 60_000;
  * off→on の変化が起きない。状態変化をトリガーにしたオートメーションが
  * 動かなくなるので、こちらから畳む。
  *
- * パネル側の保持は 180 秒 (上流 EEW_RETENTION_MS の既定) なので、それより
- * 十分長く待つ。続報が来ない発表でも、本来はその 180 秒後に expired が来る。
+ * パネル側の保持は 180 秒 (上流 EEW_RETENTION_MS の既定) で、最終報 (is_final) を
+ * 受けた発表だけは 60 秒 (同 EEW_FINAL_RETENTION_MS の既定) と短い。どちらより
+ * も十分長く待つ。続報が来ない発表でも、本来はその保持時間の経過後に expired が
+ * 来るので、ここまで来るのは webhook を取りこぼしたときだけ。
  */
 const EEW_STALE_MS = Number(process.env.BRIDGE_EEW_STALE_MS ?? 300_000);
 const RECONNECT_MIN_MS = 1000;
