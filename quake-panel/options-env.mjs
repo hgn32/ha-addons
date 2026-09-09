@@ -54,6 +54,11 @@ const env = {
   BRIDGE_NOTIFY: notify ? 'true' : 'false',
   BRIDGE_PORT: String(BRIDGE_PORT),
   HA_API_URL: 'http://supervisor/core/api',
+  // 地震イベントの記録 (JSONL)。上流の既定は相対パスの data/logs で、
+  // アドオンでは /app/data/logs になる。そこはコンテナの書き込み層なので
+  // 再起動で消えてしまうため、アドオンの永続領域 /data へ向ける。
+  // 平常時は何も書かず、保持は上流の既定 (30 日) のまま。
+  EVENT_LOG_DIR: '/data/logs',
   KMONI_LAYER: text('kmoni_layer'),
   KMONI_IDLE_FRAME_INTERVAL_SEC: String(number('kmoni_idle_frame_interval_sec')),
   KMONI_ACTIVE_FRAME_INTERVAL_SEC: String(number('kmoni_active_frame_interval_sec')),
