@@ -23,6 +23,9 @@ FROM node:${NODE_VERSION}-bookworm-slim AS build
 WORKDIR /src
 
 COPY upstream/ ./
+# パネルの設定画面に出すバージョン表記の材料。中身は UPSTREAM_REF の 1 行だけで、
+# 上流ソースとは別に置く (上流を入れ替えてもこの COPY のキャッシュが効くように)。
+COPY upstream.env /tmp/upstream.env
 
 # 上流自身の release/Dockerfile と同じく build だけを走らせる。
 # 固定した ref がコンパイルできなければここで落ちるので、中身が動かない
@@ -35,7 +38,20 @@ COPY upstream/ ./
 # (staticRoot.test.mjs が /workspaces/server へ chdir していた件は、上流
 #  a7d6c37 で os.tmpdir() へ移るよう直され、環境を選ばなくなった)
 # テストは上流の CI で回すもので、アドオンのイメージ作成の役目ではない。
-RUN npm ci && npm run build && npm prune --omit=dev
+#
+# COMMIT_HASH を渡すのは、パネルの設定画面が「バージョン: 開発版」になるのを
+# 防ぐため。上流の client/vite.config.ts は環境変数 COMMIT_HASH か
+# `git rev-parse` でハッシュを埋め込むが、ここではどちらも使えない
+# (.dockerignore が upstream/.git を外しており、slim イメージに git も無い)。
+# 上流の release/Dockerfile が build-arg で渡しているのと同じ扱いにする。
+# ビルド日時 (BUILD_DATE) は渡さない。vite 側が JST の現在時刻で埋めるので、
+# 「いつ焼いたイメージか」がそのまま出る。
+RUN set -eu; \
+    . /tmp/upstream.env; \
+    export COMMIT_HASH="$(printf '%s' "${UPSTREAM_REF}" | cut -c1-7)"; \
+    npm ci; \
+    npm run build; \
+    npm prune --omit=dev
 
 # ---- stage 2: 実行イメージ ----
 FROM node:${NODE_VERSION}-bookworm-slim

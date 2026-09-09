@@ -121,7 +121,10 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
    ブリッジの読み方と README のオートメーション例が古くなる
 1. `upstream.env` の `UPSTREAM_REF` を新しいコミットに更新する
 2. `server/src/config.ts` が読む環境変数に変更が無いか見る
-   （`EEW_WEBHOOK_URL` の名前が変わればここが壊れる）
+   （`EEW_WEBHOOK_URL` の名前が変わればここが壊れる）。**増えていたら、既定値の
+   ままでアドオンとして正しいかを必ず確かめる**。相対パスを既定にした書き込み先が
+   あると、コンテナの消える場所に溜まる（`EVENT_LOG_DIR` が実際にそうだった。
+   下記）
 3. webhook の本文（`server/src/notify/webhookNotifier.ts` の `WebhookPayload`）と、
    WebSocket のプロトコル（`shared/src/protocol.ts` の `ServerEvent`・`ENDPOINTS.ws`・
    `StateSnapshot`）に変更が無いか見る
@@ -130,6 +133,19 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 5. `config.json` の `version` を上げ、`CHANGELOG.md` を書く
    （リポジトリ直下の `CLAUDE.md` のリリース手順に従う）
 6. マージ後、GitHub Actions のビルドが通ることを確認する
+
+### アドオン側で環境変数を決めているもの
+
+上流の既定のままではアドオンとして具合が悪く、`options-env.mjs` や Dockerfile で
+値を決めているものがある。
+
+| 環境変数 | 上流の既定 | このアドオン | 理由 |
+|---|---|---|---|
+| `EVENT_LOG_DIR` | `data/logs`（相対） | `/data/logs` | 相対パスだと `/app/data/logs`、つまりコンテナの書き込み層になり、再起動で消える。アドオンの永続領域へ向ける |
+| `COMMIT_HASH` | 未設定（`git` から取る） | `UPSTREAM_REF` の先頭 7 桁 | 渡さないとパネルの設定画面が「バージョン: 開発版」になり、**どのビルドが動いているのか画面から分からない**。`.dockerignore` が `upstream/.git` を外していて、slim イメージに `git` も無いので、上流の `git rev-parse` の経路は使えない。上流の `release/Dockerfile` が build-arg で渡しているのと同じ扱い（Dockerfile 内で `upstream.env` を読む） |
+
+`BUILD_DATE` は渡していない。上流が JST の現在時刻で埋めるので、
+「いつ焼いたイメージか」がそのまま出る。
 
 ### イメージのビルドで `npm test` を使わない理由
 
