@@ -116,23 +116,49 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 
 ## 上流が更新されたときの手順
 
-0. 上流のドキュメントを先に読む。`docs/eew-events.md`（webhook の発火条件）と
+1. **上流のドキュメントを先に読む。** `docs/eew-events.md`（webhook の発火条件）と
    `docs/area-codes.md`（電文に入る地名の値域）が一次資料で、ここが変わると
    ブリッジの読み方と README のオートメーション例が古くなる
-1. `upstream.env` の `UPSTREAM_REF` を新しいコミットに更新する
-2. `server/src/config.ts` が読む環境変数に変更が無いか見る
+
+2. **上流の最新コミットを確かめる。** `git fetch origin main` は
+   **`FETCH_HEAD` しか更新せず `origin/main` は動かない**。それを見て判断すると、
+   上流が進んでいるのに「変更なし」と誤って報告することになる（実際にやった）。
+   リモート追跡ブランチごと更新すること。
+
+   ```bash
+   cd <上流の作業コピー>
+   git fetch origin 'refs/heads/*:refs/remotes/origin/*'
+   git log --oneline <いまの UPSTREAM_REF>..origin/main   # 増えた分
+   git rev-parse origin/main                              # 書き込む値
+   ```
+
+   マージ待ちの変更が残っていないかも見る（`git ls-remote --heads origin` で
+   main 以外のブランチを確認する）。
+
+3. **`upstream.env` の `UPSTREAM_REF` を更新する。** 値は `git rev-parse` が出した
+   **40 桁のフル SHA をそのまま貼る**。短縮形から手で書き起こさないこと
+   （存在しない SHA を書いてしまう）。
+
+4. **`server/src/config.ts` が読む環境変数に変更が無いか見る**
    （`EEW_WEBHOOK_URL` の名前が変わればここが壊れる）。**増えていたら、既定値の
    ままでアドオンとして正しいかを必ず確かめる**。相対パスを既定にした書き込み先が
-   あると、コンテナの消える場所に溜まる（`EVENT_LOG_DIR` が実際にそうだった。
-   下記）
-3. webhook の本文（`server/src/notify/webhookNotifier.ts` の `WebhookPayload`）と、
-   WebSocket のプロトコル（`shared/src/protocol.ts` の `ServerEvent`・`ENDPOINTS.ws`・
-   `StateSnapshot`）に変更が無いか見る
-4. `shared/src/models.ts` の `EewState` / `QuakeInfo` / `TsunamiInfo` の
+   あると、コンテナの消える場所に溜まる（`EVENT_LOG_DIR` が実際にそうだった。下記）
+
+5. **webhook の本文**（`server/src/notify/webhookNotifier.ts` の `WebhookPayload`）と、
+   **WebSocket のプロトコル**（`shared/src/protocol.ts` の `ServerEvent`・
+   `ENDPOINTS.ws`・`StateSnapshot`）に変更が無いか見る
+
+6. **`shared/src/models.ts`** の `EewState` / `QuakeInfo` / `TsunamiInfo` の
    フィールド名に変更が無いか見る（ブリッジがそのまま読んでいる）
-5. `config.json` の `version` を上げ、`CHANGELOG.md` を書く
+
+7. **下記「検証」を実施する。** 推測でリリースしない
+
+8. **`config.json` の `version` を上げ、`CHANGELOG.md` を書く**
    （リポジトリ直下の `CLAUDE.md` のリリース手順に従う）
-6. マージ後、GitHub Actions のビルドが通ることを確認する
+
+9. **マージ後、GitHub Actions のビルドが通ることを確認する。ここまでで完了。**
+   Home Assistant への適用はユーザーが行う（同 `CLAUDE.md` の「どこまでやったら
+   完了か」）
 
 ### アドオン側で環境変数を決めているもの
 
@@ -164,6 +190,46 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 
 `CLAUDE.md` の「推測でリリースしない」に従い、実際にイメージをビルドして確認する。
 
+### 検証環境の作り方
+
+エージェントのセッションでは Docker が使える。毎回ここから組み直すので手順を残す。
+
+```bash
+# 1. Docker を起動する (既定では動いていない)
+dockerd &
+
+# 2. ビルドコンテキストを作る。upstream/ は .git を外して置く。
+#    Actions は .dockerignore で upstream/.git を外すので、それに合わせないと
+#    COMMIT_HASH の検証 (下記 6.) が本番と食い違う。
+cp -r quake-panel/. /tmp/build/
+git clone <上流> /tmp/build/upstream
+git -C /tmp/build/upstream checkout --detach <UPSTREAM_REF>
+rm -rf /tmp/build/upstream/.git /tmp/build/upstream/node_modules
+
+# 3. npm がプロキシ越しに取れるよう CA を足してビルドする
+#    (詳細は /root/.ccr/README.md の docker build 節)。
+#    次の 2 行を build ステージへ差し込む。リポジトリの Dockerfile には入れない:
+#      COPY ca-bundle.crt /usr/local/share/ca-certificates/ccr.crt
+#      ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/ccr.crt
+cp /root/.ccr/ca-bundle.crt /tmp/build/
+docker build --network host --build-arg HTTPS_PROXY="$HTTPS_PROXY" \
+  -t quake-panel-test /tmp/build
+
+# 4. HA のコア API のモックを :80 に立てる
+#    (受けたリクエストとボディをファイルへ書くだけの node スクリプトでよい)
+
+# 5. 動かす。--add-host で supervisor をモックへ向けると、run.sh が渡す
+#    HA_API_URL=http://supervisor/core/api をそのまま検証できる
+docker run -d --name qp --network host --add-host supervisor:127.0.0.1 \
+  -e SUPERVISOR_TOKEN=dummy -v /tmp/data:/data quake-panel-test
+```
+
+**kmoni（HTTP）と P2P地震情報（WSS）はこのプロキシ越しには繋がらない。**
+ログに出る `self-signed certificate` や `eew poll failed` は環境の制約であって
+アドオンの不具合ではない。起動・ブリッジ・webhook・デモ再生の確認には影響しない。
+
+### 確認すること
+
 1. **実パネルと一緒に起動**して、ブリッジが `/ws` につながり、`hello` を受けて
    4 つのエンティティがコア API へ入ること。パネルのログに
    `eew webhook to http://127.0.0.1:8099/eew` が出ること
@@ -174,4 +240,23 @@ Quake Panel の HA 連携（通知・センサー）を、**上流のパネル�
 3. **webhook を直接叩いて** new / update / cancel / expired の各 `kind`、
    同じ内容の再送を捨てること、壊れた本文でも落ちないことを確かめる
 4. 通知を無効にしたときに、ブリッジが起動せず、パネルも webhook を作らないこと
+   （`node` のプロセスが 1 本だけになる）
 5. HA のコア API はモックを立て、送られる JSON を実際に突き合わせる
+6. **バージョン表記が埋まっていること。** 「開発版」の再発防止。Dockerfile の
+   `COMMIT_HASH` の受け渡しが壊れると黙って戻るので、成果物を直接見る:
+
+   ```bash
+   docker run --rm --entrypoint sh quake-panel-test -c \
+     'grep -o "バージョン: [^\"]\{0,40\}" /app/public/assets/index-*.js'
+   ```
+
+   `バージョン: <UPSTREAM_REF の先頭 7 桁> (YYYY-MM-DD HH:mm ビルド)` が出ればよい。
+   「開発版」が出たら直っていない。**「検証環境の作り方」2. の `.git` を外す操作を
+   省くと、
+   ビルド機に `git` があるかどうかで結果が変わり、この検証が意味を失う**
+7. コンテナを **2 回以上連続で再起動**して、毎回ブリッジが繋ぎ直すこと
+8. 上流を固定 ref で `npm test` が通ること（件数を報告に含める）
+
+適用後に実機で確かめたいときは、稼働中のアドオンが配っている JS を Ingress 経由で
+取れる（ha-mcp の `ha_manage_app` の proxy モードで `/` → `assets/index-*.js`）。
+ただし**適用そのものはユーザーが行う**（`CLAUDE.md` の「どこまでやったら完了か」）。
