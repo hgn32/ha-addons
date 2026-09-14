@@ -180,6 +180,13 @@ checks:
     kind: digest
     image: ghcr.io/home-assistant/amd64-base:latest
 
+  - app: claude-session-opener
+    id: node-base
+    category: base
+    kind: digest
+    image: docker.io/library/node:22-slim
+    note: 認証パネル(Vite)のビルド用ステージ
+
   - app: discord-cleanup
     id: base-python
     category: base
