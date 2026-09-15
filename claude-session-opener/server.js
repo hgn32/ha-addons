@@ -43,6 +43,10 @@ const TOKEN_FILE = 'oauth-token.json';
 const PUBLIC_DIR = '/public';
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+// コード本体を送ってから Enter(CR) を送るまでの間隔。
+// 別の chunk として届かせるためのもので、0 でも通ったが、
+// 端末側でまとめて読まれる可能性を消すために少し空ける。
+const SUBMIT_ENTER_DELAY_MS = 200;
 // コードを送ってから画面が変わらないまま放置される時間の上限。
 // 超えたら入力待ちに戻して、やり直せる状態にする（固まったまま何もできない、を作らない）。
 const SUBMIT_TIMEOUT_MS = 60 * 1000;
@@ -106,11 +110,85 @@ function stripAnsi(s) {
     .replace(/\x1b[@-Z\\-_]/g, '');
 }
 
-// Ink は単語間を桁移動で描くので、エスケープを落とすと単語が繋がる
-// （"Paste code here" が "Pastecodehere" になる）。文言の判定は
-// 空白を全部畳んでから行う。
+// Ink は単語間を桁移動で描くので、エスケープを落とすだけだと単語が繋がる
+// （"Paste code here" が "Pastecodehere" になる）。画面を組み立て直して
+// 人が読める形に戻す。判定にも表示にもこちらを使う。
+function renderScreen(raw) {
+  const rows = [[]];
+  let row = 0;
+  let col = 0;
+  const ensure = (r) => { while (rows.length <= r) rows.push([]); };
+  const put = (ch) => {
+    ensure(row);
+    const line = rows[row];
+    while (line.length < col) line.push(' ');
+    line[col] = ch;
+    col += 1;
+  };
+  const s = String(raw == null ? '' : raw);
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === '\x1b') {
+      const next = s[i + 1];
+      if (next === '[') {
+        const m = /^\x1b\[([\x30-\x3f]*)([\x20-\x2f]*)([\x40-\x7e])/.exec(s.slice(i));
+        if (!m) { i += 1; continue; }
+        const nums = m[1].replace(/[<>=?]/g, '').split(';').map((x) => (x === '' ? 0 : parseInt(x, 10)));
+        const n = nums[0] || 0;
+        const cmd = m[3];
+        if (cmd === 'A') row = Math.max(0, row - (n || 1));
+        else if (cmd === 'B') row += (n || 1);
+        else if (cmd === 'C') col += (n || 1);
+        else if (cmd === 'D') col = Math.max(0, col - (n || 1));
+        else if (cmd === 'E') { row += (n || 1); col = 0; }
+        else if (cmd === 'F') { row = Math.max(0, row - (n || 1)); col = 0; }
+        else if (cmd === 'G') col = Math.max(0, (n || 1) - 1);
+        else if (cmd === 'H' || cmd === 'f') { row = Math.max(0, (nums[0] || 1) - 1); col = Math.max(0, (nums[1] || 1) - 1); }
+        else if (cmd === 'J') {
+          if (n === 2) { rows.length = 0; rows.push([]); row = 0; col = 0; }
+          else { ensure(row); rows[row] = rows[row].slice(0, col); rows.length = row + 1; }
+        } else if (cmd === 'K') {
+          ensure(row);
+          if (n === 0) rows[row] = rows[row].slice(0, col);
+          else if (n === 1) { for (let k = 0; k < col && k < rows[row].length; k++) rows[row][k] = ' '; }
+          else rows[row] = [];
+        }
+        i += m[0].length;
+        continue;
+      }
+      if (next === ']' || next === 'P' || next === '^' || next === '_') {
+        const end = /\x07|\x1b\\/.exec(s.slice(i + 2));
+        i = end ? i + 2 + end.index + end[0].length : s.length;
+        continue;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '\r') { col = 0; i += 1; continue; }
+    if (ch === '\n') { row += 1; ensure(row); i += 1; continue; }
+    if (ch === '\b') { col = Math.max(0, col - 1); i += 1; continue; }
+    if (ch === '\t') { col += 8 - (col % 8); i += 1; continue; }
+    if (ch < ' ' && ch !== ' ') { i += 1; continue; }
+    put(ch);
+    i += 1;
+  }
+  return rows.map((r) => r.join('').replace(/\s+$/, ''));
+}
+
+// 画面として読めるテキスト。診断表示にも使うのでトークンは伏せる。
+// CLI の起動時ロゴ（ブロック文字の絵）は手がかりにならないので落とす。
+function screenText(raw, lines = 14) {
+  const rendered = renderScreen(raw)
+    .filter((l) => l.trim())
+    .filter((l) => !/^[\s\u2591\u2592\u2593\u2588\u2580\u2584*.\-_=]+$/.test(l));
+  return maskSecrets(rendered.slice(-lines).join('\n'));
+}
+
+// 文言の判定は、組み立て直した画面と生の出力の両方を空白を畳んで見る。
+// どちらか一方だけだと、描き方によって取りこぼす。
 function flatten(s) {
-  return stripAnsi(s).replace(/\s+/g, '').toLowerCase();
+  return (screenText(s, 40) + '\n' + stripAnsi(s)).replace(/\s+/g, '').toLowerCase();
 }
 
 // トークンの中身は base64url（A-Za-z0-9 と - _）と、末尾に = が付くことがある。
@@ -247,6 +325,10 @@ function getFlow(slug) {
       urlRotated: false,  // エラー後に URL が発行し直された
       retrySent: false,
       tokenSaved: false,  // 画面にトークンが出た時点で保存したか
+      runId: 0,           // 発行のたびに増やす。古いプロセスのイベントを捨てるため
+      detectFrom: 0,      // 文言の判定をここから先だけで行う（前回の残りを拾わないため）
+      screen: '',         // CLI の画面（診断用。トークンは伏せる）
+      errorScreen: '',    // エラーが出た瞬間の画面（上書きされないように取っておく）
       timer: null,
       submitTimer: null,
     });
@@ -319,6 +401,30 @@ async function haDismiss(id) {
 // 直ったら dismiss で消えるので、HA の通知パネルに残り続けない。
 function statusNotifyId(slug) { return `claude_session_opener_${slug}`; }
 function expiryNotifyId(slug) { return `claude_session_opener_expiry_${slug}`; }
+
+// --- 接続確認 ---
+
+// 長期トークンの発行も毎朝の実行も、この2つに繋がらないと成立しない。
+// 「送ったのに何も返ってこない」ときに、ネットワーク側の問題かを切り分ける。
+const REACH_TARGETS = [
+  { name: 'platform.claude.com', url: 'https://platform.claude.com/' },
+  { name: 'api.anthropic.com', url: 'https://api.anthropic.com/' },
+];
+
+async function checkReachability() {
+  const out = [];
+  for (const t of REACH_TARGETS) {
+    const started = Date.now();
+    try {
+      const res = await fetch(t.url, { method: 'HEAD', signal: AbortSignal.timeout(10000) });
+      out.push(`${t.name}: 到達できました（HTTP ${res.status} / ${Date.now() - started}ms）`);
+    } catch (e) {
+      const why = e.name === 'TimeoutError' ? '10秒で応答なし' : e.message;
+      out.push(`${t.name}: 到達できません（${why}）`);
+    }
+  }
+  return out.join('\n');
+}
 
 // --- 認証エラーの判定 ---
 
@@ -614,8 +720,10 @@ function extractUrl(text) {
 
 function armInactivity(slug) {
   const f = getFlow(slug);
+  const runId = f.runId;
   if (f.timer) clearTimeout(f.timer);
   f.timer = setTimeout(() => {
+    if (f.runId !== runId) return;
     cancelFlow(slug, 'タイムアウトしました（15分）。もう一度やり直してください。');
   }, INACTIVITY_TIMEOUT_MS);
 }
@@ -635,13 +743,20 @@ function startFlow(slug) {
   const f = getFlow(slug);
   if (f.proc) return { ok: false, error: 'すでに発行中です。' };
 
+  // 中止直後に再発行すると、殺した側の close イベントが後から届く。
+  // 世代を進めておき、古い世代のイベントは捨てる（新しいフローを潰さないため）。
+  f.runId += 1;
+  const runId = f.runId;
   f.buffer = '';
+  f.detectFrom = 0;
   f.url = '';
   f.phase = 'starting';
   f.error = '';
   f.urlRotated = false;
   f.retrySent = false;
   f.tokenSaved = false;
+  f.screen = '';
+  f.errorScreen = '';
   clearNotice(slug);
   broadcast();
 
@@ -663,16 +778,23 @@ function startFlow(slug) {
   f.proc = proc;
   armInactivity(slug);
 
-  const onData = (chunk) => handleFlowOutput(slug, chunk.toString());
+  const onData = (chunk) => {
+    if (f.runId !== runId) return;
+    handleFlowOutput(slug, chunk.toString());
+  };
   proc.stdout.on('data', onData);
   proc.stderr.on('data', onData);
   proc.on('error', (e) => {
+    if (f.runId !== runId) return;
     f.proc = null;
     f.phase = 'idle';
     setNotice(slug, 'error', `発行を開始できませんでした: ${e.message}`);
     broadcast();
   });
-  proc.on('close', (code) => finishFlow(slug, code));
+  proc.on('close', (code) => {
+    if (f.runId !== runId) return;
+    finishFlow(slug, code);
+  });
   return { ok: true };
 }
 
@@ -684,9 +806,19 @@ function startFlow(slug) {
 function handleFlowOutput(slug, chunk) {
   const f = getFlow(slug);
   if (!f.proc) return;
-  f.buffer = (f.buffer + chunk).slice(-FLOW_BUFFER_MAX);
+  const grown = f.buffer + chunk;
+  if (grown.length > FLOW_BUFFER_MAX) {
+    const cut = grown.length - FLOW_BUFFER_MAX;
+    f.buffer = grown.slice(cut);
+    f.detectFrom = Math.max(0, f.detectFrom - cut);
+  } else {
+    f.buffer = grown;
+  }
+  // 画面の組み立ては最初から通す（途中から始めると桁移動の起点がずれて
+  // 文字が欠ける）。文言の判定だけ、前回の送信より後ろに限る。
   const view = stripAnsi(f.buffer);
-  const flat = flatten(f.buffer);
+  const flat = flatten(f.buffer.slice(f.detectFrom));
+  f.screen = screenText(f.buffer);
 
   // 1) トークンが画面に出た = 成功。CLI の終了を待たずにその場で保存する。
   //    待ってから拾う作りだと、CLI が終わらなかったときに取りこぼす。
@@ -699,7 +831,8 @@ function handleFlowOutput(slug, chunk) {
         log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年）`);
         setNotice(slug, 'success', '長期トークンを保存しました（有効期間: 約1年）。動作確認のため1回だけ実行します。');
         // 普通は CLI が自分で終わる。終わらないときのために少しだけ待って止める。
-        setTimeout(() => { if (f.proc) f.proc.kill(); }, 5000);
+        const runId = f.runId;
+        setTimeout(() => { if (f.runId === runId && f.proc) f.proc.kill(); }, 5000);
       }
     }
     f.phase = 'finishing';
@@ -723,16 +856,20 @@ function handleFlowOutput(slug, chunk) {
   // 3) OAuth エラー。CLI は "Press Enter to retry." で止まるので、
   //    こちらから Enter を送って入力待ちまで戻す。戻さないと次の送信が捨てられる。
   if (/oautherror/.test(flat)) {
-    f.error = describeOAuthError(flat);
+    // CLI が出した原文も添える。こちらの言い換えが外れていても、
+    // 何が起きたかが画面で分かるようにするため。
+    const cliLine = (/OAuth\s*error\s*:\s*([^\n]+)/i.exec(f.screen) || [])[1];
+    f.error = describeOAuthError(flat) + (cliLine ? `\nCLI の表示: OAuth error: ${cliLine.trim()}` : '');
+    // エラーが出た瞬間の画面を残す（このあとバッファを捨てても消えないように）。
+    f.errorScreen = f.screen;
     clearSubmitTimer(slug);
     if (/pressentertoretry/.test(flat)) {
       if (!f.retrySent) {
         f.retrySent = true;
         f.phase = 'retrying';
-        // 崩れた元の文言も、切り分け用にログにだけ残す（画面には出さない）。
-        logError(`[${accountLabel(slug)}] 長期トークンの発行でエラー: ${maskSecrets(flat.slice(-160))}`);
-        // 同じエラーを再検出しないようにバッファを捨てる。URL は f.url に持っている。
-        f.buffer = '';
+        logError(`[${accountLabel(slug)}] 長期トークンの発行でエラー:\n${f.errorScreen}`);
+        // 同じエラーを二度拾わないよう、判定の起点だけ今の位置へ進める。
+        f.detectFrom = f.buffer.length;
         try { f.proc.stdin.write('\r'); } catch (e) { /* 終了済みなら close 側で扱う */ }
       }
     } else {
@@ -776,13 +913,25 @@ function submitCode(slug, rawCode) {
   const code = normalizeCode(rawCode);
   if (!code) return { ok: false, error: 'コードが空です。' };
 
-  f.buffer = '';
+  const runId = f.runId;
+  f.detectFrom = f.buffer.length;
   f.error = '';
+  f.errorScreen = '';
   f.urlRotated = false;
   f.phase = 'submitting';
   try {
     // 疑似端末では Enter は CR。LF だと確定されない。
-    f.proc.stdin.write(code + '\r');
+    // さらに、コードと CR を1回の write でまとめて送ってはいけない。
+    // CLI の入力欄は、まとめて届いた長い chunk を「貼り付け」として扱い、
+    // 同じ chunk に入っている改行を確定操作として扱わないため、
+    // 送信しても何も起きない（実測: 109文字を1回で送ると無反応、
+    // そのあと CR だけを単独で送ると即座に確定した）。
+    // 実際の認証コードは100文字を超えるので必ずこれを踏む。
+    f.proc.stdin.write(code);
+    setTimeout(() => {
+      if (f.runId !== runId || !f.proc) return;
+      try { f.proc.stdin.write('\r'); } catch (e2) { /* 終了済みなら close 側で扱う */ }
+    }, SUBMIT_ENTER_DELAY_MS);
   } catch (e) {
     f.phase = 'waiting';
     f.error = `コードを送れませんでした: ${e.message}`;
@@ -792,10 +941,21 @@ function submitCode(slug, rawCode) {
 
   clearSubmitTimer(slug);
   f.submitTimer = setTimeout(() => {
-    if (f.phase !== 'submitting') return;
+    if (f.runId !== runId || f.phase !== 'submitting') return;
     f.phase = 'waiting';
-    f.error = `コードを送ってから ${Math.round(SUBMIT_TIMEOUT_MS / 1000)} 秒たっても応答がありません。もう一度お試しください。`;
+    f.error = `コードを送ってから ${Math.round(SUBMIT_TIMEOUT_MS / 1000)} 秒たっても CLI から応答がありません。`;
+    // 何が起きているか分からないまま終わらせない。画面の中身をログに出し、
+    // ネットワーク側かどうかも調べて画面に出す。
+    f.errorScreen = screenText(f.buffer);
+    logError(`[${accountLabel(slug)}] コード送信後に応答なし。CLI の画面:\n${f.errorScreen}`);
     broadcast();
+    checkReachability().then((result) => {
+      logError(`[${accountLabel(slug)}] 接続確認:\n${result}`);
+      if (f.phase === 'waiting') {
+        f.error = `${f.error}\n${result}`;
+        broadcast();
+      }
+    }).catch(() => {});
   }, SUBMIT_TIMEOUT_MS);
 
   armInactivity(slug);
@@ -806,18 +966,23 @@ function submitCode(slug, rawCode) {
 function cancelFlow(slug, message) {
   const f = getFlow(slug);
   const running = Boolean(f.proc);
+  // これ以降、このプロセスのイベントは受け取らない。
+  f.runId += 1;
   if (f.proc) f.proc.kill();
   if (f.timer) clearTimeout(f.timer);
   clearSubmitTimer(slug);
   f.proc = null;
   f.timer = null;
   f.buffer = '';
+  f.detectFrom = 0;
   f.url = '';
   f.phase = 'idle';
   f.error = '';
   f.urlRotated = false;
   f.retrySent = false;
   f.tokenSaved = false;
+  f.screen = '';
+  f.errorScreen = '';
   if (message) setNotice(slug, 'info', message);
   else if (running) setNotice(slug, 'info', '発行を中止しました。');
   broadcast();
@@ -837,6 +1002,7 @@ function finishFlow(slug, code) {
   const lastError = f.error;
   const saved = f.tokenSaved || Boolean(token);
   f.buffer = '';
+  f.detectFrom = 0;
   f.url = '';
   f.phase = 'idle';
   f.error = '';
@@ -936,6 +1102,7 @@ function computeViewState() {
           url: f.url || '',
           urlRotated: f.urlRotated,
           error: f.error || '',
+          screen: (f.error && f.errorScreen) || f.screen || '',
         },
         run: {
           running: r.running,
@@ -1035,6 +1202,13 @@ async function handlePost(reqPath, body) {
   switch (reqPath) {
     case '/api/notify/test':
       return sendTestNotification(account.slug);
+    case '/api/diagnose': {
+      const result = await checkReachability();
+      log(`[${account.name}] 接続確認:\n${result}`);
+      setNotice(account.slug, /到達できません/.test(result) ? 'error' : 'info', result);
+      broadcast();
+      return { ok: true };
+    }
     case '/api/token/start':
       return startFlow(account.slug);
     case '/api/token/submit':
