@@ -24,6 +24,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import KeyIcon from "@mui/icons-material/Key";
+import NetworkCheckIcon from "@mui/icons-material/NetworkCheck";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -73,6 +74,7 @@ export default function AccountCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dismissedNotice, setDismissedNotice] = useState(0);
+  const [screenOpen, setScreenOpen] = useState(false);
 
   const { flow, run } = account;
   // 通信中（pending）はどのボタンも押させない。
@@ -81,6 +83,11 @@ export default function AccountCard({
   // （フロー実行中というだけで全部止めると、コードを入れる欄まで無効になる）。
   const idleBusy = account.busy || pending !== null;
   const flowBusy = pending !== null || flow.phase !== "waiting";
+
+  // エラーが出たら CLI の画面を開いて見せる（畳んだままだと気付けない）。
+  useEffect(() => {
+    if (flow.error) setScreenOpen(true);
+  }, [flow.error]);
 
   // 認証 URL が発行し直されたら、手元のコードはもう通らないので消す。
   useEffect(() => {
@@ -167,7 +174,7 @@ export default function AccountCard({
         <Stack spacing={2}>
           {notice && (
             <Alert severity={notice.kind} onClose={() => setDismissedNotice(notice.id)}>
-              {notice.text}
+              <Box sx={{ whiteSpace: "pre-line" }}>{notice.text}</Box>
             </Alert>
           )}
 
@@ -176,7 +183,7 @@ export default function AccountCard({
               {flow.error && (
                 <Alert severity="error">
                   <AlertTitle>コードが通りませんでした</AlertTitle>
-                  {flow.error}
+                  <Box sx={{ whiteSpace: "pre-line" }}>{flow.error}</Box>
                   {flow.urlRotated && (
                     <Box sx={{ mt: 1 }}>
                       認証 URL が新しくなりました。<b>下の URL を開き直して、コードを取り直して</b>ください。
@@ -262,6 +269,40 @@ export default function AccountCard({
                     </Stack>
                   </Stack>
                 </Box>
+              )}
+
+              {flow.screen && (
+                <Accordion
+                  disableGutters
+                  elevation={0}
+                  expanded={screenOpen}
+                  onChange={(_, open) => setScreenOpen(open)}
+                  sx={{ bgcolor: "transparent" }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      CLI の画面（うまくいかないときの手がかり）
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ px: 0 }}>
+                    <Box
+                      component="pre"
+                      sx={{
+                        m: 0,
+                        p: 1,
+                        fontSize: "0.72rem",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                        bgcolor: "action.hover",
+                        borderRadius: 1,
+                        maxHeight: 240,
+                        overflow: "auto",
+                      }}
+                    >
+                      {flow.screen}
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
               )}
 
               <Box>
@@ -422,6 +463,16 @@ export default function AccountCard({
                 onClick={() => call("test", "/api/notify/test")}
               >
                 テスト通知を送る
+              </Button>
+              <Button
+                size="small"
+                variant="text"
+                startIcon={<NetworkCheckIcon />}
+                loading={pending === "diagnose"}
+                disabled={pending !== null}
+                onClick={() => call("diagnose", "/api/diagnose")}
+              >
+                接続を確認
               </Button>
             </Stack>
           </Stack>

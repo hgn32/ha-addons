@@ -28,6 +28,8 @@ export interface AccountView {
     url: string;
     urlRotated: boolean;
     error: string;
+    /** CLI の画面（診断用。トークンは伏せてある） */
+    screen: string;
   };
   run: {
     running: boolean;
