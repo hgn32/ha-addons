@@ -280,13 +280,24 @@ function looksLikeToken(s) {
   return /^sk-ant-[A-Za-z0-9_\-=]{20,}$/.test(String(s || '').trim());
 }
 
+// 取り出しに失敗して途中までのトークンを保存すると、毎朝の実行が 401 で
+// 失敗し続ける（画面上は「保存しました」に見えるので気付けない）。
+// 組み立て直した画面・エスケープを落としたもの・改行を畳んだものの
+// すべてから探し、一番長い一致を採る。
 function extractToken(text) {
-  const clean = stripAnsi(text);
-  const direct = clean.match(TOKEN_RE);
-  if (direct) return direct[0];
-  // 端末幅を広く取っているので通常は折り返されないが、念のため改行を畳んだ版でも探す。
-  const m = clean.replace(/[\r\n]+/g, '').match(TOKEN_RE);
-  return m ? m[0] : null;
+  const candidates = [];
+  const sources = [
+    renderScreen(text).join('\n'),
+    stripAnsi(text),
+    stripAnsi(text).replace(/[\r\n]+/g, ''),
+  ];
+  for (const src of sources) {
+    const m = src.match(TOKEN_RE);
+    if (m) candidates.push(m[0]);
+  }
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.length - a.length);
+  return candidates[0];
 }
 
 // claude CLI を起動するときの環境変数。長期トークンがあればそれを使う
@@ -828,7 +839,7 @@ function handleFlowOutput(slug, chunk) {
       if (token) {
         f.tokenSaved = true;
         saveToken(slug, token);
-        log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年）`);
+        log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年 / ${token.length} 文字）`);
         setNotice(slug, 'success', '長期トークンを保存しました（有効期間: 約1年）。動作確認のため1回だけ実行します。');
         // 普通は CLI が自分で終わる。終わらないときのために少しだけ待って止める。
         const runId = f.runId;
@@ -1012,7 +1023,7 @@ function finishFlow(slug, code) {
 
   if (token) {
     saveToken(slug, token);
-    log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年）`);
+    log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年 / ${token.length} 文字）`);
     setNotice(slug, 'success', '長期トークンを保存しました（有効期間: 約1年）。動作確認のため1回だけ実行します。');
   }
 
@@ -1040,7 +1051,7 @@ function saveTokenManually(slug, token) {
     return { ok: false, error: 'トークンの形式が違います。' };
   }
   saveToken(slug, value);
-  log(`[${accountLabel(slug)}] 貼り付けられた長期トークンを保存しました`);
+  log(`[${accountLabel(slug)}] 貼り付けられた長期トークンを保存しました（${value.length} 文字）`);
   setNotice(slug, 'success', '長期トークンを保存しました（有効期間: 約1年）。動作確認のため1回だけ実行します。');
   broadcast();
   const account = findAccount(slug);
@@ -1094,7 +1105,13 @@ function computeViewState() {
         slug: account.slug,
         name: account.name,
         scheduleTime: account.scheduleTime,
-        token: { present: Boolean(rec), daysLeft: rec ? tokenDaysLeft(rec) : null },
+        token: {
+          present: Boolean(rec),
+          daysLeft: rec ? tokenDaysLeft(rec) : null,
+          // 中身は出さない。途中で欠けたトークンを保存していないかを
+          // アカウント間で見比べるための文字数だけ。
+          length: rec ? rec.token.length : 0,
+        },
         busy: flowActive || r.running,
         flow: {
           active: flowActive,

@@ -333,6 +333,14 @@ export default function AccountCard({
                   </Alert>
                 )}
 
+              {account.token.present && (
+                <Typography variant="caption" color="text.secondary">
+                  保存されているトークン: {account.token.length} 文字
+                  （中身は表示しません。アカウント間で文字数が違う場合は、
+                  取り込みが途中で切れています）
+                </Typography>
+              )}
+
               <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
                 <Button
                   variant="contained"
