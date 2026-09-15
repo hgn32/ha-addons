@@ -280,24 +280,31 @@ function looksLikeToken(s) {
   return /^sk-ant-[A-Za-z0-9_\-=]{20,}$/.test(String(s || '').trim());
 }
 
-// 取り出しに失敗して途中までのトークンを保存すると、毎朝の実行が 401 で
-// 失敗し続ける（画面上は「保存しました」に見えるので気付けない）。
-// 組み立て直した画面・エスケープを落としたもの・改行を畳んだものの
-// すべてから探し、一番長い一致を採る。
+// トークンの取り出しは**行単位**で行う。
+// エスケープを落としただけの生テキストは、Ink が桁移動で描いた別の行の文字が
+// 同じ行に並ぶことがあり、貪欲な正規表現がトークンの直後の単語まで飲み込む
+// （実測: 直後の "Store this token securely." の "Store" が繋がって5文字長くなった）。
+// 途中まで/余分に付いたトークンを保存すると、毎朝の実行が 401 で失敗し続け、
+// しかも画面上は「保存しました」に見えるので気付けない。
+// CLI はトークンを単独行で表示するので、まず「行全体がトークンの行」を採る。
 function extractToken(text) {
-  const candidates = [];
-  const sources = [
-    renderScreen(text).join('\n'),
-    stripAnsi(text),
-    stripAnsi(text).replace(/[\r\n]+/g, ''),
-  ];
-  for (const src of sources) {
-    const m = src.match(TOKEN_RE);
-    if (m) candidates.push(m[0]);
+  const lines = renderScreen(text);
+  for (const line of lines) {
+    const t = line.trim();
+    const m = t.match(TOKEN_RE);
+    if (m && m[0] === t) return t;
   }
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => b.length - a.length);
-  return candidates[0];
+  // 単独行で見つからないとき（例: export CLAUDE_CODE_OAUTH_TOKEN=... の行）は
+  // その行の中の一致を採る。行をまたいで繋げることはしない。
+  for (const line of lines) {
+    const m = line.match(TOKEN_RE);
+    if (m) return m[0];
+  }
+  // ここまでで見つからなければ「取り出せなかった」とする。
+  // エスケープを落としただけの生テキストから拾うと、別の行の文字が繋がった
+  // 誤ったトークンを保存してしまう。間違ったものを保存するより、
+  // 取り出せなかったと伝えて手貼りに回ってもらう方が被害が小さい。
+  return null;
 }
 
 // claude CLI を起動するときの環境変数。長期トークンがあればそれを使う
@@ -835,7 +842,9 @@ function handleFlowOutput(slug, chunk) {
   //    待ってから拾う作りだと、CLI が終わらなかったときに取りこぼす。
   if (TOKEN_RE.test(view)) {
     if (!f.tokenSaved) {
-      const token = extractToken(view);
+      // 生のバッファを渡す。エスケープを落とした後のテキストを渡すと
+      // 画面の組み立て直しができず、隣の行の文字が繋がったまま保存される。
+      const token = extractToken(f.buffer);
       if (token) {
         f.tokenSaved = true;
         saveToken(slug, token);
