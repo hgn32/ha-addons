@@ -280,13 +280,31 @@ function looksLikeToken(s) {
   return /^sk-ant-[A-Za-z0-9_\-=]{20,}$/.test(String(s || '').trim());
 }
 
+// トークンの取り出しは**行単位**で行う。
+// エスケープを落としただけの生テキストは、Ink が桁移動で描いた別の行の文字が
+// 同じ行に並ぶことがあり、貪欲な正規表現がトークンの直後の単語まで飲み込む
+// （実測: 直後の "Store this token securely." の "Store" が繋がって5文字長くなった）。
+// 途中まで/余分に付いたトークンを保存すると、毎朝の実行が 401 で失敗し続け、
+// しかも画面上は「保存しました」に見えるので気付けない。
+// CLI はトークンを単独行で表示するので、まず「行全体がトークンの行」を採る。
 function extractToken(text) {
-  const clean = stripAnsi(text);
-  const direct = clean.match(TOKEN_RE);
-  if (direct) return direct[0];
-  // 端末幅を広く取っているので通常は折り返されないが、念のため改行を畳んだ版でも探す。
-  const m = clean.replace(/[\r\n]+/g, '').match(TOKEN_RE);
-  return m ? m[0] : null;
+  const lines = renderScreen(text);
+  for (const line of lines) {
+    const t = line.trim();
+    const m = t.match(TOKEN_RE);
+    if (m && m[0] === t) return t;
+  }
+  // 単独行で見つからないとき（例: export CLAUDE_CODE_OAUTH_TOKEN=... の行）は
+  // その行の中の一致を採る。行をまたいで繋げることはしない。
+  for (const line of lines) {
+    const m = line.match(TOKEN_RE);
+    if (m) return m[0];
+  }
+  // ここまでで見つからなければ「取り出せなかった」とする。
+  // エスケープを落としただけの生テキストから拾うと、別の行の文字が繋がった
+  // 誤ったトークンを保存してしまう。間違ったものを保存するより、
+  // 取り出せなかったと伝えて手貼りに回ってもらう方が被害が小さい。
+  return null;
 }
 
 // claude CLI を起動するときの環境変数。長期トークンがあればそれを使う
@@ -824,11 +842,13 @@ function handleFlowOutput(slug, chunk) {
   //    待ってから拾う作りだと、CLI が終わらなかったときに取りこぼす。
   if (TOKEN_RE.test(view)) {
     if (!f.tokenSaved) {
-      const token = extractToken(view);
+      // 生のバッファを渡す。エスケープを落とした後のテキストを渡すと
+      // 画面の組み立て直しができず、隣の行の文字が繋がったまま保存される。
+      const token = extractToken(f.buffer);
       if (token) {
         f.tokenSaved = true;
         saveToken(slug, token);
-        log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年）`);
+        log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年 / ${token.length} 文字）`);
         setNotice(slug, 'success', '長期トークンを保存しました（有効期間: 約1年）。動作確認のため1回だけ実行します。');
         // 普通は CLI が自分で終わる。終わらないときのために少しだけ待って止める。
         const runId = f.runId;
@@ -1012,7 +1032,7 @@ function finishFlow(slug, code) {
 
   if (token) {
     saveToken(slug, token);
-    log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年）`);
+    log(`[${accountLabel(slug)}] 長期トークンを保存しました（有効期間: 約1年 / ${token.length} 文字）`);
     setNotice(slug, 'success', '長期トークンを保存しました（有効期間: 約1年）。動作確認のため1回だけ実行します。');
   }
 
@@ -1040,7 +1060,7 @@ function saveTokenManually(slug, token) {
     return { ok: false, error: 'トークンの形式が違います。' };
   }
   saveToken(slug, value);
-  log(`[${accountLabel(slug)}] 貼り付けられた長期トークンを保存しました`);
+  log(`[${accountLabel(slug)}] 貼り付けられた長期トークンを保存しました（${value.length} 文字）`);
   setNotice(slug, 'success', '長期トークンを保存しました（有効期間: 約1年）。動作確認のため1回だけ実行します。');
   broadcast();
   const account = findAccount(slug);
@@ -1094,7 +1114,13 @@ function computeViewState() {
         slug: account.slug,
         name: account.name,
         scheduleTime: account.scheduleTime,
-        token: { present: Boolean(rec), daysLeft: rec ? tokenDaysLeft(rec) : null },
+        token: {
+          present: Boolean(rec),
+          daysLeft: rec ? tokenDaysLeft(rec) : null,
+          // 中身は出さない。途中で欠けたトークンを保存していないかを
+          // アカウント間で見比べるための文字数だけ。
+          length: rec ? rec.token.length : 0,
+        },
         busy: flowActive || r.running,
         flow: {
           active: flowActive,

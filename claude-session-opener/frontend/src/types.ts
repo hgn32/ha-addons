@@ -20,7 +20,7 @@ export interface AccountView {
   slug: string;
   name: string;
   scheduleTime: string;
-  token: { present: boolean; daysLeft: number | null };
+  token: { present: boolean; daysLeft: number | null; length: number };
   busy: boolean;
   flow: {
     active: boolean;
