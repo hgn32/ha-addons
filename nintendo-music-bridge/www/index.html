@@ -48,7 +48,7 @@
     <div style="font-weight:bold;margin-bottom:6px">お気に入り</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <input id="fname" placeholder="名前（HA から呼ぶときに使う）" style="flex:1;min-width:10em;padding:6px">
-      <input id="furl" placeholder="Nintendo Music / YouTube Music のプレイリストの URL" style="flex:2;min-width:16em;padding:6px">
+      <input id="furl" placeholder="Nintendo Music のゲーム・プレイリスト / YouTube Music のプレイリストの URL" style="flex:2;min-width:16em;padding:6px">
       <button id="fadd">追加</button>
       <button id="fcur" title="下の Chrome でいま開いているページを追加">いまの画面を追加</button>
     </div>
@@ -67,6 +67,11 @@ event_data:
       favorites を省くとお気に入りの全部を、<code>shuffle: true</code> を付けると順番を混ぜて再生します。
       止めるときは <code>event: web_music_player_stop</code> を発行します。
     </details>
+  </div>
+  <div style="margin-bottom:6px;display:flex;gap:6px;flex-wrap:wrap">
+    <button data-open="nm">Nintendo Music を開く</button>
+    <button data-open="ytm">YouTube Music を開く</button>
+    <span style="font-size:.8rem;opacity:.7;align-self:center">タブを閉じてしまっても、次の操作のときに自動で開き直します</span>
   </div>
   <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
   <details id="disc" style="margin:8px 0">
@@ -196,7 +201,10 @@ loadPlayers();
 
 // ---- お気に入り
 const flist = document.getElementById("flist");
-const SVC = {nm: "Nintendo Music", ytm: "YouTube Music"};
+const SVC = {nm: "Nintendo Music", ytm: "YouTube Music", unsupported: "⚠ 再生できない URL（削除して登録し直してください）"};
+document.querySelectorAll("button[data-open]").forEach(b => (b.onclick = async () => {
+  b.disabled = true; try { await api("bridge/open/" + b.dataset.open, {method: "POST"}); } finally { b.disabled = false; }
+}));
 async function loadFavs(list) {
   const fs = list || await api("bridge/favorites");
   const checked = new Set([...flist.querySelectorAll("input:checked")].map(c => c.value));

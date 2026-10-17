@@ -149,12 +149,37 @@ class Bridge:
         return {**simple_playlist(body), "tracks": [simple_track(t) for t in body.get("tracks", [])]}
 
     # ------------------------------------------------------------ CDP
-    async def _page_ws(self, session: aiohttp.ClientSession) -> str:
+    async def _pages(self, session: aiohttp.ClientSession) -> list[dict]:
         async with session.get(f"http://127.0.0.1:{CDP_PORT}/json/list") as r:
-            pages = [t for t in await r.json(content_type=None) if t.get("type") == "page"
-                     and not t.get("url", "").startswith(("chrome://", "devtools://"))]
+            return [t for t in await r.json(content_type=None) if t.get("type") == "page"
+                    and not t.get("url", "").startswith(("chrome://", "devtools://"))]
+
+    async def _new_tab(self, session: aiohttp.ClientSession, url: str) -> None:
+        """ブラウザ全体の CDP で新しいタブを開く（Target.createTarget）。
+        https://github.com/ChromeDevTools/devtools-protocol/blob/master/pdl/domains/Target.pdl"""
+        async with session.get(f"http://127.0.0.1:{CDP_PORT}/json/version") as r:
+            ws_url = (await r.json(content_type=None))["webSocketDebuggerUrl"]
+        async with session.ws_connect(ws_url, max_msg_size=0) as ws:
+            await ws.send_json({"id": 1, "method": "Target.createTarget", "params": {"url": url}})
+            async for msg in ws:
+                data = json.loads(msg.data)
+                if data.get("id") == 1:
+                    if "error" in data:
+                        raise RuntimeError(f"Target.createTarget: {data['error']}")
+                    return
+
+    async def _page_ws(self, session: aiohttp.ClientSession) -> str:
+        pages = await self._pages(session)
         if not pages:
-            raise RuntimeError("Chrome のタブが見つかりません")
+            # 画面でタブを閉じられたとき。Nintendo Music のトップを開き直す
+            self.log("Chrome のタブが無いため、Nintendo Music を開き直します")
+            await self._new_tab(session, f"{SITE}/{self.lang}/")
+            for _ in range(20):
+                await asyncio.sleep(0.5)
+                if pages := await self._pages(session):
+                    break
+            else:
+                raise RuntimeError("Chrome のタブを開けませんでした")
         # Nintendo Music / YouTube Music のタブを優先
         pages.sort(key=lambda t: not any(h in t.get("url", "") for h in ("music.nintendo.com", "music.youtube.com")))
         return pages[0]["webSocketDebuggerUrl"]
@@ -246,13 +271,49 @@ class Bridge:
             self.log(f"{url} の再生ボタン（{label}）を押しました")
             return await self._wait_playing()
 
+    async def open_site(self, service: str) -> dict:
+        """パネルの「開く」ボタン: いまのタブで Nintendo Music / YouTube Music のトップを開く。"""
+        url = {"nm": f"{SITE}/{self.lang}/", "ytm": "https://music.youtube.com/"}.get(service)
+        if url is None:
+            raise ValueError(f"不明なサービスです: {service}")
+        async with self.lock:
+            await self._cdp([("Page.navigate", {"url": url})])
+        return {"ok": True, "url": url}
+
     async def play_ytm(self, list_id: str) -> dict:
         """YouTube Music のプレイリストを再生する。watch?list= を開くと先頭の曲から自動で再生が始まる
-        （Chrome は --autoplay-policy=no-user-gesture-required で起動している）。"""
+        （Chrome は --autoplay-policy=no-user-gesture-required で起動している）。
+
+        実機で分かったこと:
+        - 開く直前まで別の曲が鳴っていると、開いた直後の状態確認がその曲を「再生が始まった」と
+          取り違える。URL がこのプレイリストの watch に変わり、曲が変わるまで待つ
+        - YouTube Music が自動で作るプレイリスト（RDCLAK5uy_...）は、watch?list= を開くと
+          playlist?list= の一覧ページに移され、再生が始まらない。そのときは一覧の先頭の曲の
+          リンク（watch?v=...&list=<同じID>）を開く
+        """
         async with self.lock:
+            before = await self.status()
             await self._cdp([("Page.navigate", {"url": f"https://music.youtube.com/watch?list={list_id}"})])
             self.log(f"YouTube Music のプレイリスト {list_id} を開きました")
-            return await self._wait_playing(timeout=30)
+            followed = False
+            deadline = time.monotonic() + 30
+            st: dict = {}
+            while time.monotonic() < deadline:
+                await asyncio.sleep(1)
+                st = await self.status()
+                url = st.get("url") or ""
+                if ("/watch" in url and f"list={list_id}" in url and st.get("paused") is False
+                        and (st.get("title") != before.get("title") or f"list={list_id}" not in (before.get("url") or ""))):
+                    return st
+                if "/playlist" in url and not followed:
+                    href = await self._eval(
+                        "(() => { const a = [...document.querySelectorAll('a[href*=\"watch?v=\"]')]"
+                        f".find(a => a.href.includes('list={list_id}')); return a ? a.href : null; }})()")
+                    if href:
+                        followed = True
+                        self.log(f"一覧ページに移されたため、先頭の曲を開きます（{href}）")
+                        await self._cdp([("Page.navigate", {"url": href})])
+            raise RuntimeError(f"再生が始まりませんでした（状態: {st}）")
 
     async def _media(self, action: str) -> None:
         """ページ内の <audio>/<video> を直接操作する（ボタンの作りに依存しない）。"""

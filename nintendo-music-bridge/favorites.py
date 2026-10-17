@@ -21,12 +21,40 @@ FAV_FILE = "/data/favorites.json"
 END_IDLE_SECONDS = 15
 
 
+# Nintendo Music で、開いてページ本体の再生ボタンを押せば流れるページ。
+# ルートは Web 版の JS のルート表（"/:lang/game/:gameId"、"/:lang/playlist/:playlistId" 等）で確認した。
+# ユーザープレイリスト（/:lang/user-playlist/...）は、再生ボタンで流れるかを実機で確かめていないので受け付けない
+NM_PAGES = ("game", "playlist")
+
+
+def normalize(url: str) -> str:
+    """共有リンクを、アプリで開ける URL に直す。
+
+    共有リンク https://music.nintendo.com/shared/<lang>/<国>/officialPlaylists/<ID> は
+    share.music.nintendo.com の紹介ページへ飛ぶだけで再生できない。紹介ページの中のリンクは
+    https://music.nintendo.com/<lang>/playlist/<ID>/ なので、そちらにする（実測）。
+    """
+    parts = urlsplit(url.strip())
+    host = (parts.hostname or "").lower()
+    seg = [s for s in parts.path.split("/") if s]
+    if host in ("music.nintendo.com", "share.music.nintendo.com"):
+        if host == "music.nintendo.com" and seg[:1] == ["shared"]:
+            seg = seg[1:]
+        if len(seg) == 4 and seg[2] == "officialPlaylists":
+            return f"https://music.nintendo.com/{seg[0]}/playlist/{seg[3]}/"
+    return url.strip()
+
+
 def detect(url: str) -> tuple[str, str]:
     """(サービス, 再生に使う値) を返す。対応していない URL なら ValueError。"""
     parts = urlsplit(url.strip())
     host = (parts.hostname or "").lower()
     if host == "music.nintendo.com":
-        return "nm", url.strip()
+        seg = [s for s in parts.path.split("/") if s]
+        if len(seg) == 3 and seg[1] in NM_PAGES:
+            return "nm", url.strip()
+        raise ValueError("Nintendo Music は、ゲームかプレイリストのページの URL を指定してください"
+                         "（例: https://music.nintendo.com/ja-JP/playlist/... 。共有リンクも使えます）")
     if host in ("music.youtube.com", "www.youtube.com", "youtube.com", "m.youtube.com"):
         lst = parse_qs(parts.query).get("list", [""])[0]
         if lst:
@@ -51,9 +79,17 @@ class Favorites:
         os.replace(tmp, FAV_FILE)
 
     def list(self) -> list[dict]:
-        return [{**it, "service": detect(it["url"])[0]} for it in self.items]
+        out = []
+        for it in self.items:
+            try:
+                service = detect(it["url"])[0]
+            except ValueError:
+                service = "unsupported"  # 以前の版で登録できた、いまは再生できない URL
+            out.append({**it, "service": service})
+        return out
 
     def add(self, name: str, url: str) -> dict:
+        url = normalize(url)
         detect(url)
         name = name.strip()
         if not name:

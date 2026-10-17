@@ -504,7 +504,8 @@ def main() -> None:
     # 一時停止・再開はスピーカーにも同時に指示する（再生セッション中のとき）
     app.router.add_post("/bridge/pause", bridge_handler(lambda r: session.pause()))
     app.router.add_post("/bridge/resume", bridge_handler(lambda r: session.resume()))
-    app.router.add_get("/bridge/favorites", bridge_handler(lambda r: asyncio.sleep(0, favs.list())))
+    app.router.add_post("/bridge/open/{service}", bridge_handler(lambda r: bridge.open_site(r.match_info["service"])))
+    app.router.add_get("/bridge/favorites",bridge_handler(lambda r: asyncio.sleep(0, favs.list())))
     app.router.add_post("/bridge/favorites", bridge_handler(b_fav_add))
     app.router.add_post("/bridge/favorites/current", bridge_handler(b_fav_current))
     app.router.add_post("/bridge/favorites/{id}/move", bridge_handler(b_fav_move))

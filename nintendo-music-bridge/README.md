@@ -20,8 +20,10 @@ HA のオートメーションから決まった時刻に決まったスピー�
 
 | サービス | 登録できる URL |
 |---|---|
-| Nintendo Music | `https://music.nintendo.com/...` のプレイリストのページ（ページを開いて再生ボタンを押す） |
+| Nintendo Music | ゲームのページ（`https://music.nintendo.com/ja-JP/game/...`）かプレイリストのページ（`.../ja-JP/playlist/...`）。共有リンク（`.../shared/.../officialPlaylists/...`）はプレイリストのページに直して登録します。ページを開いて再生ボタンを押します |
 | YouTube Music | `list=` を含む URL（例: `https://music.youtube.com/playlist?list=...`） |
+
+それ以外の URL（トップページ、Nintendo Music のユーザープレイリストなど）は登録できません。
 
 HA のオートメーションのアクション「イベントを発行」で、次のように発行すると順に再生します。
 
@@ -69,6 +71,7 @@ event_data:
 | `POST /bridge/play`（本文 `{"playlist_id": "<ID>", "index": 0}`） | プレイリストを再生（index 番目の曲から） |
 | `POST /bridge/pause` / `resume` / `next` / `previous` | 再生操作 |
 | `GET /bridge/players` | HA の media_player の一覧 |
+| `POST /bridge/open/nm` / `POST /bridge/open/ytm` | Chrome で Nintendo Music / YouTube Music のトップを開く |
 | `POST /bridge/cast`（本文 `{"entity_id": "media_player.xxx"}`） | そのスピーカーでストリームを再生させる |
 | `GET /bridge/favorites` / `POST /bridge/favorites`（`{"name", "url"}`） | お気に入りの一覧・追加 |
 | `POST /bridge/session/play`（`{"favorites": [名前...], "shuffle", "entity_id"}`。favorites を省くと全部） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
