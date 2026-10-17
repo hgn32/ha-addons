@@ -51,6 +51,10 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 [Music Assistant](https://www.music-assistant.io/) の YouTube Music 連携に必要なログイン Cookie を取得するアドオンです。HA のサイドバー（Ingress）に出るブラウザ画面で YouTube Music にログインし、「ログイン完了」を押すと Cookie を取り出して表示します。開発者ツールでの手作業コピーが不要になります。
 
+### [Nintendo Music Bridge](./nintendo-music-bridge)
+
+[Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Chrome で再生し、音声を VBAN で Music Assistant へ送るアドオンです（フェーズ0: 実現可否の確認用）。
+
 ## インストール方法
 
 1. Home Assistant の **設定 → アドオン → アドオンストア** を開く

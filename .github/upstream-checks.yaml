@@ -224,3 +224,10 @@ checks:
     kind: digest
     image: ghcr.io/home-assistant/amd64-base:latest
     note: Chromium / noVNC は Alpine のパッケージをビルド時に入れる。リビルドで新しくなる
+
+  - app: nintendo-music-bridge
+    id: ha-base
+    category: base
+    kind: digest
+    image: ghcr.io/home-assistant/amd64-base-debian:trixie
+    note: 公式 Chrome は Google の apt リポジトリから常に最新を入れる。リビルドで新しくなる
