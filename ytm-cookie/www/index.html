@@ -82,9 +82,11 @@ function render(s) {
     $("vnc").removeAttribute("src");
   }
   if (s.phase === "idle") {
-    msg.innerHTML = "<p>このアドオンの中のブラウザで YouTube Music にログインし、Music Assistant 用の Cookie を取り出します。" +
-      "使ったブラウザのデータは取り出した後に削除します。</p>";
+    msg.innerHTML = "<p>このアドオンの中のブラウザで YouTube Music にログインし、Music Assistant 用の Cookie を取り出します。</p>" +
+      (s.saved ? "<p>ログイン情報を保存しています。「開始」でログイン済みのブラウザが開くので、そのまま「ログイン完了」を押してください。</p>"
+               : "<p>ログイン情報はこのアドオン内に保存され、次回からはログインを省けます。</p>");
     buttons.append(btn("開始", "api/start", true));
+    if (s.saved) buttons.append(btn("保存したログイン情報を消す", "api/forget"));
   } else if (s.phase === "login") {
     msg.innerHTML = "<ol><li>下の画面で YouTube Music に Google アカウントでログインする</li>" +
       "<li>ライブラリなど、ログインが必要なページを開いて表示されることを確かめる</li>" +

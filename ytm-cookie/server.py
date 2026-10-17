@@ -2,7 +2,8 @@
 """Music Assistant の YouTube Music 用 Cookie を取得する Ingress サーバー。
 
 流れ（元にしたデスクトップ版スクリプトと同じ考え方）
-  1. 使い捨てプロファイルで Chromium を「普通に」起動する（デバッグポートなし）。
+  1. /data に置いたプロファイルで Chromium を「普通に」起動する（デバッグポートなし）。
+     ログイン状態はプロファイルに残るので、2回目以降はログイン済みで開く。
      画面は Xvfb 上に出し、x11vnc + noVNC で Ingress パネルに映す。
      ユーザーはそこで YouTube Music にログインし、「ログイン完了」を押す。
      リモートデバッグポート付きのブラウザは Google がログインを拒否することがあるため、
@@ -13,7 +14,7 @@
      music.youtube.com 宛てに送られる Cookie（httpOnly・パーティション分割 Cookie 含む）を読む。
      YouTube のページは開かないので、ここで Cookie がローテーションされることはない。
      https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-getCookies
-  3. 必須 Cookie を検証して画面に表示し、プロファイルを削除する。
+  3. 必須 Cookie を検証して画面に表示する。プロファイルは「ログイン情報を消す」で削除する。
 
 Cookie の値は秘密情報なので HA のログタブには出さない（件数と有無だけ出す）。
 """
@@ -26,7 +27,6 @@ import os
 import shutil
 import signal
 import socket
-import tempfile
 import time
 
 import aiohttp
@@ -39,6 +39,9 @@ VNC_PORT = 5900
 CHROMIUM = "/usr/bin/chromium-browser"
 NOVNC_DIR = "/usr/share/novnc"
 WWW_DIR = "/www"
+# ログイン状態を残すため、プロファイルはアドオンの永続領域 /data に置く。
+# 次回は「開始」でログイン済みのブラウザが開くので、そのまま「ログイン完了」を押せばよい
+PROFILE_DIR = "/data/chromium-profile"
 
 # MA 公式ドキュメントで必須とされる Cookie と、MA のソースでログイン判定に使われる Cookie
 REQUIRED = ("__Secure-3PAPISID", "LOGIN_INFO")
@@ -80,7 +83,6 @@ class State:
         self.found: dict[str, bool] = {}
         self.count = 0
         self.http_only = 0
-        self.profile: str | None = None
         self.browser: asyncio.subprocess.Process | None = None
         self.lock = asyncio.Lock()
 
@@ -187,8 +189,6 @@ def remove_profile(path: str | None) -> None:
 async def reset() -> None:
     await stop_browser(state.browser, timeout=5)
     state.browser = None
-    remove_profile(state.profile)
-    state.profile = None
     state.phase = "idle"
     state.message = ""
     state.cookie = ""
@@ -196,13 +196,30 @@ async def reset() -> None:
     state.count = state.http_only = 0
 
 
+def clear_singleton_lock() -> None:
+    """コンテナの再起動などで前回の Chromium のロックが残っていると起動を拒否されるため消す。
+    このアドオンで同じプロファイルを同時に開くことはない（state.lock で直列化している）。"""
+    for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+        try:
+            os.remove(os.path.join(PROFILE_DIR, name))
+        except FileNotFoundError:
+            pass
+
+
+async def forget_login() -> None:
+    await reset()
+    remove_profile(PROFILE_DIR)
+    log("保存していたログイン情報を削除しました")
+
+
 async def start_login() -> None:
     await reset()
     await ensure_display()
-    state.profile = tempfile.mkdtemp(prefix="ma-ytm-")
+    os.makedirs(PROFILE_DIR, exist_ok=True)
+    clear_singleton_lock()
     env = dict(os.environ, DISPLAY=DISPLAY)
     state.browser = await asyncio.create_subprocess_exec(
-        CHROMIUM, f"--user-data-dir={state.profile}", *COMMON_ARGS,
+        CHROMIUM, f"--user-data-dir={PROFILE_DIR}", *COMMON_ARGS,
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}", "--start-maximized",
         YTM_URL, env=env,
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
@@ -305,21 +322,18 @@ async def finish_login() -> None:
     if state.phase != "login":
         raise RuntimeError("ログイン中ではありません")
     state.phase = "extracting"
-    profile = state.profile
     try:
         if not await close_browser_windows(state.browser):
             log("ブラウザのウィンドウを閉じられなかったため強制終了します（直前の Cookie が失われている可能性があります）")
             await stop_browser(state.browser)
         state.browser = None
-        cookies = await extract_cookies(profile)
+        clear_singleton_lock()
+        cookies = await extract_cookies(PROFILE_DIR)
     except Exception as e:
         state.phase = "error"
         state.message = f"Cookie の読み出しに失敗しました: {e}"
         log(state.message)
         return
-    finally:
-        remove_profile(profile)
-        state.profile = None
 
     names = {c.get("name") for c in cookies}
     state.count = len(cookies)
@@ -349,6 +363,7 @@ def state_json() -> dict:
         "found": state.found,
         "count": state.count,
         "http_only": state.http_only,
+        "saved": os.path.isdir(os.path.join(PROFILE_DIR, "Default")),
     }
 
 
@@ -423,16 +438,13 @@ async def on_cleanup(_app: web.Application) -> None:
 
 
 def main() -> None:
-    # 前回の起動で残った使い捨てプロファイルを消す
-    for name in os.listdir(tempfile.gettempdir()):
-        if name.startswith("ma-ytm-"):
-            remove_profile(os.path.join(tempfile.gettempdir(), name))
     app = web.Application()
     app.router.add_get("/", index)
     app.router.add_get("/api/state", api_state)
     app.router.add_post("/api/start", action(start_login))
     app.router.add_post("/api/finish", action(finish_login))
     app.router.add_post("/api/reset", action(reset))
+    app.router.add_post("/api/forget", action(forget_login))
     app.router.add_get("/novnc/websockify", vnc_proxy)
     app.router.add_static("/novnc/", NOVNC_DIR)
     app.on_startup.append(on_startup)
