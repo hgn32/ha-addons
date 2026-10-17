@@ -28,7 +28,7 @@ main へマージする前に、このファイルは削除すること（作業
   `ha_call_write_tool` が使えなかった。新しいセッションでは使える見込み
 - `ha_manage_app`（slug `local_nintendo_music_bridge`）経由でアドオンの API を叩く
   - POST `/bridge/favorites` `{"name": "...", "url": "<YTM プレイリスト URL>"}`
-  - POST `/bridge/session/play` `{"items": ["<名前>"]}` ← entity_id を付けない（スピーカーに流さない）
+  - POST `/bridge/session/play` `{"favorites": ["<名前>"]}` ← entity_id を付けない（スピーカーに流さない）
   - GET `/bridge/status`、`/bridge/session` とアドオンのログで確認
 - **スピーカーに流す（entity_id を付ける）前に必ずユーザーに聞くこと**（家で音が鳴るため）
 
