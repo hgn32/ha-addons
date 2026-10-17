@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import os
+import socket
 import time
 
 import aiohttp
@@ -220,12 +221,32 @@ ALLOWED_NETS = [ipaddress.ip_network(n) for n in ("172.30.32.0/23", "127.0.0.0/8
 
 
 denied_logged: set[str | None] = set()
+_local_cache: dict[str, bool] = {}
+
+
+def is_this_host(ip: str) -> bool:
+    """接続元がこのホスト自身の IP か（host_network なのでホストのインターフェースが見える）。
+
+    ホスト上のプロセス（host_network の ha-mcp 等）が 172.30.32.1 宛てにつなぐと、送信元が
+    ホストの LAN 側 IP になる（実測: 192.168.100.210）。自分の IP にしか bind できないことで判定する。
+    LAN の他機器は TCP 接続でホストの IP を名乗れないので、これで LAN を許すことにはならない。
+    """
+    if ip not in _local_cache:
+        fam = socket.AF_INET6 if ":" in ip else socket.AF_INET
+        try:
+            with socket.socket(fam, socket.SOCK_STREAM) as sock:
+                sock.bind((ip, 0))
+            _local_cache[ip] = True
+        except OSError:
+            _local_cache[ip] = False
+    return _local_cache[ip]
 
 
 @web.middleware
 async def only_ingress(req: web.Request, handler):
     try:
-        allowed = any(ipaddress.ip_address(req.remote) in n for n in ALLOWED_NETS)
+        allowed = (any(ipaddress.ip_address(req.remote) in n for n in ALLOWED_NETS)
+                   or is_this_host(req.remote))
     except ValueError:
         allowed = False
     if not allowed:
