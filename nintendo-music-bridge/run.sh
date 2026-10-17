@@ -32,4 +32,8 @@ CONF
 
 bashio::log.info "VBAN 送信先: $(bashio::config 'vban_host'):$(bashio::config 'vban_port') ストリーム名: $(bashio::config 'vban_stream_name') / S16LE / $(bashio::config 'sample_rate')Hz / 2ch"
 
+# カタログ（検索・プレイリスト）の言語と国
+export NM_LANG="$(bashio::config 'lang')"
+export NM_COUNTRY="$(bashio::config 'country')"
+
 exec python3 -u /server.py

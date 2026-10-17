@@ -19,6 +19,7 @@ import time
 import aiohttp
 from aiohttp import web
 
+from bridge import Bridge
 from discover import CDP_PORT, Discoverer
 
 PORT = 8481
@@ -234,6 +235,24 @@ async def api_discover(req: web.Request) -> web.Response:
                               "report": discoverer.report()})
 
 
+bridge = Bridge(log, lang=os.environ.get("NM_LANG", "ja-JP"), country=os.environ.get("NM_COUNTRY", "JP"))
+
+
+def bridge_handler(fn):
+    async def handler(req: web.Request) -> web.Response:
+        try:
+            return web.json_response(await fn(req))
+        except Exception as e:
+            log(f"ブリッジ API {req.method} {req.path} でエラー: {e}")
+            return web.json_response({"error": str(e)}, status=500)
+    return handler
+
+
+async def b_play(req: web.Request):
+    body = await req.json()
+    return await bridge.play_playlist(body["playlist_id"], int(body.get("index", 0)))
+
+
 async def vnc_proxy(req: web.Request) -> web.StreamResponse:
     """noVNC の WebSocket を x11vnc の TCP に中継する（websockify の代わり）。"""
     ws = web.WebSocketResponse(protocols=("binary",), max_msg_size=0)
@@ -287,6 +306,17 @@ def main() -> None:
     app.router.add_get("/", index)
     app.router.add_get("/api/status", api_status)
     app.router.add_post("/api/discover/{action}", api_discover)
+    # ブリッジ API（Music Assistant のプロバイダ・HA のオートメーションから使う）
+    app.router.add_get("/bridge/search", bridge_handler(
+        lambda r: bridge.search(r.query["q"], r.query.get("type"), int(r.query.get("limit", 20)))))
+    app.router.add_get("/bridge/games", bridge_handler(lambda r: bridge.games()))
+    app.router.add_get("/bridge/games/{id}/playlists", bridge_handler(
+        lambda r: bridge.game_playlists(r.match_info["id"])))
+    app.router.add_get("/bridge/playlists/{id}", bridge_handler(lambda r: bridge.playlist(r.match_info["id"])))
+    app.router.add_get("/bridge/status", bridge_handler(lambda r: bridge.status()))
+    app.router.add_post("/bridge/play", bridge_handler(b_play))
+    app.router.add_post("/bridge/{action:pause|resume|next|previous}", bridge_handler(
+        lambda r: bridge.control(r.match_info["action"])))
     app.router.add_get("/novnc/websockify", vnc_proxy)
     app.router.add_static("/novnc/", NOVNC_DIR)
     app.on_startup.append(on_startup)

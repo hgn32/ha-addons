@@ -26,6 +26,33 @@ MA プロバイダ）はまだありません。Chrome の画面を操作して�
 4. 曲を再生する。画面上部の「音声出力」が「再生中（VBAN 送信中）」になる
 5. MA の Browse で VBAN Receiver のストリームを選び、スピーカーで再生する
 
+## ブリッジ API
+
+アドオンと同じホスト（HA 本体・Music Assistant）から `http://127.0.0.1:8481` で使えます。
+LAN の他の機器からは使えません。
+
+| メソッド・パス | 内容 |
+|---|---|
+| `GET /bridge/search?q=<語>&type=<GAME/TRACK/OFFICIAL_PLAYLIST>` | 検索（type は省略可） |
+| `GET /bridge/games` | ゲーム一覧（ハード別） |
+| `GET /bridge/games/<ゲームID>/playlists` | ゲームのプレイリスト一覧 |
+| `GET /bridge/playlists/<プレイリストID>` | プレイリストの曲一覧 |
+| `GET /bridge/status` | 再生中の曲名・ゲーム名・再生位置・一時停止中か |
+| `POST /bridge/play`（本文 `{"playlist_id": "<ID>", "index": 0}`） | プレイリストを再生（index 番目の曲から） |
+| `POST /bridge/pause` / `resume` / `next` / `previous` | 再生操作 |
+
+HA のオートメーションから再生するには、`configuration.yaml` に次を書き、
+`rest_command.nintendo_music_play` を呼んだあと、MA で VBAN Receiver のストリームを再生します。
+
+```yaml
+rest_command:
+  nintendo_music_play:
+    url: http://127.0.0.1:8481/bridge/play
+    method: post
+    content_type: application/json
+    payload: '{"playlist_id": "{{ playlist_id }}", "index": {{ index | default(0) }}}'
+```
+
 ## 調査モード
 
 Music Assistant から操作するためのブリッジ API を作る前の下調べ用です。画面上部の
