@@ -1,7 +1,7 @@
 #!/usr/bin/with-contenv bashio
 set -e
 
-bashio::log.info "Nintendo Music Bridge 起動"
+bashio::log.info "Web Music Player 起動"
 
 export XDG_RUNTIME_DIR=/run/user/0
 mkdir -p "${XDG_RUNTIME_DIR}" /etc/pipewire/pipewire.conf.d

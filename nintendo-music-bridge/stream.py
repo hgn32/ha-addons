@@ -63,7 +63,7 @@ class Streamer:
         resp = web.StreamResponse(headers={
             "Content-Type": "audio/mpeg",
             "Cache-Control": "no-cache, no-store",
-            "icy-name": "Nintendo Music Bridge",
+            "icy-name": "Web Music Player",
         })
         await resp.prepare(req)
         if req.method == "HEAD":

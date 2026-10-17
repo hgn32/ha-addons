@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nintendo Music Bridge（フェーズ0）。
+"""Web Music Player（旧 Nintendo Music Bridge）。
 
 Xvfb 上で公式 Chrome を常駐させ、画面を noVNC で Ingress に出す。
 Chrome の音声は PipeWire の VBAN 送信シンク（vban-sender-ma）へ出し、

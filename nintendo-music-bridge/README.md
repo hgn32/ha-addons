@@ -1,4 +1,4 @@
-# Nintendo Music Bridge
+# Web Music Player
 
 [Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Google Chrome で再生し、
 Google Cast 対応のスピーカー（HA の `media_player`）へ流すアドオンです。
@@ -6,7 +6,7 @@ YouTube Music への対応を進めています（いまは調査モードのみ
 
 ## 使い方
 
-1. アドオンを起動し、サイドバーの **Nintendo Music** を開く
+1. アドオンを起動し、サイドバーの **Web Music Player** を開く
 2. 初回だけ、画面下の Chrome で Nintendo Music に任天堂アカウントでログインする
    （ログイン状態はアドオン内に保存され、再起動後も残ります）
 3. 上の検索欄から ゲーム → プレイリスト → 曲 と選び、「再生」「ここから再生」を押す
