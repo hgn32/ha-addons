@@ -1,4 +1,7 @@
 configuration:
+  vban_enabled:
+    name: Also send to Music Assistant over VBAN
+    description: When on, audio is also sent to the Music Assistant VBAN Receiver using the VBAN settings below. Not needed for casting to speakers.
   vban_host:
     name: VBAN destination host
     description: Host running Music Assistant. Keep 127.0.0.1 when it runs on this Home Assistant.

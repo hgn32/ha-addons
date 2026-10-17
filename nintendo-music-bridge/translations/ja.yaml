@@ -1,4 +1,7 @@
 configuration:
+  vban_enabled:
+    name: VBAN で Music Assistant にも送る
+    description: オンにすると、音声を VBAN で Music Assistant の VBAN Receiver へも送ります（以下の VBAN の設定を使います）。スピーカーへ Cast で流すだけならオフのままでかまいません。
   vban_host:
     name: VBAN の送信先
     description: Music Assistant が動いているホスト。同じ HA 上なら 127.0.0.1 のままでかまいません。

@@ -21,6 +21,8 @@ import aiohttp
 
 CDP_PORT = 9222
 API_HOST = "api.m.nintendo.com"
+# YouTube Music の Web 版が呼ぶ API（music.youtube.com/youtubei/v1/...）
+YTM_HOST = "music.youtube.com"
 SECRET_HINTS = ("token", "auth", "key", "secret", "session", "license", "sig")
 MAX_ENTRIES = 300
 
@@ -112,9 +114,9 @@ class Discoverer:
     async def _page_ws(self, session: aiohttp.ClientSession) -> str:
         async with session.get(f"http://127.0.0.1:{CDP_PORT}/json/list") as r:
             pages = [t for t in await r.json(content_type=None)
-                     if t.get("type") == "page" and "music.nintendo.com" in t.get("url", "")]
+                     if t.get("type") == "page" and ("music.nintendo.com" in t.get("url", "") or "music.youtube.com" in t.get("url", ""))]
         if not pages:
-            raise RuntimeError("music.nintendo.com のタブが見つかりません")
+            raise RuntimeError("Nintendo Music / YouTube Music のタブが見つかりません")
         return pages[0]["webSocketDebuggerUrl"]
 
     async def _run(self) -> None:
@@ -164,13 +166,15 @@ class Discoverer:
                 method, p = data.get("method"), data.get("params", {})
                 if method == "Network.requestWillBeSent":
                     url = p["request"]["url"]
-                    if urlsplit(url).hostname == API_HOST:
+                    host = urlsplit(url).hostname
+                    if host == API_HOST or (host == YTM_HOST and "/youtubei/" in url):
                         info = {"method": p["request"]["method"], **redact_query(url)}
                         requests[p["requestId"]] = info
                         self.add("request", info)
                 elif method == "Network.loadingFinished":
                     info = requests.pop(p["requestId"], None)
-                    if info and info["path"].startswith("/catalog/") and info["method"] == "GET":
+                    if info and (info["path"].startswith("/catalog/") and info["method"] == "GET"
+                                 or info["path"].startswith("/youtubei/")):
                         asyncio.create_task(fetch_body(p["requestId"], info))
                 elif method == "Page.frameNavigated" and not p["frame"].get("parentId"):
                     self.add("navigate", {"url": p["frame"]["url"]})

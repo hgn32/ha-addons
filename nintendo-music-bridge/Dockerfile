@@ -17,11 +17,11 @@ RUN apt-get update \
        google-chrome-stable \
        xvfb x11vnc novnc xdotool \
        pipewire pipewire-pulse wireplumber libpipewire-0.3-modules pulseaudio-utils dbus \
-       python3-aiohttp fonts-noto-cjk \
+       python3-aiohttp fonts-noto-cjk ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY run.sh /run.sh
-COPY server.py discover.py bridge.py /
+COPY server.py discover.py bridge.py stream.py /
 COPY www/ /www/
 RUN chmod +x /run.sh
 

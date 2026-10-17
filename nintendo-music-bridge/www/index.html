@@ -32,6 +32,11 @@
       <select id="stype"><option value="">すべて</option><option value="GAME">ゲーム</option><option value="OFFICIAL_PLAYLIST">プレイリスト</option><option value="TRACK">曲</option></select>
       <button>検索</button>
     </form>
+    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <label for="spk" style="font-size:.9rem">スピーカー</label>
+      <select id="spk" style="padding:4px;max-width:20em"><option value="">（読み込み中）</option></select>
+      <button id="cast">スピーカーで再生</button>
+    </div>
     <div style="margin-top:8px">
       <button data-c="previous" title="前の曲">⏮</button><button data-c="pause" title="一時停止">⏸</button><button data-c="resume" title="再開">▶</button><button data-c="next" title="次の曲">⏭</button>
       <span id="now"></span>
@@ -142,6 +147,28 @@ async function pollNow() {
   } catch {}
 }
 setInterval(pollNow, 3000); pollNow();
+
+// ---- スピーカー（HA の media_player）への出力
+const spk = document.getElementById("spk");
+async function loadPlayers() {
+  try {
+    const ps = await api("bridge/players");
+    const saved = (() => { try { return localStorage.getItem("spk") || ""; } catch { return ""; } })();
+    spk.replaceChildren(...ps.map(p => { const o = document.createElement("option"); o.value = p.entity_id;
+      o.textContent = p.name + "（" + p.entity_id + "）"; return o; }));
+    if (saved && ps.some(p => p.entity_id === saved)) spk.value = saved;
+  } catch { spk.replaceChildren(new Option("（取得できませんでした）", "")); }
+}
+spk.onchange = () => { try { localStorage.setItem("spk", spk.value); } catch {} };
+document.getElementById("cast").onclick = async (e) => {
+  if (!spk.value) return;
+  e.target.disabled = true;
+  try {
+    await api("bridge/cast", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({entity_id: spk.value})});
+    msg2.className = ""; msg2.textContent = spk.options[spk.selectedIndex].text + " で再生を始めました";
+  } catch {} finally { e.target.disabled = false; setTimeout(() => { msg2.className = "ng"; }, 0); }
+};
+loadPlayers();
 
 document.querySelectorAll("#disc button[data-a]").forEach(b => (b.onclick = () => disc(b.dataset.a)));
 document.getElementById("copy").onclick = async () => {

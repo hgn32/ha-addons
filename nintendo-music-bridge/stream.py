@@ -1,0 +1,127 @@
+"""スピーカーへの出力: Chrome の音を MP3 のストリームにして、HA の Cast 連携でスピーカーに再生させる。
+
+- ストリーム: PipeWire の出力シンクのモニターを parec で読み、ffmpeg で MP3 にして HTTP で流す
+  （インターネットラジオと同じ形。スピーカーが自分で取りに来る）
+- スピーカーは LAN 側から取りに来るので、/stream/<トークン>/ だけは LAN からも受け付ける。
+  トークンは推測できない乱数で、/data に保存して再起動後も同じ URL にする
+- 再生の指示は HA の media_player.play_media を Supervisor 経由の Core API で呼ぶ
+  https://contributors.home-assistant.io/apps/guides/communication/
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import secrets
+import socket
+
+import aiohttp
+from aiohttp import web
+
+TOKEN_FILE = "/data/stream_token"
+CORE_API = "http://supervisor/core/api"
+
+
+def stream_token() -> str:
+    try:
+        with open(TOKEN_FILE) as f:
+            tok = f.read().strip()
+        if tok:
+            return tok
+    except OSError:
+        pass
+    tok = secrets.token_hex(16)
+    with open(TOKEN_FILE, "w") as f:
+        f.write(tok)
+    return tok
+
+
+def lan_ip() -> str:
+    """このホストの LAN 側 IP（スピーカーが取りに来る宛先）。既定経路の送信元アドレスを使う。"""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        # UDP の connect はパケットを送らない。経路の決定だけに使う
+        s.connect(("192.0.2.1", 9))
+        return s.getsockname()[0]
+
+
+class Streamer:
+    def __init__(self, log, env: dict, sink: str, rate: int, port: int) -> None:
+        self.log = log
+        self.env = env
+        self.sink = sink
+        self.rate = rate
+        self.port = port
+        self.token = stream_token()
+        self.clients = 0
+
+    def url(self) -> str:
+        return f"http://{lan_ip()}:{self.port}/stream/{self.token}/live.mp3"
+
+    async def handle(self, req: web.Request) -> web.StreamResponse:
+        if req.match_info.get("token") != self.token:
+            raise web.HTTPNotFound()
+        resp = web.StreamResponse(headers={
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "no-cache, no-store",
+            "icy-name": "Nintendo Music Bridge",
+        })
+        await resp.prepare(req)
+        if req.method == "HEAD":
+            return resp
+        # parec（出力シンクのモニター）→ ffmpeg（MP3）を1本のパイプでつなぐ
+        cmd = (f"parec -d {self.sink}.monitor --raw --format=s16le --rate={self.rate} --channels=2 "
+               f"--latency-msec=50 | ffmpeg -hide_banner -loglevel error -f s16le -ar {self.rate} -ac 2 "
+               f"-i pipe:0 -c:a libmp3lame -b:a 256k -f mp3 pipe:1")
+        proc = await asyncio.create_subprocess_shell(
+            cmd, env=self.env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            start_new_session=True)
+        self.clients += 1
+        self.log(f"スピーカーへの出力を開始しました（接続元 {req.remote}、接続中 {self.clients}）")
+        try:
+            while chunk := await proc.stdout.read(16384):
+                await resp.write(chunk)
+        except (ConnectionResetError, asyncio.CancelledError):
+            pass
+        finally:
+            self.clients -= 1
+            try:
+                os.killpg(proc.pid, 15)
+            except ProcessLookupError:
+                pass
+            err = (await proc.stderr.read()).decode(errors="replace").strip()
+            await proc.wait()
+            self.log(f"スピーカーへの出力を終了しました（接続元 {req.remote}）" + (f": {err[-300:]}" if err else ""))
+        return resp
+
+
+class HomeAssistant:
+    """Supervisor 経由で HA Core の REST API を呼ぶ（config の homeassistant_api: true が必要）。"""
+
+    def __init__(self) -> None:
+        self.token = os.environ.get("SUPERVISOR_TOKEN", "")
+        self.base = os.environ.get("NM_CORE_API", CORE_API)
+
+    async def _req(self, method: str, path: str, json=None):
+        if not self.token:
+            raise RuntimeError("HA の API を使えません（SUPERVISOR_TOKEN がありません）")
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as s:
+            async with s.request(method, f"{self.base}{path}", json=json,
+                                 headers={"Authorization": f"Bearer {self.token}"}) as r:
+                if r.status >= 400:
+                    raise RuntimeError(f"HA の API {path} が {r.status} を返しました: {(await r.text())[:200]}")
+                return await r.json(content_type=None)
+
+    async def players(self) -> list[dict]:
+        states = await self._req("GET", "/states")
+        return sorted(({"entity_id": s["entity_id"],
+                        "name": s.get("attributes", {}).get("friendly_name") or s["entity_id"],
+                        "state": s.get("state")}
+                       for s in states if s["entity_id"].startswith("media_player.")),
+                      key=lambda p: p["name"])
+
+    async def play_url(self, entity_id: str, url: str) -> None:
+        await self._req("POST", "/services/media_player/play_media", json={
+            "entity_id": entity_id,
+            "media_content_id": url,
+            "media_content_type": "music",
+        })

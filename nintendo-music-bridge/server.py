@@ -23,6 +23,7 @@ from aiohttp import web
 
 from bridge import Bridge
 from discover import CDP_PORT, Discoverer
+from stream import HomeAssistant, Streamer
 
 PORT = 8481
 # host_network なので、ホストの他のサービスとぶつかりにくい番号にする
@@ -31,7 +32,7 @@ SCREEN_W, SCREEN_H = 1280, 800
 VNC_PORT = 5911
 CHROME = "/usr/bin/google-chrome-stable"
 PROFILE_DIR = "/data/chrome-profile"
-SINK = "vban-sender-ma"
+SINK = "player-out"
 NOVNC_DIR = "/usr/share/novnc"
 WWW_DIR = "/www"
 
@@ -256,6 +257,9 @@ async def only_ingress(req: web.Request, handler):
                    or is_this_host(req.remote))
     except ValueError:
         allowed = False
+    # スピーカー（Cast）は LAN 側から音声ストリームを取りに来る。URL のトークンは stream.py で確認する
+    if not allowed and req.path.startswith("/stream/"):
+        allowed = True
     if not allowed:
         if req.remote not in denied_logged:
             denied_logged.add(req.remote)
@@ -316,6 +320,18 @@ def bridge_handler(fn):
 async def b_play(req: web.Request):
     body = await req.json()
     return await bridge.play_playlist(body["playlist_id"], int(body.get("index", 0)))
+
+
+streamer = Streamer(log, ENV, SINK, int(os.environ.get("NM_RATE", "48000")), PORT)
+ha = HomeAssistant()
+
+
+async def b_cast(req: web.Request):
+    body = await req.json()
+    url = streamer.url()
+    await ha.play_url(body["entity_id"], url)
+    log(f"{body['entity_id']} にストリームの再生を指示しました")
+    return {"ok": True, "url": url}
 
 
 async def vnc_proxy(req: web.Request) -> web.StreamResponse:
@@ -419,6 +435,10 @@ def main() -> None:
     app.router.add_post("/bridge/play", bridge_handler(b_play))
     app.router.add_post("/bridge/{action:pause|resume|next|previous}", bridge_handler(
         lambda r: bridge.control(r.match_info["action"])))
+    app.router.add_get("/bridge/players", bridge_handler(lambda r: ha.players()))
+    app.router.add_post("/bridge/cast", bridge_handler(b_cast))
+    # スピーカーが取りに来る音声ストリーム（LAN から受け付ける）
+    app.router.add_route("GET", "/stream/{token}/live.mp3", streamer.handle)
     app.router.add_get("/novnc/websockify", vnc_proxy)
     app.router.add_static("/novnc/", NOVNC_DIR)
     app.on_startup.append(on_startup)

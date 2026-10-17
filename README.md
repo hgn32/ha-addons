@@ -53,7 +53,7 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 ### [Nintendo Music Bridge](./nintendo-music-bridge)
 
-[Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Chrome で再生し、音声を VBAN で Music Assistant へ送るアドオンです（フェーズ0: 実現可否の確認用）。
+[Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Chrome で再生し、Google Cast 対応のスピーカー（HA の media_player）へ流すアドオンです。YouTube Music への対応を進めています。
 
 ## インストール方法
 

@@ -1,7 +1,7 @@
 {
   "name": "Nintendo Music Bridge",
-  "description": "Nintendo Music の Web 版を公式 Chrome で再生し、音声を VBAN で Music Assistant へ送るアドオン（フェーズ0: 実現可否の確認用）",
-  "version": "0.4.4",
+  "description": "Nintendo Music / YouTube Music を公式 Chrome で再生し、Cast 対応スピーカーへ流すアドオン",
+  "version": "0.5.0",
   "slug": "nintendo_music_bridge",
   "url": "https://github.com/hgn32/ha-addons",
   "init": false,
@@ -16,20 +16,23 @@
   "panel_icon": "mdi:music-circle",
   "panel_title": "Nintendo Music",
   "options": {
+    "lang": "ja-JP",
+    "country": "JP",
+    "vban_enabled": false,
     "vban_host": "127.0.0.1",
     "vban_port": 6980,
     "vban_stream_name": "NintendoMusic",
-    "sample_rate": 48000,
-    "lang": "ja-JP",
-    "country": "JP"
+    "sample_rate": 48000
   },
   "schema": {
+    "lang": "list(ja-JP|en-US)",
+    "country": "match(^[A-Z]{2}$)",
+    "vban_enabled": "bool",
     "vban_host": "str",
     "vban_port": "port",
     "vban_stream_name": "match(^[A-Za-z0-9]{1,16}$)",
-    "sample_rate": "list(44100|48000)",
-    "lang": "list(ja-JP|en-US)",
-    "country": "match(^[A-Z]{2}$)"
+    "sample_rate": "list(44100|48000)"
   },
-  "image": "ghcr.io/hgn32/nintendo-music-bridge"
+  "image": "ghcr.io/hgn32/nintendo-music-bridge",
+  "homeassistant_api": true
 }
