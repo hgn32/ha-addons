@@ -169,7 +169,9 @@ async def watch_chrome() -> None:
 # ---------------------------------------------------------------- HTTP
 # host_network なので 0.0.0.0 で待つと LAN からも見える。Ingress の中継元
 # （Supervisor: 172.30.32.2）とホスト自身以外は断る
-# https://developers.home-assistant.io/docs/apps/presentation#ingress
+# 「172.30.32.2 以外は拒否すること」は HA 開発者ドキュメントのアドオン Ingress 節の要件
+# https://git.sudo.is/home-assistant/developers.home-assistant/src/branch/children/docs/add-ons/presentation.md
+# 同じ穴（Ingress 用の画面が LAN から認証なしで見えた）: https://securelayer7.net/lab/cve-2026-59177-esphome-device-builder-unauthenticated-ingress-lan-access
 ALLOWED_PEERS = {"172.30.32.2", "127.0.0.1", "::1"}
 
 
