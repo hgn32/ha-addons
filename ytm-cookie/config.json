@@ -1,0 +1,20 @@
+{
+  "name": "YouTube Music Cookie",
+  "description": "Music Assistant の YouTube Music 用ログイン Cookie を、HA の画面内のブラウザでログインして取得するアドオン",
+  "version": "0.1.0",
+  "slug": "ytm_cookie",
+  "url": "https://github.com/hgn32/ha-addons",
+  "init": false,
+  "arch": [
+    "amd64"
+  ],
+  "startup": "application",
+  "boot": "manual",
+  "ingress": true,
+  "ingress_port": 8099,
+  "panel_icon": "mdi:cookie",
+  "panel_title": "YTM Cookie",
+  "options": {},
+  "schema": {},
+  "image": "ghcr.io/hgn32/ytm-cookie"
+}

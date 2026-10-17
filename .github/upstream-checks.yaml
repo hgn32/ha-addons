@@ -217,3 +217,10 @@ checks:
     pin:
       file: stock-manager/Dockerfile
       regex: 'npm install -g npm@(\S+)'
+
+  - app: ytm-cookie
+    id: ha-base
+    category: base
+    kind: digest
+    image: ghcr.io/home-assistant/amd64-base:latest
+    note: Chromium / noVNC は Alpine のパッケージをビルド時に入れる。リビルドで新しくなる

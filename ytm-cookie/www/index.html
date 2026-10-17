@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube Music Cookie</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fafafa; --fg:#212121; --card:#fff; --border:#ddd; --accent:#03a9f4; --ok:#2e7d32; --ng:#c62828; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111; --fg:#e1e1e1; --card:#1c1c1c; --border:#333; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, sans-serif; }
+  main { max-width:1320px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+  h1 { font-size:1.3rem; margin:0 0 8px; }
+  ol { margin:8px 0; padding-left:1.4em; }
+  button { font-size:1rem; padding:8px 16px; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--fg); cursor:pointer; margin-right:8px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  iframe { width:100%; aspect-ratio:1280/800; border:1px solid var(--border); border-radius:6px; background:#000; }
+  textarea { width:100%; box-sizing:border-box; height:8em; font-family:monospace; font-size:.85rem; }
+  .ok { color:var(--ok); } .ng { color:var(--ng); }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>YouTube Music Cookie 取得（Music Assistant 用）</h1>
+    <div id="msg"></div>
+    <div id="buttons" style="margin-top:12px"></div>
+  </div>
+  <div class="card hidden" id="screen">
+    <iframe id="vnc" title="ブラウザ画面"></iframe>
+    <p style="font-size:.9rem;margin:8px 0 0">貼り付けがうまくいかないときは、画面左端のタブを開き、「クリップボード」欄に貼ってから画面上で Ctrl+V を押してください。</p>
+  </div>
+  <div class="card hidden" id="result">
+    <div id="summary"></div>
+    <textarea id="cookie" readonly></textarea>
+    <div style="margin-top:8px"><button id="copy" class="primary">コピー</button><span id="copied"></span></div>
+    <p>Music Assistant の YouTube Music 設定の「Login Cookie」に貼り付けてください。<br>
+    Username には Gmail アドレス（ブランドアカウントなら 21 桁の ID）を入力します。<br>
+    この Cookie はパスワードと同じ扱いです。他人に見せないでください。</p>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let busy = false;
+let current = null;
+
+async function post(path) {
+  busy = true; render(current);
+  try {
+    const r = await fetch(path, { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) alert(j.error || "エラーが発生しました");
+    else current = j;
+  } catch (e) {
+    alert("通信に失敗しました: " + e);
+  } finally {
+    busy = false; render(current);
+  }
+}
+
+function btn(label, path, primary) {
+  const b = document.createElement("button");
+  b.textContent = label;
+  if (primary) b.className = "primary";
+  b.disabled = busy;
+  b.onclick = () => post(path);
+  return b;
+}
+
+function render(s) {
+  if (!s) return;
+  const msg = $("msg"), buttons = $("buttons");
+  buttons.replaceChildren();
+  $("screen").classList.toggle("hidden", s.phase !== "login");
+  $("result").classList.toggle("hidden", s.phase !== "done");
+  if (s.phase === "login") {
+    if (!$("vnc").getAttribute("src"))
+      $("vnc").src = "novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify";
+  } else if ($("vnc").getAttribute("src")) {
+    $("vnc").removeAttribute("src");
+  }
+  if (s.phase === "idle") {
+    msg.innerHTML = "<p>このアドオンの中のブラウザで YouTube Music にログインし、Music Assistant 用の Cookie を取り出します。" +
+      "使ったブラウザのデータは取り出した後に削除します。</p>";
+    buttons.append(btn("開始", "api/start", true));
+  } else if (s.phase === "login") {
+    msg.innerHTML = "<ol><li>下の画面で YouTube Music に Google アカウントでログインする</li>" +
+      "<li>ライブラリなど、ログインが必要なページを開いて表示されることを確かめる</li>" +
+      "<li>「ログイン完了」を押す（ログアウトはしない）</li></ol>";
+    buttons.append(btn("ログイン完了", "api/finish", true), btn("やめる", "api/reset"));
+  } else if (s.phase === "extracting") {
+    msg.textContent = "Cookie を読み出しています…";
+  } else if (s.phase === "done") {
+    msg.innerHTML = '<p class="ok">取得しました。</p>';
+    $("summary").innerHTML = `<p>取得した Cookie 数: ${s.count}（うち httpOnly ${s.http_only}）<br>` +
+      Object.entries(s.found).map(([k, v]) => `${k}: ${v ? "あり" : "なし"}`).join("<br>") + "</p>";
+    if ($("cookie").value !== s.cookie) $("cookie").value = s.cookie;
+    buttons.append(btn("消去して最初に戻る", "api/reset"));
+  } else {
+    const p = document.createElement("p");
+    p.className = "ng";
+    p.textContent = s.message;
+    msg.replaceChildren(p);
+    buttons.append(btn("最初に戻る", "api/reset", true));
+  }
+}
+
+$("copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($("cookie").value);
+  } catch {
+    $("cookie").select();
+    document.execCommand("copy");
+  }
+  $("copied").textContent = " コピーしました";
+  setTimeout(() => ($("copied").textContent = ""), 2000);
+};
+
+async function poll() {
+  if (!busy) {
+    try {
+      const r = await fetch("api/state", { cache: "no-store" });
+      current = await r.json();
+      render(current);
+    } catch {}
+  }
+  setTimeout(poll, 2000);
+}
+poll();
+</script>
+</body>
+</html>

@@ -47,6 +47,10 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 常時表示型の地震速報パネルです。[強震モニタ](https://www.kmoni.bosai.go.jp/)のリアルタイム震度マップを常に表示し、緊急地震速報・地震情報・津波予報を受けると音と画面明滅で知らせます。サイドバー（Ingress）のほか、Raspberry Pi などのキオスク端末から直接開くこともできます。アプリ本体は [hgn32/quake-panel](https://github.com/hgn32/quake-panel) にあります。
 
+### [YouTube Music Cookie](./ytm-cookie)
+
+[Music Assistant](https://www.music-assistant.io/) の YouTube Music 連携に必要なログイン Cookie を取得するアドオンです。HA のサイドバー（Ingress）に出るブラウザ画面で YouTube Music にログインし、「ログイン完了」を押すと Cookie を取り出して表示します。開発者ツールでの手作業コピーが不要になります。
+
 ## インストール方法
 
 1. Home Assistant の **設定 → アドオン → アドオンストア** を開く
