@@ -35,5 +35,6 @@ bashio::log.info "VBAN 送信先: $(bashio::config 'vban_host'):$(bashio::config
 # カタログ（検索・プレイリスト）の言語と国
 export NM_LANG="$(bashio::config 'lang')"
 export NM_COUNTRY="$(bashio::config 'country')"
+export NM_RATE="$(bashio::config 'sample_rate')"
 
 exec python3 -u /server.py

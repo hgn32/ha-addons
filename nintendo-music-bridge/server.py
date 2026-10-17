@@ -268,6 +268,7 @@ async def api_status(_req: web.Request) -> web.Response:
     return web.json_response({
         "chrome": chrome is not None and chrome.returncode is None,
         "sink": sink_state,  # RUNNING なら音が VBAN で出ている
+        "send_rate": rate_stats,
     })
 
 
@@ -345,14 +346,51 @@ async def index(_req: web.Request) -> web.FileResponse:
                             headers={"Cache-Control": "no-store"})
 
 
+rate_stats: dict = {}
+
+
+async def measure_rate() -> None:
+    """VBAN 送信シンクに流れている音のサンプル数を数え、1分ごとに実際のレートをログに出す。
+
+    MA の VBAN Receiver は設定したレート（48000）で消費するので、送る側がそれより少ないと
+    数分で受信側のバッファが底をつき、音が途切れる。検証環境では 47600〜47970 Hz と
+    ばらついたため、実機の値を見て対策を決める。音が流れていない間（無音・停止中）は数えない。
+    """
+    rate_target = int(os.environ.get("NM_RATE", "48000"))
+    while True:
+        proc = await asyncio.create_subprocess_exec(
+            "parec", "-d", f"{SINK}.monitor", "--raw", "--format=s16le",
+            f"--rate={rate_target}", "--channels=2", "--latency-msec=100",
+            env=ENV, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        frames, t0 = 0, time.monotonic()
+        try:
+            while chunk := await proc.stdout.read(65536):
+                frames += len(chunk) // 4
+                now = time.monotonic()
+                if now - t0 >= 60:
+                    _, out = await run_quiet("pactl", "list", "short", "sinks")
+                    running = any(l.split("\t")[1:2] == [SINK] and "RUNNING" in l for l in out.splitlines())
+                    hz = frames / (now - t0)
+                    rate_stats.update(hz=round(hz, 1), at=time.strftime("%H:%M:%S"), running=running)
+                    if running:
+                        log(f"送信レート: {hz:.1f} Hz（設定 {rate_target} Hz、差 {(hz / rate_target - 1) * 100:+.3f}%）")
+                    frames, t0 = 0, now
+        finally:
+            if proc.returncode is None:
+                proc.kill()
+        await asyncio.sleep(5)
+
+
 async def on_startup(app: web.Application) -> None:
     await start_display()
     await start_audio()
     app["watch"] = asyncio.create_task(watch_chrome())
+    app["rate"] = asyncio.create_task(measure_rate())
 
 
 async def on_cleanup(app: web.Application) -> None:
     app["watch"].cancel()
+    app["rate"].cancel()
     for p in procs.values():
         if p.returncode is None:
             p.terminate()
