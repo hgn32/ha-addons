@@ -67,11 +67,27 @@ async def wait_until(check, what: str, timeout: float = 10) -> None:
     raise RuntimeError(f"{what} が起動しませんでした")
 
 
-async def spawn(name: str, *args: str, quiet: bool = True) -> None:
+async def spawn(name: str, *args: str, quiet: bool = True, stderr_file: str | None = None) -> None:
+    err = asyncio.subprocess.DEVNULL if quiet else None
+    if stderr_file:
+        err = open(stderr_file, "wb")
     procs[name] = await asyncio.create_subprocess_exec(
-        *args, env=ENV,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL if quiet else None)
+        *args, env=ENV, stdout=asyncio.subprocess.DEVNULL, stderr=err)
+    if stderr_file:
+        err.close()
+
+
+CHROME_LOG = "/tmp/chrome-stderr.log"
+
+
+def chrome_log_tail(n: int = 15) -> str:
+    """Chrome の標準エラーの末尾（落ちた理由をログタブに出すため）。"""
+    try:
+        with open(CHROME_LOG, "rb") as f:
+            lines = f.read().decode(errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join("  " + line for line in lines[-n:])
 
 
 # ---------------------------------------------------------------- 起動
@@ -168,7 +184,7 @@ async def start_chrome() -> None:
         # 調査モード・ブリッジ API がページを観察・操作するための CDP。127.0.0.1 だけで待ち受ける
         f"--remote-debugging-port={CDP_PORT}",
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}",
-        f"https://music.nintendo.com/{NM_LANG}/")
+        f"https://music.nintendo.com/{NM_LANG}/", stderr_file=CHROME_LOG)
     log("Chrome を起動しました")
 
 
@@ -179,6 +195,8 @@ async def watch_chrome() -> None:
         if proc is not None:
             code = await proc.wait()
             log(f"Chrome が終了しました（終了コード {code}）。起動し直します")
+            if code != 0 and (tail := chrome_log_tail()):
+                log("Chrome の最後の出力:\n" + tail)
         now = time.monotonic()
         chrome_restarts[:] = [t for t in chrome_restarts if now - t < 300] + [now]
         if len(chrome_restarts) > 5:
@@ -201,6 +219,9 @@ async def watch_chrome() -> None:
 ALLOWED_NETS = [ipaddress.ip_network(n) for n in ("172.30.32.0/23", "127.0.0.0/8", "::1/128")]
 
 
+denied_logged: set[str | None] = set()
+
+
 @web.middleware
 async def only_ingress(req: web.Request, handler):
     try:
@@ -208,6 +229,9 @@ async def only_ingress(req: web.Request, handler):
     except ValueError:
         allowed = False
     if not allowed:
+        if req.remote not in denied_logged:
+            denied_logged.add(req.remote)
+            log(f"許可していない接続元からのアクセスを拒否しました: {req.remote} {req.method} {req.path}")
         return web.Response(status=403, text="Forbidden")
     return await handler(req)
 
