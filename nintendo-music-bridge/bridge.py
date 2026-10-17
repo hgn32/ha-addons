@@ -32,7 +32,9 @@ LABELS = {
 # いまの再生状態を読む（ページの状態は変えない）
 STATUS_JS = r"""
 (() => {
-  const a = [...document.querySelectorAll('audio')].find(m => m.currentSrc) || document.querySelector('audio');
+  // Nintendo Music は <audio>、YouTube Music は <video> で再生する
+  const all = [...document.querySelectorAll('audio, video')];
+  const a = all.find(m => m.currentSrc && !m.paused) || all.find(m => m.currentSrc) || all[0];
   const md = navigator.mediaSession && navigator.mediaSession.metadata;
   return {
     url: location.href,
@@ -153,8 +155,8 @@ class Bridge:
                      and not t.get("url", "").startswith(("chrome://", "devtools://"))]
         if not pages:
             raise RuntimeError("Chrome のタブが見つかりません")
-        # music.nintendo.com のタブを優先
-        pages.sort(key=lambda t: "music.nintendo.com" not in t.get("url", ""))
+        # Nintendo Music / YouTube Music のタブを優先
+        pages.sort(key=lambda t: not any(h in t.get("url", "") for h in ("music.nintendo.com", "music.youtube.com")))
         return pages[0]["webSocketDebuggerUrl"]
 
     async def _cdp(self, calls: list[tuple[str, dict]]) -> list[dict]:
@@ -222,9 +224,51 @@ class Bridge:
                 st = await self._wait_playing(before_title=title)
             return st
 
+    async def wait_ready(self, timeout: float = 60) -> None:
+        """Chrome の CDP が使えるようになるまで待つ（起動直後に再生の指示が来たとき用）。"""
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as s:
+                    await self._page_ws(s)
+                return
+            except Exception as e:
+                if time.monotonic() > deadline:
+                    raise RuntimeError(f"Chrome の準備ができませんでした（{e}）")
+                await asyncio.sleep(1)
+
+    async def play_nm_url(self, url: str) -> dict:
+        """Nintendo Music のプレイリスト等のページを開いて、ページ本体の再生ボタンを押す。"""
+        async with self.lock:
+            await self._cdp([("Page.navigate", {"url": url})])
+            await asyncio.sleep(2)
+            label = await self._click("playlist-play")
+            self.log(f"{url} の再生ボタン（{label}）を押しました")
+            return await self._wait_playing()
+
+    async def play_ytm(self, list_id: str) -> dict:
+        """YouTube Music のプレイリストを再生する。watch?list= を開くと先頭の曲から自動で再生が始まる
+        （Chrome は --autoplay-policy=no-user-gesture-required で起動している）。"""
+        async with self.lock:
+            await self._cdp([("Page.navigate", {"url": f"https://music.youtube.com/watch?list={list_id}"})])
+            self.log(f"YouTube Music のプレイリスト {list_id} を開きました")
+            return await self._wait_playing(timeout=30)
+
+    async def _media(self, action: str) -> None:
+        """ページ内の <audio>/<video> を直接操作する（ボタンの作りに依存しない）。"""
+        await self._eval("(() => { const m = [...document.querySelectorAll('audio, video')].find(x => x.currentSrc);"
+                         f" if (m) m.{'pause' if action == 'pause' else 'play'}(); return !!m; }})()")
+
     async def control(self, action: str) -> dict:
         async with self.lock:
             st = await self.status()
+            if "music.youtube.com" in (st.get("url") or ""):
+                if action in ("pause", "resume"):
+                    await self._media(action)
+                    await asyncio.sleep(0.5)
+                    return await self.status()
+                # 次・前のボタンは画面の作りを未記録なので、推測で押さない
+                raise RuntimeError("YouTube Music の次の曲・前の曲は、まだ対応していません")
             if action == "pause" and st.get("paused") is False:
                 await self._click("playpause")
             elif action == "resume" and st.get("paused") is not False:

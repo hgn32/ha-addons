@@ -2,7 +2,8 @@
 
 [Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Google Chrome で再生し、
 Google Cast 対応のスピーカー（HA の `media_player`）へ流すアドオンです。
-YouTube Music への対応を進めています（いまは調査モードのみ）。
+YouTube Music のプレイリストも再生できます。お気に入りに登録したプレイリストを、
+HA のオートメーションから決まった時刻に決まったスピーカーで流せます。
 
 ## 使い方
 
@@ -12,6 +13,30 @@ YouTube Music への対応を進めています（いまは調査モードのみ
 3. 上の検索欄から ゲーム → プレイリスト → 曲 と選び、「再生」「ここから再生」を押す
 4. 「スピーカー」で再生先を選び、「スピーカーで再生」を押す。
    Chrome の音がストリームとしてスピーカーで再生される（再生中の曲を変えても、そのまま流れ続ける）
+
+## お気に入りと HA からの再生
+
+パネルの「お気に入り」に、名前と URL を登録します（「いまの画面を追加」で、下の Chrome で開いているページも登録できます）。
+
+| サービス | 登録できる URL |
+|---|---|
+| Nintendo Music | `https://music.nintendo.com/...` のプレイリストのページ（ページを開いて再生ボタンを押す） |
+| YouTube Music | `list=` を含む URL（例: `https://music.youtube.com/playlist?list=...`） |
+
+HA のオートメーションのアクション「イベントを発行」で、次のように発行すると順に再生します。
+
+```yaml
+event: web_music_player_play
+event_data:
+  favorites: ["朝のBGM", "ピクミン"]
+  entity_id: media_player.jbl_bar_800
+```
+
+止めるときは `event: web_music_player_stop` を発行します。
+
+- 1つのプレイリストは、再生が止まって15秒たったら終わりとみなして次へ進みます
+  （YouTube Music は、最後の曲のあと関連曲の自動再生に移った時点で次へ進みます）
+- YouTube Music の「次の曲・前の曲」ボタンはまだ使えません
 
 ## スピーカーへの出力の仕組み
 
@@ -36,6 +61,8 @@ YouTube Music への対応を進めています（いまは調査モードのみ
 | `POST /bridge/pause` / `resume` / `next` / `previous` | 再生操作 |
 | `GET /bridge/players` | HA の media_player の一覧 |
 | `POST /bridge/cast`（本文 `{"entity_id": "media_player.xxx"}`） | そのスピーカーでストリームを再生させる |
+| `GET /bridge/favorites` / `POST /bridge/favorites`（`{"name", "url"}`） | お気に入りの一覧・追加 |
+| `POST /bridge/session/play`（`{"favorites": [名前...], "entity_id"}`） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
 
 ## 調査モード
 

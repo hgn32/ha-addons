@@ -21,7 +21,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY run.sh /run.sh
-COPY server.py discover.py bridge.py stream.py /
+COPY server.py discover.py bridge.py stream.py favorites.py /
 COPY www/ /www/
 RUN chmod +x /run.sh
 

@@ -23,6 +23,7 @@ from aiohttp import web
 
 from bridge import Bridge
 from discover import CDP_PORT, Discoverer
+from favorites import Favorites, Session
 from stream import HomeAssistant, Streamer
 
 PORT = 8481
@@ -311,6 +312,8 @@ def bridge_handler(fn):
     async def handler(req: web.Request) -> web.Response:
         try:
             return web.json_response(await fn(req))
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=400)
         except Exception as e:
             log(f"ブリッジ API {req.method} {req.path} でエラー: {e}")
             return web.json_response({"error": str(e)}, status=500)
@@ -332,6 +335,63 @@ async def b_cast(req: web.Request):
     await ha.play_url(body["entity_id"], url)
     log(f"{body['entity_id']} にストリームの再生を指示しました")
     return {"ok": True, "url": url}
+
+
+favs = Favorites()
+session = Session(log, bridge, ha, streamer)
+
+
+async def b_fav_add(req: web.Request):
+    body = await req.json()
+    return favs.add(body.get("name", ""), body.get("url", ""))
+
+
+async def b_fav_current(req: web.Request):
+    """いま Chrome で開いている画面をお気に入りに追加する。名前は省略時はページの題名から作る。"""
+    body = await req.json() if req.can_read_body else {}
+    st = await bridge.status()
+    title = await bridge._eval("document.title")
+    name = (body.get("name") or (title or "").replace(" - YouTube Music", "").strip() or st["url"])[:80]
+    return favs.add(name, st["url"])
+
+
+async def b_fav_move(req: web.Request):
+    favs.move(req.match_info["id"], int((await req.json()).get("delta", 0)))
+    return favs.list()
+
+
+async def b_fav_remove(req: web.Request):
+    favs.remove(req.match_info["id"])
+    return favs.list()
+
+
+async def b_session_play(req: web.Request):
+    body = await req.json()
+    await session.start(favs.resolve(body.get("favorites") or []), body.get("entity_id") or None)
+    return session.state()
+
+
+async def b_session_stop(_req: web.Request):
+    await session.stop()
+    return session.state()
+
+
+async def ev_play(data: dict) -> None:
+    """HA のイベント web_music_player_play: {"favorites": [名前...], "entity_id": "media_player.xxx"}"""
+    try:
+        items = favs.resolve(data.get("favorites") or [])
+        if not items:
+            raise ValueError("favorites が空です")
+        log("HA から再生の指示を受けました: " + "、".join(it["name"] for it in items)
+            + f" → {data.get('entity_id') or '（スピーカー指定なし）'}")
+        await session.start(items, data.get("entity_id") or None)
+    except Exception as e:
+        log(f"HA からの再生の指示を実行できませんでした: {e}")
+
+
+async def ev_stop(_data: dict) -> None:
+    log("HA から停止の指示を受けました")
+    await session.stop()
 
 
 async def vnc_proxy(req: web.Request) -> web.StreamResponse:
@@ -409,11 +469,16 @@ async def on_startup(app: web.Application) -> None:
     await start_audio()
     app["watch"] = asyncio.create_task(watch_chrome())
     app["rate"] = asyncio.create_task(measure_rate())
+    if ha.token:
+        app["events"] = asyncio.create_task(ha.listen_events(
+            {"web_music_player_play": ev_play, "web_music_player_stop": ev_stop}, log))
 
 
 async def on_cleanup(app: web.Application) -> None:
     app["watch"].cancel()
     app["rate"].cancel()
+    if "events" in app:
+        app["events"].cancel()
     for p in procs.values():
         if p.returncode is None:
             p.terminate()
@@ -433,8 +498,19 @@ def main() -> None:
     app.router.add_get("/bridge/playlists/{id}", bridge_handler(lambda r: bridge.playlist(r.match_info["id"])))
     app.router.add_get("/bridge/status", bridge_handler(lambda r: bridge.status()))
     app.router.add_post("/bridge/play", bridge_handler(b_play))
-    app.router.add_post("/bridge/{action:pause|resume|next|previous}", bridge_handler(
+    app.router.add_post("/bridge/{action:next|previous}", bridge_handler(
         lambda r: bridge.control(r.match_info["action"])))
+    # 一時停止・再開はスピーカーにも同時に指示する（再生セッション中のとき）
+    app.router.add_post("/bridge/pause", bridge_handler(lambda r: session.pause()))
+    app.router.add_post("/bridge/resume", bridge_handler(lambda r: session.resume()))
+    app.router.add_get("/bridge/favorites", bridge_handler(lambda r: asyncio.sleep(0, favs.list())))
+    app.router.add_post("/bridge/favorites", bridge_handler(b_fav_add))
+    app.router.add_post("/bridge/favorites/current", bridge_handler(b_fav_current))
+    app.router.add_post("/bridge/favorites/{id}/move", bridge_handler(b_fav_move))
+    app.router.add_delete("/bridge/favorites/{id}", bridge_handler(b_fav_remove))
+    app.router.add_get("/bridge/session", bridge_handler(lambda r: asyncio.sleep(0, session.state())))
+    app.router.add_post("/bridge/session/play", bridge_handler(b_session_play))
+    app.router.add_post("/bridge/session/stop", bridge_handler(b_session_stop))
     app.router.add_get("/bridge/players", bridge_handler(lambda r: ha.players()))
     app.router.add_post("/bridge/cast", bridge_handler(b_cast))
     # スピーカーが取りに来る音声ストリーム（LAN から受け付ける）

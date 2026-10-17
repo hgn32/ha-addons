@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import secrets
 import socket
@@ -125,3 +126,49 @@ class HomeAssistant:
             "media_content_id": url,
             "media_content_type": "music",
         })
+
+    async def call(self, entity_id: str, service: str) -> None:
+        """media_player の操作（media_pause / media_play / media_stop など）。"""
+        await self._req("POST", f"/services/media_player/{service}", json={"entity_id": entity_id})
+
+    async def listen_events(self, handlers: dict, log) -> None:
+        """HA のイベントを WebSocket で受け取り、event_type ごとの関数を呼ぶ。切れたらつなぎ直す。
+        https://contributors.home-assistant.io/core/internals/websocket-api/
+        アドオンからは ws://supervisor/core/websocket に SUPERVISOR_TOKEN で接続する
+        https://contributors.home-assistant.io/apps/guides/communication/
+        """
+        ws_url = os.environ.get("NM_CORE_WS", "ws://supervisor/core/websocket")
+        delay = 5
+        while True:
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.ws_connect(ws_url, heartbeat=30) as ws:
+                        msg = await ws.receive_json()
+                        if msg.get("type") != "auth_required":
+                            raise RuntimeError(f"想定外の応答: {msg}")
+                        await ws.send_json({"type": "auth", "access_token": self.token})
+                        msg = await ws.receive_json()
+                        if msg.get("type") != "auth_ok":
+                            raise RuntimeError(f"HA の認証に失敗しました: {msg}")
+                        for i, event_type in enumerate(handlers, 1):
+                            await ws.send_json({"id": i, "type": "subscribe_events", "event_type": event_type})
+                        log("HA のイベント（" + " / ".join(handlers) + "）を待ち受けています")
+                        delay = 5
+                        async for m in ws:
+                            if m.type != aiohttp.WSMsgType.TEXT:
+                                continue
+                            data = json.loads(m.data)
+                            if data.get("type") == "result" and not data.get("success"):
+                                log(f"HA のイベントの購読に失敗しました: {data}")
+                            if data.get("type") != "event":
+                                continue
+                            ev = data.get("event", {})
+                            fn = handlers.get(ev.get("event_type"))
+                            if fn:
+                                asyncio.create_task(fn(ev.get("data") or {}))
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log(f"HA との接続が切れました（{e}）。{delay}秒後につなぎ直します")
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 60)

@@ -44,6 +44,29 @@
     <div id="msg2" class="ng" style="font-size:.85rem"></div>
     <div id="list"></div>
   </div>
+  <div id="favbox" style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px">
+    <div style="font-weight:bold;margin-bottom:6px">お気に入り</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <input id="fname" placeholder="名前（HA から呼ぶときに使う）" style="flex:1;min-width:10em;padding:6px">
+      <input id="furl" placeholder="Nintendo Music / YouTube Music のプレイリストの URL" style="flex:2;min-width:16em;padding:6px">
+      <button id="fadd">追加</button>
+      <button id="fcur" title="下の Chrome でいま開いているページを追加">いまの画面を追加</button>
+    </div>
+    <div id="flist" style="margin-top:6px"></div>
+    <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button id="fplay">チェックしたものを順にスピーカーで再生</button>
+      <button id="fstop">停止</button>
+      <span id="fstate" style="font-size:.85rem"></span>
+    </div>
+    <details style="font-size:.8rem;margin-top:6px"><summary>HA のオートメーションから再生するには</summary>
+      アクション「イベントを発行」（event）で次を発行します。favorites はお気に入りの名前（複数なら順に再生）、entity_id はスピーカーです。
+      <pre style="white-space:pre-wrap">event: web_music_player_play
+event_data:
+  favorites: ["朝のBGM", "ピクミン"]
+  entity_id: media_player.jbl_bar_800</pre>
+      止めるときは <code>event: web_music_player_stop</code> を発行します。
+    </details>
+  </div>
   <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
   <details id="disc" style="margin:8px 0">
     <summary>調査モード（ブリッジ API を作るための下調べ）</summary>
@@ -169,6 +192,54 @@ document.getElementById("cast").onclick = async (e) => {
   } catch {} finally { e.target.disabled = false; setTimeout(() => { msg2.className = "ng"; }, 0); }
 };
 loadPlayers();
+
+// ---- お気に入り
+const flist = document.getElementById("flist");
+const SVC = {nm: "Nintendo Music", ytm: "YouTube Music"};
+async function loadFavs(list) {
+  const fs = list || await api("bridge/favorites");
+  const checked = new Set([...flist.querySelectorAll("input:checked")].map(c => c.value));
+  flist.replaceChildren();
+  if (!fs.length) { flist.textContent = "まだありません"; return; }
+  fs.forEach(f => {
+    const d = document.createElement("div"); d.className = "row";
+    d.innerHTML = `<input type="checkbox" value="${esc(f.id)}"${checked.has(f.id) ? " checked" : ""}>` +
+      `<div class="t">${esc(f.name)}<div class="sub">${SVC[f.service] || f.service}・${esc(f.url)}</div></div>`;
+    const b = (t, fn, title) => { const x = document.createElement("button"); x.textContent = t; if (title) x.title = title; x.onclick = fn; d.append(x); };
+    b("▶", () => playFavs([f.id]), "これだけスピーカーで再生");
+    b("↑", async () => loadFavs(await api("bridge/favorites/" + f.id + "/move", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({delta: -1})})));
+    b("↓", async () => loadFavs(await api("bridge/favorites/" + f.id + "/move", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({delta: 1})})));
+    b("削除", async () => { if (confirm("「" + f.name + "」を削除しますか？")) loadFavs(await api("bridge/favorites/" + f.id, {method: "DELETE"})); });
+    flist.append(d);
+  });
+}
+async function playFavs(ids) {
+  if (!ids.length) { msg2.textContent = "再生するお気に入りにチェックを入れてください"; return; }
+  if (!spk.value) { msg2.textContent = "スピーカーを選んでください"; return; }
+  await api("bridge/session/play", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({favorites: ids, entity_id: spk.value})});
+  pollSession();
+}
+document.getElementById("fadd").onclick = async () => {
+  await api("bridge/favorites", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name: document.getElementById("fname").value, url: document.getElementById("furl").value})});
+  document.getElementById("fname").value = ""; document.getElementById("furl").value = ""; loadFavs();
+};
+document.getElementById("fcur").onclick = async () => {
+  await api("bridge/favorites/current", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name: document.getElementById("fname").value})});
+  document.getElementById("fname").value = ""; loadFavs();
+};
+document.getElementById("fplay").onclick = () => playFavs([...flist.querySelectorAll("input:checked")].map(c => c.value));
+document.getElementById("fstop").onclick = async () => { await api("bridge/session/stop", {method: "POST"}); pollSession(); };
+async function pollSession() {
+  try {
+    const st = await (await fetch("bridge/session", {cache: "no-store"})).json();
+    document.getElementById("fstate").textContent = st.active
+      ? "再生中: " + (st.current || "準備中") + (st.remaining.length ? "（次: " + st.remaining.join("、") + "）" : "") + (st.entity_id ? " → " + st.entity_id : "")
+      : "";
+  } catch {}
+}
+setInterval(pollSession, 3000); loadFavs(); pollSession();
 
 document.querySelectorAll("#disc button[data-a]").forEach(b => (b.onclick = () => disc(b.dataset.a)));
 document.getElementById("copy").onclick = async () => {
