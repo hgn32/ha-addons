@@ -195,6 +195,13 @@ async def watch_chrome() -> None:
         proc = procs.get("chrome")
         if proc is not None:
             code = await proc.wait()
+            xvfb = procs.get("xvfb")
+            if xvfb is not None and xvfb.returncode is not None:
+                # アドオンの停止中は、Xvfb も同時に止められて Chrome が "Missing X server" で
+                # 起動できず、落ち続けていた（実機のログ）。停止中ならこの間に打ち切られる
+                await asyncio.sleep(5)
+                log("画面（Xvfb）が止まっているため、Chrome は起動し直しません。アドオンを再起動してください")
+                return
             log(f"Chrome が終了しました（終了コード {code}）。起動し直します")
             if code != 0 and (tail := chrome_log_tail()):
                 log("Chrome の最後の出力:\n" + tail)
