@@ -18,6 +18,21 @@
 <main>
   <div id="bar"><span id="chrome">Chrome: 確認中…</span><span id="sink">音声出力: 確認中…</span></div>
   <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
+  <details id="disc" style="margin:8px 0">
+    <summary>調査モード（ブリッジ API を作るための下調べ）</summary>
+    <ol style="font-size:.85rem">
+      <li>「調査を開始」を押す</li>
+      <li>画面内で、検索 → 検索結果からゲームやプレイリストを開く → 曲を再生、と普段どおり操作する。要所で「画面の部品を記録」を押す（検索結果・プレイリスト・再生中の各画面で1回ずつ）</li>
+      <li>「調査を終了」→「結果をコピー」で、Claude に貼り付ける</li>
+    </ol>
+    <p style="font-size:.85rem">認証トークン・ライセンス関係の通信・リクエストヘッダは記録しません。</p>
+    <button data-a="start">調査を開始</button>
+    <button data-a="dom">画面の部品を記録</button>
+    <button data-a="stop">調査を終了</button>
+    <button id="copy">結果をコピー</button>
+    <span id="dstat"></span>
+    <textarea id="report" readonly style="width:100%;box-sizing:border-box;height:8em;font-family:monospace;font-size:.75rem;margin-top:6px"></textarea>
+  </details>
   <p style="font-size:.85rem">画面内で Nintendo Music にログインし、曲を再生してください。音声は VBAN で Music Assistant へ送られます（MA の「VBAN Receiver」で受信）。</p>
 </main>
 <script>
@@ -33,6 +48,29 @@ async function poll() {
   setTimeout(poll, 2000);
 }
 poll();
+
+async function disc(action) {
+  const btns = document.querySelectorAll("#disc button");
+  btns.forEach(b => (b.disabled = true));
+  try {
+    const r = await fetch("api/discover/" + action, { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) { alert(j.error || "失敗しました"); return; }
+    document.getElementById("report").value = j.report;
+    document.getElementById("dstat").textContent = (j.running ? " 調査中" : " 停止中") + "（記録 " + j.count + " 件）";
+  } catch (e) {
+    alert("通信に失敗しました: " + e);
+  } finally {
+    btns.forEach(b => (b.disabled = false));
+  }
+}
+document.querySelectorAll("#disc button[data-a]").forEach(b => (b.onclick = () => disc(b.dataset.a)));
+document.getElementById("copy").onclick = async () => {
+  await disc("report");
+  const t = document.getElementById("report");
+  try { await navigator.clipboard.writeText(t.value); } catch { t.select(); document.execCommand("copy"); }
+  document.getElementById("dstat").textContent += " コピーしました";
+};
 </script>
 </body>
 </html>

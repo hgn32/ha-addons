@@ -19,6 +19,8 @@ import time
 import aiohttp
 from aiohttp import web
 
+from discover import CDP_PORT, Discoverer
+
 PORT = 8481
 # host_network なので、ホストの他のサービスとぶつかりにくい番号にする
 DISPLAY = ":91"
@@ -114,9 +116,22 @@ async def start_audio() -> None:
         code, out = await run_quiet("pactl", "list", "short", "sinks")
         return code == 0 and SINK in out
     await wait_until(sink_ready, f"PipeWire の VBAN 送信シンク（{SINK}）", timeout=15)
-    code, out = await run_quiet("pactl", "set-default-sink", SINK)
-    if code != 0:
-        raise RuntimeError(f"既定の出力を {SINK} にできませんでした: {out.strip()}")
+    # シンクが見えても、WirePlumber が既定の出力を扱えるようになる前だと
+    # "Failure: Not supported" で断られることがある（実測）。通るまで待つ
+    last = ""
+
+    async def default_set() -> bool:
+        nonlocal last
+        code, out = await run_quiet("pactl", "set-default-sink", SINK)
+        last = out.strip()
+        if code != 0:
+            return False
+        code, out = await run_quiet("pactl", "get-default-sink")
+        return code == 0 and out.strip() == SINK
+    try:
+        await wait_until(default_set, "既定の出力の切り替え", timeout=20)
+    except RuntimeError:
+        raise RuntimeError(f"既定の出力を {SINK} にできませんでした: {last}")
     log(f"音声の出力先を {SINK} にしました")
 
 
@@ -141,6 +156,8 @@ async def start_chrome() -> None:
         "--password-store=basic",
         "--disable-dev-shm-usage",
         "--autoplay-policy=no-user-gesture-required",
+        # 調査モード・ブリッジ API がページを観察・操作するための CDP。127.0.0.1 だけで待ち受ける
+        f"--remote-debugging-port={CDP_PORT}",
         "--lang=ja",
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}",
         START_URL)
@@ -196,6 +213,27 @@ async def api_status(_req: web.Request) -> web.Response:
     })
 
 
+discoverer = Discoverer(log)
+
+
+async def api_discover(req: web.Request) -> web.Response:
+    action = req.match_info["action"]
+    try:
+        if action == "start":
+            discoverer.start()
+        elif action == "stop":
+            await discoverer.stop()
+            log("調査モードを終了しました")
+        elif action == "dom":
+            await discoverer.snapshot_dom()
+        elif action != "report":
+            return web.json_response({"error": "不明な操作です"}, status=404)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+    return web.json_response({"running": discoverer.running, "count": len(discoverer.entries),
+                              "report": discoverer.report()})
+
+
 async def vnc_proxy(req: web.Request) -> web.StreamResponse:
     """noVNC の WebSocket を x11vnc の TCP に中継する（websockify の代わり）。"""
     ws = web.WebSocketResponse(protocols=("binary",), max_msg_size=0)
@@ -248,6 +286,7 @@ def main() -> None:
     app = web.Application(middlewares=[only_ingress])
     app.router.add_get("/", index)
     app.router.add_get("/api/status", api_status)
+    app.router.add_post("/api/discover/{action}", api_discover)
     app.router.add_get("/novnc/websockify", vnc_proxy)
     app.router.add_static("/novnc/", NOVNC_DIR)
     app.on_startup.append(on_startup)
