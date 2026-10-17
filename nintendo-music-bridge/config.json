@@ -1,7 +1,7 @@
 {
   "name": "Nintendo Music Bridge",
   "description": "Nintendo Music の Web 版を公式 Chrome で再生し、音声を VBAN で Music Assistant へ送るアドオン（フェーズ0: 実現可否の確認用）",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "slug": "nintendo_music_bridge",
   "url": "https://github.com/hgn32/ha-addons",
   "init": false,
@@ -28,7 +28,7 @@
     "vban_port": "port",
     "vban_stream_name": "match(^[A-Za-z0-9]{1,16}$)",
     "sample_rate": "list(44100|48000)",
-    "lang": "match(^[a-z]{2}-[A-Z]{2}$)",
+    "lang": "list(ja-JP|en-US)",
     "country": "match(^[A-Z]{2}$)"
   },
   "image": "ghcr.io/hgn32/nintendo-music-bridge"

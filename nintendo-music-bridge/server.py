@@ -13,6 +13,7 @@ CDP（リモートデバッグポート）やブリッジ API はフェーズ1�
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import os
 import time
 
@@ -29,7 +30,6 @@ SCREEN_W, SCREEN_H = 1280, 800
 VNC_PORT = 5911
 CHROME = "/usr/bin/google-chrome-stable"
 PROFILE_DIR = "/data/chrome-profile"
-START_URL = "https://music.nintendo.com/"
 SINK = "vban-sender-ma"
 NOVNC_DIR = "/usr/share/novnc"
 WWW_DIR = "/www"
@@ -37,8 +37,12 @@ WWW_DIR = "/www"
 # PipeWire と Chrome は D-Bus のセッションバスを探す。無いとログタブがエラー行で埋まるので
 # コンテナ内に自前のセッションバスを立てる
 DBUS_ADDR = "unix:path=/run/user/0/bus"
+# 言語（アドオン設定の lang）。Nintendo Music のページと Chrome の画面の言語に使う。
+# Linux の Chrome は --lang ではなく環境変数 LANGUAGE で画面の言語を決める
+NM_LANG = os.environ.get("NM_LANG", "ja-JP")
 ENV = dict(os.environ, DISPLAY=DISPLAY, XDG_RUNTIME_DIR="/run/user/0",
-           DBUS_SESSION_BUS_ADDRESS=DBUS_ADDR)
+           DBUS_SESSION_BUS_ADDRESS=DBUS_ADDR,
+           LANGUAGE=NM_LANG.split("-")[0], LANG=NM_LANG.replace("-", "_") + ".UTF-8")
 procs: dict[str, asyncio.subprocess.Process] = {}
 chrome_restarts: list[float] = []
 
@@ -151,17 +155,20 @@ async def start_chrome() -> None:
     await spawn(
         "chrome", CHROME,
         f"--user-data-dir={PROFILE_DIR}",
-        # コンテナ内は root なのでサンドボックスは使えない
-        "--no-sandbox",
+        # HA のアドオンは Docker 既定の seccomp で動き、Chrome のサンドボックスが名前空間を
+        # 作れない（実測: "Failed to move to new namespace ... Operation not permitted"）。
+        # その警告バーは --test-type で隠す
+        "--no-sandbox", "--test-type",
+        # 落ちたあとの起動で「ページを復元しますか？」の吹き出しを出さない
+        "--hide-crash-restore-bubble",
         "--no-first-run", "--no-default-browser-check",
         "--password-store=basic",
         "--disable-dev-shm-usage",
         "--autoplay-policy=no-user-gesture-required",
         # 調査モード・ブリッジ API がページを観察・操作するための CDP。127.0.0.1 だけで待ち受ける
         f"--remote-debugging-port={CDP_PORT}",
-        "--lang=ja",
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}",
-        START_URL)
+        f"https://music.nintendo.com/{NM_LANG}/")
     log("Chrome を起動しました")
 
 
@@ -185,17 +192,22 @@ async def watch_chrome() -> None:
 
 
 # ---------------------------------------------------------------- HTTP
-# host_network なので 0.0.0.0 で待つと LAN からも見える。Ingress の中継元
-# （Supervisor: 172.30.32.2）とホスト自身以外は断る
+# host_network なので 0.0.0.0 で待つと LAN からも見える。HA の内部ネットワーク
+# （Supervisor の Ingress 中継 172.30.32.2 と他のアドオン。ha-mcp などは自分の IP から直接来る）と
+# ホスト自身（HA 本体・Music Assistant は host_network）以外は断る
 # 「172.30.32.2 以外は拒否すること」は HA 開発者ドキュメントのアドオン Ingress 節の要件
 # https://git.sudo.is/home-assistant/developers.home-assistant/src/branch/children/docs/add-ons/presentation.md
 # 同じ穴（Ingress 用の画面が LAN から認証なしで見えた）: https://securelayer7.net/lab/cve-2026-59177-esphome-device-builder-unauthenticated-ingress-lan-access
-ALLOWED_PEERS = {"172.30.32.2", "127.0.0.1", "::1"}
+ALLOWED_NETS = [ipaddress.ip_network(n) for n in ("172.30.32.0/23", "127.0.0.0/8", "::1/128")]
 
 
 @web.middleware
 async def only_ingress(req: web.Request, handler):
-    if req.remote not in ALLOWED_PEERS:
+    try:
+        allowed = any(ipaddress.ip_address(req.remote) in n for n in ALLOWED_NETS)
+    except ValueError:
+        allowed = False
+    if not allowed:
         return web.Response(status=403, text="Forbidden")
     return await handler(req)
 
@@ -235,7 +247,7 @@ async def api_discover(req: web.Request) -> web.Response:
                               "report": discoverer.report()})
 
 
-bridge = Bridge(log, lang=os.environ.get("NM_LANG", "ja-JP"), country=os.environ.get("NM_COUNTRY", "JP"))
+bridge = Bridge(log, lang=NM_LANG, country=os.environ.get("NM_COUNTRY", "JP"))
 
 
 def bridge_handler(fn):

@@ -11,12 +11,34 @@
   main { max-width:1320px; margin:0 auto; padding:12px 16px; }
   #bar { display:flex; gap:16px; flex-wrap:wrap; font-size:.9rem; margin-bottom:8px; }
   .ok { color:var(--ok); } .ng { color:var(--ng); }
+  #player { border:1px solid var(--border); border-radius:6px; padding:10px; margin-bottom:8px; }
+  #player button { margin-right:4px; }
+  #now { margin-left:8px; font-size:.9rem; }
+  #list { max-height:22em; overflow:auto; margin-top:6px; }
+  .row { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--border); font-size:.9rem; }
+  .row img { width:40px; height:40px; object-fit:cover; border-radius:4px; }
+  .row .t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row .sub { opacity:.7; font-size:.8rem; }
+  .link { cursor:pointer; text-decoration:underline; }
   iframe { width:100%; aspect-ratio:1280/800; border:1px solid var(--border); border-radius:6px; background:#000; }
 </style>
 </head>
 <body>
 <main>
   <div id="bar"><span id="chrome">Chrome: 確認中…</span><span id="sink">音声出力: 確認中…</span></div>
+  <div id="player">
+    <form id="sform" style="display:flex;gap:6px">
+      <input id="q" placeholder="曲・ゲーム・プレイリストを検索" style="flex:1;padding:6px">
+      <select id="stype"><option value="">すべて</option><option value="GAME">ゲーム</option><option value="OFFICIAL_PLAYLIST">プレイリスト</option><option value="TRACK">曲</option></select>
+      <button>検索</button>
+    </form>
+    <div style="margin-top:8px">
+      <button data-c="previous" title="前の曲">⏮</button><button data-c="pause" title="一時停止">⏸</button><button data-c="resume" title="再開">▶</button><button data-c="next" title="次の曲">⏭</button>
+      <span id="now"></span>
+    </div>
+    <div id="msg2" class="ng" style="font-size:.85rem"></div>
+    <div id="list"></div>
+  </div>
   <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
   <details id="disc" style="margin:8px 0">
     <summary>調査モード（ブリッジ API を作るための下調べ）</summary>
@@ -33,7 +55,7 @@
     <span id="dstat"></span>
     <textarea id="report" readonly style="width:100%;box-sizing:border-box;height:8em;font-family:monospace;font-size:.75rem;margin-top:6px"></textarea>
   </details>
-  <p style="font-size:.85rem">画面内で Nintendo Music にログインし、曲を再生してください。音声は VBAN で Music Assistant へ送られます（MA の「VBAN Receiver」で受信）。</p>
+  <p style="font-size:.85rem">初回は下の画面で Nintendo Music にログインしてください。曲は上の検索から選んで再生できます。音声は VBAN で Music Assistant へ送られます（MA の「VBAN Receiver」で受信）。</p>
 </main>
 <script>
 async function poll() {
@@ -64,6 +86,63 @@ async function disc(action) {
     btns.forEach(b => (b.disabled = false));
   }
 }
+// ---- プレイヤー（ブリッジ API を使う）
+const listEl = document.getElementById("list"), msg2 = document.getElementById("msg2");
+const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function api(path, opts) {
+  msg2.textContent = "";
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { msg2.textContent = j.error || ("失敗しました (" + r.status + ")"); throw new Error(msg2.textContent); }
+  return j;
+}
+function row(thumb, title, sub, action, onclick) {
+  const d = document.createElement("div"); d.className = "row";
+  d.innerHTML = (thumb ? `<img src="${esc(thumb)}" alt="">` : "") +
+    `<div class="t"><span class="${onclick ? "link" : ""}">${esc(title)}</span><div class="sub">${esc(sub)}</div></div>`;
+  if (onclick) d.querySelector(".link").onclick = onclick;
+  if (action) { const b = document.createElement("button"); b.textContent = action[0]; b.onclick = action[1]; d.append(b); }
+  return d;
+}
+function showGames(games) { games.forEach(g => listEl.append(row(g.thumbnail, g.name, "ゲーム・" + (g.hardware || ""), null, () => openGame(g)))); }
+function showPlaylists(pls) { pls.forEach(p => listEl.append(row(p.thumbnail, p.name, "プレイリスト・" + p.tracks_num + "曲" + (p.game ? "・" + p.game.name : ""), ["再生", () => play(p.id, 0)], () => openPlaylist(p.id)))); }
+async function openGame(g) {
+  const j = await api("bridge/games/" + g.id + "/playlists");
+  listEl.replaceChildren(row(null, "← " + g.name + " のプレイリスト", "", null, null)); showPlaylists(j.playlists);
+}
+async function openPlaylist(id) {
+  const p = await api("bridge/playlists/" + id);
+  listEl.replaceChildren(row(p.thumbnail, p.name, p.tracks_num + "曲", ["最初から再生", () => play(id, 0)], null));
+  p.tracks.forEach((t, i) => listEl.append(row(t.thumbnail, (i + 1) + ". " + t.name,
+    (t.game ? t.game.name : "") + (t.duration_ms ? "・" + Math.floor(t.duration_ms / 60000) + ":" + String(Math.floor(t.duration_ms / 1000) % 60).padStart(2, "0") : ""),
+    ["ここから再生", () => play(id, i)], null)));
+}
+async function play(id, index) {
+  msg2.className = ""; msg2.textContent = "再生を準備しています…";
+  try { await api("bridge/play", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({playlist_id: id, index})}); }
+  finally { msg2.className = "ng"; }
+  pollNow();
+}
+document.getElementById("sform").onsubmit = async (e) => {
+  e.preventDefault();
+  const q = document.getElementById("q").value.trim(); if (!q) return;
+  const t = document.getElementById("stype").value;
+  const j = await api("bridge/search?q=" + encodeURIComponent(q) + (t ? "&type=" + t : ""));
+  listEl.replaceChildren(); showGames(j.games); showPlaylists(j.playlists);
+  j.tracks.forEach(t => listEl.append(row(t.thumbnail, t.name, "曲・" + (t.game ? t.game.name : ""), null, t.game ? () => openGame(t.game) : null)));
+  if (!listEl.children.length) listEl.textContent = "見つかりませんでした";
+};
+document.querySelectorAll("#player button[data-c]").forEach(b => (b.onclick = async () => {
+  b.disabled = true; try { await api("bridge/" + b.dataset.c, {method: "POST"}); } finally { b.disabled = false; } pollNow();
+}));
+async function pollNow() {
+  try {
+    const s = await (await fetch("bridge/status", {cache: "no-store"})).json();
+    document.getElementById("now").textContent = s.title ? ((s.paused ? "⏸ " : "▶ ") + s.title + (s.album ? "（" + s.album + "）" : "")) : "";
+  } catch {}
+}
+setInterval(pollNow, 3000); pollNow();
+
 document.querySelectorAll("#disc button[data-a]").forEach(b => (b.onclick = () => disc(b.dataset.a)));
 document.getElementById("copy").onclick = async () => {
   await disc("report");

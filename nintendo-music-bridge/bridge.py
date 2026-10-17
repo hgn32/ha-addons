@@ -4,7 +4,7 @@
   （ログイン不要。調査モードの記録と、ログインなしでの実測で確認した）。
   音源（暗号化メディア）には触れない。
 - 再生操作は、ログイン済みの Chrome を CDP で操作する（ページ遷移とボタンのクリック）。
-  ボタンは調査モードで記録した aria-label で探す。英語 UI の文言に揃えるため /en-US/ のページを使う。
+  ボタンは調査モードで記録した aria-label と、Web 版の翻訳データの文言で探す。
   https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchMouseEvent
 """
 
@@ -19,7 +19,15 @@ import aiohttp
 from discover import CDP_PORT
 
 API = "https://api.m.nintendo.com/catalog"
-SITE = "https://music.nintendo.com/en-US"
+SITE = "https://music.nintendo.com"
+
+# ボタンの文言。Web 版の翻訳データ（公開 JS の en-US / ja-JP）で同じ意味のキーが持つ値をすべて入れる
+# （英語は Play / Previous track / Next track、日本語は 再生・再生する / 前の曲・曲戻し / 次の曲・曲送り）
+LABELS = {
+    "play": ["Play", "再生", "再生する"],
+    "previous": ["Previous track", "前の曲", "曲戻し"],
+    "next": ["Next track", "次の曲", "曲送り"],
+}
 
 # いまの再生状態を読む（ページの状態は変えない）
 STATUS_JS = r"""
@@ -42,18 +50,20 @@ STATUS_JS = r"""
 
 # クリックする要素の画面上の中心座標を返す。見つからなければ null
 FIND_JS = r"""
-((kind) => {
+((kind, L) => {
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const label = el => (el.getAttribute('aria-label') || el.innerText || '').trim();
   let el = null;
   if (kind === 'playlist-play') {
     // プレイリストのページ本体（#main-column）の「Play」ボタン。プレーヤーバーや右パネルのものは除く
     const main = document.querySelector('#main-column') || document.body;
-    el = [...main.querySelectorAll('button, [role=button]')].find(b => vis(b) && label(b) === 'Play');
+    el = [...main.querySelectorAll('button, [role=button]')].find(b => vis(b) && L.play.includes(label(b)));
   } else {
     // プレーヤーバー: Previous track と Next track の間のボタンが再生/一時停止
-    const prev = [...document.querySelectorAll('button[aria-label="Previous track"]')].find(vis);
-    const next = [...document.querySelectorAll('button[aria-label="Next track"]')].find(vis);
+    const byAria = names => [...document.querySelectorAll('button[aria-label]')]
+      .find(b => vis(b) && names.includes(b.getAttribute('aria-label')));
+    const prev = byAria(L.previous);
+    const next = byAria(L.next);
     if (kind === 'previous') el = prev;
     else if (kind === 'next') el = next;
     else if (prev && next) {
@@ -175,7 +185,7 @@ class Bridge:
     async def _click(self, kind: str, timeout: float = 15) -> str:
         deadline = time.monotonic() + timeout
         while True:
-            pos = await self._eval(f"({FIND_JS})({json.dumps(kind)})")
+            pos = await self._eval(f"({FIND_JS})({json.dumps(kind)}, {json.dumps(LABELS, ensure_ascii=False)})")
             if pos:
                 break
             if time.monotonic() > deadline:
@@ -200,7 +210,7 @@ class Bridge:
 
     async def play_playlist(self, playlist_id: str, index: int = 0) -> dict:
         async with self.lock:
-            await self._cdp([("Page.navigate", {"url": f"{SITE}/playlist/{playlist_id}/"})])
+            await self._cdp([("Page.navigate", {"url": f"{SITE}/{self.lang}/playlist/{playlist_id}/"})])
             await asyncio.sleep(2)
             label = await self._click("playlist-play")
             self.log(f"プレイリスト {playlist_id} の再生ボタン（{label}）を押しました")
