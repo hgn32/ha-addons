@@ -367,7 +367,8 @@ async def b_fav_remove(req: web.Request):
 
 async def b_session_play(req: web.Request):
     body = await req.json()
-    await session.start(favs.resolve(body.get("favorites") or []), body.get("entity_id") or None)
+    await session.start(favs.resolve(body.get("favorites"), bool(body.get("shuffle"))),
+                        body.get("entity_id") or None)
     return session.state()
 
 
@@ -377,11 +378,11 @@ async def b_session_stop(_req: web.Request):
 
 
 async def ev_play(data: dict) -> None:
-    """HA のイベント web_music_player_play: {"favorites": [名前...], "entity_id": "media_player.xxx"}"""
+    """HA のイベント web_music_player_play:
+    {"favorites": [名前...], "shuffle": true/false, "entity_id": "media_player.xxx"}
+    favorites を省略するとお気に入りの全部。shuffle で順番を混ぜる。"""
     try:
-        items = favs.resolve(data.get("favorites") or [])
-        if not items:
-            raise ValueError("favorites が空です")
+        items = favs.resolve(data.get("favorites"), bool(data.get("shuffle")))
         log("HA から再生の指示を受けました: " + "、".join(it["name"] for it in items)
             + f" → {data.get('entity_id') or '（スピーカー指定なし）'}")
         await session.start(items, data.get("entity_id") or None)

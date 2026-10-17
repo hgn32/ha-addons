@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import secrets
 import time
 from urllib.parse import parse_qs, urlsplit
@@ -74,16 +75,26 @@ class Favorites:
         self.items.insert(j, self.items.pop(i))
         self._save()
 
-    def resolve(self, keys: list[str] | str) -> list[dict]:
-        """名前または id で引く（HA からは名前で指定する）。見つからない名前があれば ValueError。"""
+    def resolve(self, keys: list[str] | str | None, shuffle: bool = False) -> list[dict]:
+        """名前または id で引く（HA からは名前で指定する）。見つからない名前があれば ValueError。
+
+        keys を省略（空）したときは、お気に入りの全部を並び順で返す。shuffle なら順番を混ぜる。
+        """
         if isinstance(keys, str):
             keys = [keys]
-        out = []
-        for k in keys:
-            it = next((it for it in self.items if it["name"] == k or it["id"] == k), None)
-            if it is None:
-                raise ValueError(f"お気に入りに「{k}」がありません")
-            out.append(it)
+        if not keys:
+            out = list(self.items)
+            if not out:
+                raise ValueError("お気に入りが1つも登録されていません")
+        else:
+            out = []
+            for k in keys:
+                it = next((it for it in self.items if it["name"] == k or it["id"] == k), None)
+                if it is None:
+                    raise ValueError(f"お気に入りに「{k}」がありません")
+                out.append(it)
+        if shuffle:
+            random.shuffle(out)
         return out
 
 

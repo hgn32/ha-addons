@@ -32,6 +32,15 @@ event_data:
   entity_id: media_player.jbl_bar_800
 ```
 
+`favorites` を省くとお気に入りの全部を並び順で、`shuffle: true` を付けると順番を混ぜて再生します。
+
+```yaml
+event: web_music_player_play
+event_data:
+  shuffle: true
+  entity_id: media_player.jbl_bar_800
+```
+
 止めるときは `event: web_music_player_stop` を発行します。
 
 - 1つのプレイリストは、再生が止まって15秒たったら終わりとみなして次へ進みます
@@ -62,7 +71,7 @@ event_data:
 | `GET /bridge/players` | HA の media_player の一覧 |
 | `POST /bridge/cast`（本文 `{"entity_id": "media_player.xxx"}`） | そのスピーカーでストリームを再生させる |
 | `GET /bridge/favorites` / `POST /bridge/favorites`（`{"name", "url"}`） | お気に入りの一覧・追加 |
-| `POST /bridge/session/play`（`{"favorites": [名前...], "entity_id"}`） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
+| `POST /bridge/session/play`（`{"favorites": [名前...], "shuffle", "entity_id"}`。favorites を省くと全部） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
 
 ## 調査モード
 
