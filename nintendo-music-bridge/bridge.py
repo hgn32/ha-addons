@@ -168,6 +168,22 @@ class Bridge:
                         raise RuntimeError(f"Target.createTarget: {data['error']}")
                     return
 
+    async def _single_tab(self) -> None:
+        """再生を始める前に、操作するタブ（_page_ws が選ぶもの）だけを残して他のタブを閉じる。
+        複数のタブで音が重なって鳴らないようにする。"""
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
+            # ws://127.0.0.1:9222/devtools/page/<タブの id>
+            keep = (await self._page_ws(s)).rsplit("/", 1)[-1]
+            async with s.get(f"http://127.0.0.1:{CDP_PORT}/json/list") as r:
+                targets = [t for t in await r.json(content_type=None) if t.get("type") == "page"]
+            closed = 0
+            for t in targets:
+                if t.get("id") != keep:
+                    async with s.get(f"http://127.0.0.1:{CDP_PORT}/json/close/{t['id']}") as r:
+                        closed += r.status == 200
+            if closed:
+                self.log(f"再生の前に、ほかのタブを {closed} 個閉じました")
+
     async def _page_ws(self, session: aiohttp.ClientSession) -> str:
         pages = await self._pages(session)
         if not pages:
@@ -237,6 +253,7 @@ class Bridge:
 
     async def play_playlist(self, playlist_id: str, index: int = 0) -> dict:
         async with self.lock:
+            await self._single_tab()
             await self._cdp([("Page.navigate", {"url": f"{SITE}/{self.lang}/playlist/{playlist_id}/"})])
             await asyncio.sleep(2)
             label = await self._click("playlist-play")
@@ -265,6 +282,7 @@ class Bridge:
     async def play_nm_url(self, url: str) -> dict:
         """Nintendo Music のプレイリスト等のページを開いて、ページ本体の再生ボタンを押す。"""
         async with self.lock:
+            await self._single_tab()
             await self._cdp([("Page.navigate", {"url": url})])
             await asyncio.sleep(2)
             label = await self._click("playlist-play")
@@ -292,6 +310,7 @@ class Bridge:
           リンク（watch?v=...&list=<同じID>）を開く
         """
         async with self.lock:
+            await self._single_tab()
             before = await self.status()
             await self._cdp([("Page.navigate", {"url": f"https://music.youtube.com/watch?list={list_id}"})])
             self.log(f"YouTube Music のプレイリスト {list_id} を開きました")
@@ -322,6 +341,8 @@ class Bridge:
 
     async def control(self, action: str) -> dict:
         async with self.lock:
+            if action == "resume":
+                await self._single_tab()
             st = await self.status()
             if "music.youtube.com" in (st.get("url") or ""):
                 if action in ("pause", "resume"):
