@@ -291,12 +291,33 @@ class Session:
     async def _wait_finished(self, item: dict) -> None:
         service, value = detect(item["url"])
         idle_since = None
+        first_title = None   # このお気に入りで最初に流れた曲
+        others = False       # 最初の曲以外を流したか
+        last = None          # 前回見た (曲名, 再生位置, 長さ)
         while True:
             await asyncio.sleep(2)
             try:
                 st = await self.bridge.status()
             except Exception:
                 continue
+            title, pos, dur = st.get("title"), st.get("position"), st.get("duration")
+            if service == "nm" and title and st.get("paused") is False and not self.user_paused:
+                # Nintendo Music がリピート再生だと、プレイリストの最後から頭に戻って止まらない
+                # （実機で、90秒の1曲だけのプレイリストが 57秒→45秒後に20秒 と頭に戻った）。
+                # 一周したら終わりとみなす:
+                # - 最初の曲以外を流したあとで、最初の曲に戻ってきた
+                # - 1曲だけのとき、曲の終わり近くから頭に戻った
+                first_title = first_title or title
+                if title != first_title:
+                    others = True
+                elif others:
+                    self.log(f"「{item['name']}」を一周しました（最初の曲に戻ったため次へ）")
+                    return
+                elif (last and last[0] == title and pos is not None and last[1] is not None and dur
+                      and last[1] >= dur - 15 and pos < last[1] - 5):
+                    self.log(f"「{item['name']}」を一周しました（曲の最後から頭に戻ったため次へ）")
+                    return
+                last = (title, pos, dur)
             if service == "ytm":
                 # プレイリストを最後まで再生すると、YouTube Music は関連曲の自動再生に移り、
                 # URL の list= が別のもの（ラジオ）に変わる。そうなったら次へ進む

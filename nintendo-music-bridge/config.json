@@ -1,7 +1,7 @@
 {
   "name": "Web Music Player",
   "description": "Nintendo Music / YouTube Music を公式 Chrome で再生し、Cast 対応スピーカーへ流すアドオン",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "slug": "nintendo_music_bridge",
   "url": "https://github.com/hgn32/ha-addons",
   "init": false,
