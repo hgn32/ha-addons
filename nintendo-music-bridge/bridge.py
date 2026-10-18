@@ -29,6 +29,14 @@ LABELS = {
     "next": ["Next track", "次の曲", "曲送り"],
 }
 
+# YouTube Music のプレーヤーの下のボタン。実物の画面（日本語）の部品を記録して確認した:
+# aria-label「前へ」「再生」「次へ」の button が並ぶ。英語の画面のラベルは測っていないので入れない
+YTM_LABELS = {
+    "play": [],
+    "previous": ["前へ"],
+    "next": ["次へ"],
+}
+
 # いまの再生状態を読む（ページの状態は変えない）
 STATUS_JS = r"""
 (() => {
@@ -277,10 +285,10 @@ class Bridge:
     async def status(self) -> dict:
         return await self._eval(STATUS_JS)
 
-    async def _click(self, kind: str, timeout: float = 15) -> str:
+    async def _click(self, kind: str, timeout: float = 15, labels: dict = LABELS) -> str:
         deadline = time.monotonic() + timeout
         while True:
-            pos = await self._eval(f"({FIND_JS})({json.dumps(kind)}, {json.dumps(LABELS, ensure_ascii=False)})")
+            pos = await self._eval(f"({FIND_JS})({json.dumps(kind)}, {json.dumps(labels, ensure_ascii=False)})")
             if pos:
                 break
             if time.monotonic() > deadline:
@@ -425,8 +433,15 @@ class Bridge:
                     await self._media(action)
                     await asyncio.sleep(0.5)
                     return await self.status()
-                # 次・前のボタンは画面の作りを未記録なので、推測で押さない
-                raise RuntimeError("YouTube Music の次の曲・前の曲は、まだ対応していません")
+                if action in ("next", "previous"):
+                    title = st.get("title")
+                    await self._click(action, timeout=5, labels=YTM_LABELS)
+                    if st.get("paused") is not False:
+                        # 一時停止中に押したとき鳴り始めるかは測っていないので、待たずに今の状態を返す
+                        await asyncio.sleep(1)
+                        return await self.status()
+                    return await self._wait_playing(before_title=title)
+                raise RuntimeError(f"不明な操作です: {action}")
             if action == "pause" and st.get("paused") is False:
                 await self._click("playpause")
             elif action == "resume" and st.get("paused") is not False:
