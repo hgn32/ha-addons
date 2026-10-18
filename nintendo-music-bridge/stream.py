@@ -124,10 +124,16 @@ class HomeAssistant:
                       key=lambda p: p["name"])
 
     async def play_url(self, entity_id: str, url: str) -> None:
+        # media_content_type は Chromecast の contentType にそのまま渡る（HA の cast の
+        # async_play_media → pychromecast の play_media）ので、MIME タイプにする。以前は "music" を
+        # 渡していた。https://www.home-assistant.io/integrations/cast/ には「media_content_type を
+        # 中身に合った型にする」とある。stream_type は pychromecast の既定が LIVE なので指定しない
+        # https://github.com/home-assistant-libs/pychromecast/blob/master/pychromecast/controllers/media.py
         await self._req("POST", "/services/media_player/play_media", json={
             "entity_id": entity_id,
             "media_content_id": url,
-            "media_content_type": "music",
+            "media_content_type": "audio/mpeg",
+            "extra": {"metadata": {"metadataType": 3, "title": "Web Music Player"}},  # 3 = MusicTrack
         })
 
     async def call(self, entity_id: str, service: str) -> None:
