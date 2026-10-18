@@ -1,0 +1,22 @@
+configuration:
+  vban_enabled:
+    name: Also send to Music Assistant over VBAN
+    description: When on, audio is also sent to the Music Assistant VBAN Receiver using the VBAN settings below. Not needed for casting to speakers.
+  vban_host:
+    name: VBAN destination host
+    description: Host running Music Assistant. Keep 127.0.0.1 when it runs on this Home Assistant.
+  vban_port:
+    name: VBAN destination port
+    description: Same as "Receiver UDP Port" of the Music Assistant VBAN Receiver.
+  vban_stream_name:
+    name: VBAN stream name
+    description: Same as "VBAN Stream Name" of the Music Assistant VBAN Receiver (up to 16 letters/digits).
+  sample_rate:
+    name: Sample rate
+    description: Same as "PCM sample rate" of the Music Assistant VBAN Receiver.
+  lang:
+    name: Language
+    description: Language of the Nintendo Music pages, the Chrome UI and track titles.
+  country:
+    name: Country
+    description: Nintendo Music country (availability of tracks and playlists).

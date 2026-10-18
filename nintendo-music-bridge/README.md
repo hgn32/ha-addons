@@ -1,0 +1,114 @@
+# Web Music Player
+
+[Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Google Chrome で再生し、
+Google Cast 対応のスピーカー（HA の `media_player`）へ流すアドオンです。
+YouTube Music のプレイリストも再生できます。お気に入りに登録したプレイリストを、
+HA のオートメーションから決まった時刻に決まったスピーカーで流せます。
+
+## 使い方
+
+1. アドオンを起動し、サイドバーの **Web Music Player** を開く
+2. 初回だけ、画面下の Chrome で Nintendo Music に任天堂アカウントでログインする
+   （ログイン状態はアドオン内に保存され、再起動後も残ります）
+3. 上の検索欄から ゲーム → プレイリスト → 曲 と選び、「再生」「ここから再生」を押す
+4. 「スピーカー」で再生先を選び、「スピーカーで再生」を押す。
+   Chrome の音がストリームとしてスピーカーで再生される（再生中の曲を変えても、そのまま流れ続ける）
+
+## お気に入りと HA からの再生
+
+パネルの「お気に入り」に、名前と URL を登録します（「いまの画面を追加」で、下の Chrome で開いているページも登録できます）。
+
+| サービス | 登録できる URL |
+|---|---|
+| Nintendo Music | ゲームのページ（`https://music.nintendo.com/ja-JP/game/...`）かプレイリストのページ（`.../ja-JP/playlist/...`）。共有リンク（`.../shared/.../officialPlaylists/...`）はプレイリストのページに直して登録します。ページを開いて再生ボタンを押します |
+| YouTube Music | `list=` を含む URL（例: `https://music.youtube.com/playlist?list=...`） |
+
+それ以外の URL（トップページ、Nintendo Music のユーザープレイリストなど）は登録できません。
+
+HA のオートメーションのアクション「イベントを発行」で、次のように発行すると順に再生します。
+
+```yaml
+event: web_music_player_play
+event_data:
+  favorites: ["朝のBGM", "ピクミン"]
+  entity_id: media_player.jbl_bar_800
+```
+
+`favorites` を省くとお気に入りの全部を並び順で、`shuffle: true` を付けると順番を混ぜて再生します。
+
+```yaml
+event: web_music_player_play
+event_data:
+  shuffle: true
+  entity_id: media_player.jbl_bar_800
+```
+
+止めるときは `event: web_music_player_stop` を発行します。
+
+### 再生の切り替え・止めるときの動き
+
+| 場面 | 動き |
+|---|---|
+| 再生を始める（お気に入り・HA・検索・▶） | Chrome のタブを1つだけ残して、ほかを閉じる |
+| 再生中に別のお気に入りを再生する | 切り替える。スピーカーが変わるときは前のスピーカーを止める。同じスピーカーなら Cast し直さない（途切れない）。`entity_id` を省くと、いまのスピーカーのまま |
+| 「スピーカーで再生」で別のスピーカーを選ぶ | 前のスピーカーを止めて切り替える（2台で同時には鳴らさない） |
+| お気に入りの再生中に、検索から再生する・「開く」ボタンを押す | お気に入りの順送りだけ終える（スピーカーへの出力は続く） |
+| 止める（`web_music_player_stop`・パネルの停止） | お気に入りの再生中でなくても、全部のタブの音とスピーカーを止める |
+| 一時停止 | 全部のタブの音を止める（タブは閉じない） |
+| スピーカー側で止められた（HA・本体の操作、入力の切り替え） | スピーカーが30秒以上ストリームを取りに来なければ、再生を止める（一時停止中は除く） |
+| アドオンの再起動・Chrome が落ちた | 前のタブを開き直さない。お気に入りの再生は終える |
+
+- 1つのプレイリストは、再生が止まって15秒たったら終わりとみなして次へ進みます
+  （YouTube Music は、最後の曲のあと関連曲の自動再生に移った時点で次へ進みます）
+- YouTube Music の「次の曲・前の曲」は、日本語の画面（設定の lang が ja-JP）のときだけ使えます（プレーヤーの「前へ」「次へ」ボタンを押します）
+
+## スピーカーへの出力の仕組み
+
+- アドオンが Chrome の音を MP3 のストリーム（インターネットラジオと同じ形）にして、
+  `http://<HA の IP>:8481/stream/<推測できない文字列>/live.mp3` で出します
+- 「スピーカーで再生」は、HA の `media_player.play_media` にこの URL を渡します。スピーカーが自分で取りに来ます
+- スピーカーは LAN 側から取りに来るので、このストリームの URL だけは LAN から使えます。
+  それ以外（パネル・ブリッジ API）は LAN からは使えません
+
+## ブリッジ API
+
+アドオンと同じホスト（HA 本体など）と HA の内部ネットワークから `http://127.0.0.1:8481` で使えます。
+
+| メソッド・パス | 内容 |
+|---|---|
+| `GET /bridge/search?q=<語>&type=<GAME/TRACK/OFFICIAL_PLAYLIST>` | 検索（type は省略可） |
+| `GET /bridge/games` | ゲーム一覧（ハード別） |
+| `GET /bridge/games/<ゲームID>/playlists` | ゲームのプレイリスト一覧 |
+| `GET /bridge/playlists/<プレイリストID>` | プレイリストの曲一覧 |
+| `GET /bridge/status` | 再生中の曲名・ゲーム名・再生位置・一時停止中か |
+| `POST /bridge/play`（本文 `{"playlist_id": "<ID>", "index": 0}`） | プレイリストを再生（index 番目の曲から） |
+| `POST /bridge/pause` / `resume` / `next` / `previous` | 再生操作 |
+| `GET /bridge/players` | HA の media_player の一覧 |
+| `POST /bridge/open/nm` / `POST /bridge/open/ytm` | Chrome で Nintendo Music / YouTube Music のトップを開く |
+| `POST /bridge/cast`（本文 `{"entity_id": "media_player.xxx"}`） | そのスピーカーでストリームを再生させる |
+| `GET /bridge/favorites` / `POST /bridge/favorites`（`{"name", "url"}`） | お気に入りの一覧・追加 |
+| `POST /bridge/session/play`（`{"favorites": [名前...], "shuffle", "entity_id"}`。favorites を省くと全部） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
+
+## 調査モード
+
+Nintendo Music / YouTube Music の画面の作りを調べるための記録機能です。パネルの「調査モード」を開き、
+「調査を開始」→ 普段どおり操作（要所で「画面の部品を記録」）→「調査を終了」→「結果をコピー」。
+認証トークン・ライセンス関係の通信の中身・リクエストヘッダは記録しません。
+
+## 設定
+
+| 項目 | 既定値 | 内容 |
+|---|---|---|
+| `lang` | `ja-JP` | ページ・Chrome の画面・曲名の言語（ja-JP / en-US） |
+| `country` | `JP` | Nintendo Music の国 |
+| `vban_enabled` | オフ | オンにすると、Music Assistant の VBAN Receiver へも VBAN で送る |
+| `vban_host` / `vban_port` / `vban_stream_name` / `sample_rate` | | VBAN の送信先と形式（`sample_rate` はストリームにも使う） |
+
+## 仕組み・注意
+
+- Widevine が同梱されている公式 Google Chrome（amd64）を使います。DRM の回避は一切行わず、
+  Chrome が正規に再生した音を OS の音声出力（PipeWire）として取り出して流します
+- Chrome は落ちても自動で起動し直します
+- Chrome は CDP（DevTools Protocol）を 127.0.0.1:9222 で開いて起動します（ブリッジ API・調査モード用）
+- 再生中は、実際に出している音のレートを1分ごとにログタブに出します
+- ログタブに `Failed to connect to system bus`（RTKit）の行が1つ出ますが、動作には影響しません
