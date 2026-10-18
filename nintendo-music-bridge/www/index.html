@@ -244,8 +244,8 @@ async function pollSession() {
   try {
     const st = await (await fetch("bridge/session", {cache: "no-store"})).json();
     document.getElementById("fstate").textContent = st.active
-      ? "再生中: " + (st.current || "準備中") + (st.remaining.length ? "（次: " + st.remaining.join("、") + "）" : "") + (st.entity_id ? " → " + st.entity_id : "")
-      : "";
+      ? "再生中: " + (st.current || "準備中") + (st.remaining.length ? "（次: " + st.remaining.join("、") + "）" : "") + (st.speaker ? " → " + st.speaker : "")
+      : (st.speaker ? "スピーカー " + st.speaker + " へ出力中" : "");
   } catch {}
 }
 setInterval(pollSession, 3000); loadFavs(); pollSession();

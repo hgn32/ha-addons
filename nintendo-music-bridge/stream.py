@@ -15,6 +15,7 @@ import json
 import os
 import secrets
 import socket
+import time
 
 import aiohttp
 from aiohttp import web
@@ -54,6 +55,7 @@ class Streamer:
         self.port = port
         self.token = stream_token()
         self.clients = 0
+        self.last_disconnect = 0.0  # 最後にスピーカーの接続が切れた時刻（time.monotonic）
 
     def url(self) -> str:
         return f"http://{lan_ip()}:{self.port}/stream/{self.token}/live.mp3"
@@ -85,6 +87,7 @@ class Streamer:
             pass
         finally:
             self.clients -= 1
+            self.last_disconnect = time.monotonic()
             try:
                 os.killpg(proc.pid, 15)
             except ProcessLookupError:

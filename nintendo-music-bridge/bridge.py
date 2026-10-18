@@ -168,6 +168,38 @@ class Bridge:
                         raise RuntimeError(f"Target.createTarget: {data['error']}")
                     return
 
+    async def pause_all(self) -> int:
+        """全部のタブの <audio>/<video> を止める（止める・一時停止のとき。操作中のタブ以外で
+        鳴っているものも止める）。止めた数を返す。"""
+        paused = 0
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
+            async with s.get(f"http://127.0.0.1:{CDP_PORT}/json/list") as r:
+                targets = [t for t in await r.json(content_type=None) if t.get("type") == "page"]
+            for t in targets:
+                try:
+                    async with s.ws_connect(f"ws://127.0.0.1:{CDP_PORT}/devtools/page/{t['id']}",
+                                            max_msg_size=0) as ws:
+                        await ws.send_json({"id": 1, "method": "Runtime.evaluate", "params": {
+                            "expression": "[...document.querySelectorAll('audio, video')]"
+                                          ".filter(m => !m.paused).map(m => m.pause()).length",
+                            "returnByValue": True}})
+                        async for msg in ws:
+                            data = json.loads(msg.data)
+                            if data.get("id") == 1:
+                                paused += data.get("result", {}).get("result", {}).get("value") or 0
+                                break
+                except Exception:
+                    continue  # 閉じかけのタブなど
+        return paused
+
+    async def reset_tabs(self) -> None:
+        """Chrome が起き直したとき: 前の画面が開き直されて鳴り出すことがあるので、音を止め、
+        タブを1つにする。"""
+        await self.wait_ready()
+        await self.pause_all()
+        async with self.lock:
+            await self._single_tab()
+
     async def _single_tab(self) -> None:
         """再生を始める前に、操作するタブ（_page_ws が選ぶもの）だけを残して他のタブを閉じる。
         複数のタブで音が重なって鳴らないようにする。"""

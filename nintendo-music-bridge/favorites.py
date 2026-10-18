@@ -134,8 +134,16 @@ class Favorites:
         return out
 
 
+# スピーカーからの接続がこの秒数切れたままなら、スピーカー側で止められたとみなす
+SPEAKER_GONE_SECONDS = 30
+
+
 class Session:
-    """お気に入りのプレイリストを順に再生し、スピーカーへ流す。"""
+    """お気に入りのプレイリストを順に再生し、スピーカーへ流す。
+
+    いまストリームを流しているスピーカー（speaker）はここで1つだけ持つ。パネルの
+    「スピーカーで再生」もここを通すので、2台で同時に鳴ることはない。
+    """
 
     def __init__(self, log, bridge, ha, streamer) -> None:
         self.log = log
@@ -144,56 +152,121 @@ class Session:
         self.streamer = streamer
         self.task: asyncio.Task | None = None
         self.entity_id: str | None = None
+        self.speaker: str | None = None
+        self.cast_at = 0.0
         self.queue: list[dict] = []
         self.current: dict | None = None
         self.user_paused = False
+        self.watch: asyncio.Task | None = None
+
+    def active(self) -> bool:
+        return self.task is not None and not self.task.done()
 
     def state(self) -> dict:
-        return {"active": self.task is not None and not self.task.done(),
+        return {"active": self.active(),
                 "entity_id": self.entity_id,
+                "speaker": self.speaker,
                 "current": self.current["name"] if self.current else None,
                 "remaining": [it["name"] for it in self.queue]}
 
-    async def start(self, items: list[dict], entity_id: str | None) -> None:
-        await self.stop(quiet=True)
-        self.queue = list(items)
-        self.entity_id = entity_id
-        self.user_paused = False
-        self.task = asyncio.create_task(self._run())
+    # ------------------------------------------------------------ スピーカー
+    async def cast_to(self, entity_id: str) -> None:
+        """スピーカーでストリームを再生させる。別のスピーカーで流していたら、そちらは止める。"""
+        if self.speaker == entity_id and self.streamer.clients > 0:
+            return  # もう流れている。Cast し直すと数秒途切れるのでしない
+        if self.speaker and self.speaker != entity_id:
+            await self._stop_speaker()
+        await self.ha.play_url(entity_id, self.streamer.url())
+        self.speaker = entity_id
+        self.cast_at = time.monotonic()
+        self.log(f"{entity_id} でストリームの再生を始めました")
+        if self.watch is None or self.watch.done():
+            self.watch = asyncio.create_task(self._watch_speaker())
 
-    async def stop(self, quiet: bool = False) -> None:
-        if self.task and not self.task.done():
+    async def _stop_speaker(self) -> None:
+        if not self.speaker:
+            return
+        try:
+            await self.ha.call(self.speaker, "media_stop")
+        except Exception as e:
+            self.log(f"{self.speaker} の停止に失敗しました: {e}")
+        self.speaker = None
+
+    async def _watch_speaker(self) -> None:
+        """スピーカー側で止められた（HA・本体の操作、入力の切り替え等）ら、こちらも止める。
+        止めないと Chrome が鳴り続け、お気に入りも誰も聞いていないまま次へ進んでいく。"""
+        while self.speaker:
+            await asyncio.sleep(5)
+            if not self.speaker or self.user_paused or self.streamer.clients > 0:
+                continue
+            gone = time.monotonic() - max(self.cast_at, self.streamer.last_disconnect)
+            if gone >= SPEAKER_GONE_SECONDS:
+                self.log(f"{self.speaker} がストリームを{SPEAKER_GONE_SECONDS}秒以上取りに来ないため、"
+                         "スピーカー側で止められたとみなして再生を止めます")
+                self.speaker = None
+                await self._cancel()
+                try:
+                    await self.bridge.pause_all()
+                except Exception:
+                    pass
+                return
+
+    # ------------------------------------------------------------ 操作
+    async def _cancel(self) -> None:
+        if self.active():
             self.task.cancel()
             try:
                 await self.task
             except (asyncio.CancelledError, Exception):
                 pass
-            if not quiet:
-                try:
-                    await self.bridge.control("pause")
-                except Exception:
-                    pass
-                if self.entity_id:
-                    try:
-                        await self.ha.call(self.entity_id, "media_stop")
-                    except Exception as e:
-                        self.log(f"スピーカーの停止に失敗しました: {e}")
-                self.log("再生を止めました")
         self.task = None
         self.current = None
         self.queue = []
 
+    async def start(self, items: list[dict], entity_id: str | None) -> None:
+        """お気に入りを順に再生する。前の再生中なら切り替える。
+        entity_id を省いたときは、いま流しているスピーカーがあればそのまま流し続ける。"""
+        await self._cancel()
+        self.queue = list(items)
+        self.entity_id = entity_id
+        self.user_paused = False
+        self.task = asyncio.create_task(self._run())
+
+    async def end_by_manual(self, what: str) -> None:
+        """パネルから手で別のものを再生・表示したとき。お気に入りの順送りだけを終える（スピーカーはそのまま）。"""
+        if self.active():
+            await self._cancel()
+            self.log(f"{what}ため、お気に入りの再生を終えました（スピーカーへの出力は続けます）")
+
+    async def stop(self) -> None:
+        """止める（HA のイベント・パネルの停止）。お気に入りの再生中でなくても、全部のタブの音と
+        スピーカーを止める。"""
+        await self._cancel()
+        try:
+            await self.bridge.pause_all()
+        except Exception as e:
+            self.log(f"Chrome の停止に失敗しました: {e}")
+        await self._stop_speaker()
+        self.log("再生を止めました")
+
     async def pause(self) -> None:
         self.user_paused = True
         # スピーカーはため込んだ分を持ったまま止まるので、先に止めると体感の遅れが小さい
-        if self.entity_id and self.state()["active"]:
-            await self.ha.call(self.entity_id, "media_pause")
-        await self.bridge.control("pause")
+        if self.speaker:
+            await self.ha.call(self.speaker, "media_pause")
+        try:
+            # 再生ボタンの表示も「一時停止中」にするため、まずページのボタンで止める
+            await self.bridge.control("pause")
+        finally:
+            # ボタンが見つからなくても、ほかのタブの分も含めて音は必ず止める
+            await self.bridge.pause_all()
 
     async def resume(self) -> None:
         await self.bridge.control("resume")
-        if self.entity_id and self.state()["active"]:
-            await self.ha.call(self.entity_id, "media_play")
+        if self.speaker:
+            await self.ha.call(self.speaker, "media_play")
+            # 一時停止中にスピーカーが接続を切っていることがある。取りに来直すまで猶予を与える
+            self.cast_at = time.monotonic()
         self.user_paused = False
 
     async def _play(self, item: dict) -> None:
@@ -242,16 +315,14 @@ class Session:
                     self.log(f"「{item['name']}」を再生できませんでした: {e}")
                     continue
                 if first and self.entity_id:
-                    await self.ha.play_url(self.entity_id, self.streamer.url())
-                    self.log(f"{self.entity_id} でストリームの再生を始めました")
-                    first = False
+                    await self.cast_to(self.entity_id)
+                first = False
                 await self._wait_finished(item)
             self.log("お気に入りの再生がすべて終わりました")
             try:
-                await self.bridge.control("pause")
+                await self.bridge.pause_all()
             except Exception:
                 pass
-            if self.entity_id and not first:
-                await self.ha.call(self.entity_id, "media_stop")
+            await self._stop_speaker()
         finally:
             self.current = None

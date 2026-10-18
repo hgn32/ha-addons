@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import os
+import shutil
 import socket
 import time
 
@@ -171,6 +172,7 @@ def clear_singleton_lock() -> None:
 async def start_chrome() -> None:
     os.makedirs(PROFILE_DIR, exist_ok=True)
     clear_singleton_lock()
+    clear_last_session()
     await spawn(
         "chrome", CHROME,
         f"--user-data-dir={PROFILE_DIR}",
@@ -189,6 +191,30 @@ async def start_chrome() -> None:
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}",
         f"https://music.nintendo.com/{NM_LANG}/", stderr_file=CHROME_LOG)
     log("Chrome を起動しました")
+    asyncio.create_task(after_chrome_start())
+
+
+def clear_last_session() -> None:
+    """前回のタブを開き直させない。アドオンの再起動のあと、Chrome が前の YouTube Music の画面を
+    開き直して勝手に鳴り出した（実機で確認）。タブの復元に使うファイルを消してから起動する。"""
+    base = os.path.join(PROFILE_DIR, "Default")
+    shutil.rmtree(os.path.join(base, "Sessions"), ignore_errors=True)
+    for name in ("Current Session", "Current Tabs", "Last Session", "Last Tabs"):
+        try:
+            os.remove(os.path.join(base, name))
+        except FileNotFoundError:
+            pass
+
+
+async def after_chrome_start() -> None:
+    """Chrome が起き直したら、お気に入りの再生は続けられない（画面の状態が失われる）ので終え、
+    音を止めてタブを1つにする。"""
+    try:
+        if session.active():
+            await session.end_by_manual("Chrome が起動し直した")
+        await bridge.reset_tabs()
+    except Exception as e:
+        log(f"Chrome の起動後の片付けに失敗しました: {e}")
 
 
 async def watch_chrome() -> None:
@@ -322,6 +348,7 @@ def bridge_handler(fn):
 
 async def b_play(req: web.Request):
     body = await req.json()
+    await session.end_by_manual("検索から再生した")
     return await bridge.play_playlist(body["playlist_id"], int(body.get("index", 0)))
 
 
@@ -331,10 +358,8 @@ ha = HomeAssistant()
 
 async def b_cast(req: web.Request):
     body = await req.json()
-    url = streamer.url()
-    await ha.play_url(body["entity_id"], url)
-    log(f"{body['entity_id']} にストリームの再生を指示しました")
-    return {"ok": True, "url": url}
+    await session.cast_to(body["entity_id"])
+    return {"ok": True, "url": streamer.url()}
 
 
 favs = Favorites()
@@ -370,6 +395,11 @@ async def b_session_play(req: web.Request):
     await session.start(favs.resolve(body.get("favorites"), bool(body.get("shuffle"))),
                         body.get("entity_id") or None)
     return session.state()
+
+
+async def b_open(req: web.Request):
+    await session.end_by_manual("パネルで別のページを開いた")
+    return await bridge.open_site(req.match_info["service"])
 
 
 async def b_session_stop(_req: web.Request):
@@ -504,7 +534,7 @@ def main() -> None:
     # 一時停止・再開はスピーカーにも同時に指示する（再生セッション中のとき）
     app.router.add_post("/bridge/pause", bridge_handler(lambda r: session.pause()))
     app.router.add_post("/bridge/resume", bridge_handler(lambda r: session.resume()))
-    app.router.add_post("/bridge/open/{service}", bridge_handler(lambda r: bridge.open_site(r.match_info["service"])))
+    app.router.add_post("/bridge/open/{service}", bridge_handler(b_open))
     app.router.add_get("/bridge/favorites",bridge_handler(lambda r: asyncio.sleep(0, favs.list())))
     app.router.add_post("/bridge/favorites", bridge_handler(b_fav_add))
     app.router.add_post("/bridge/favorites/current", bridge_handler(b_fav_current))
