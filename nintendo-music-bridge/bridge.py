@@ -111,6 +111,7 @@ class Bridge:
         self.lang = lang
         self.country = country
         self.lock = asyncio.Lock()  # 画面操作は同時に1つだけ
+        self._stats_reset()
 
     # ------------------------------------------------------------ カタログ
     async def _catalog(self, path: str, **params) -> dict | list:
@@ -233,6 +234,25 @@ class Bridge:
         return pages[0]["webSocketDebuggerUrl"]
 
     async def _cdp(self, calls: list[tuple[str, dict]]) -> list[dict]:
+        t0 = time.monotonic()
+        try:
+            return await self._cdp_inner(calls)
+        finally:
+            # 再生開始までの時間の内訳をログに出すため、CDP の1回ごとの所要時間を集める
+            dt = time.monotonic() - t0
+            self.cdp_stats["n"] += 1
+            self.cdp_stats["total"] += dt
+            self.cdp_stats["max"] = max(self.cdp_stats["max"], dt)
+
+    def _stats_reset(self) -> None:
+        self.cdp_stats = {"n": 0, "total": 0.0, "max": 0.0}
+
+    def _stats_text(self) -> str:
+        st = self.cdp_stats
+        avg = st["total"] / st["n"] if st["n"] else 0
+        return f"CDP {st['n']}回・平均{avg:.2f}秒・最大{st['max']:.2f}秒"
+
+    async def _cdp_inner(self, calls: list[tuple[str, dict]]) -> list[dict]:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as s:
             async with s.ws_connect(await self._page_ws(s), max_msg_size=0) as ws:
                 results = []
@@ -313,13 +333,22 @@ class Bridge:
 
     async def play_nm_url(self, url: str) -> dict:
         """Nintendo Music のプレイリスト等のページを開いて、ページ本体の再生ボタンを押す。"""
+        t0 = time.monotonic()
         async with self.lock:
+            t_lock = time.monotonic()
+            self._stats_reset()
             await self._single_tab()
             await self._cdp([("Page.navigate", {"url": url})])
+            t_nav = time.monotonic()
             await asyncio.sleep(2)
             label = await self._click("playlist-play")
+            t_click = time.monotonic()
             self.log(f"{url} の再生ボタン（{label}）を押しました")
-            return await self._wait_playing()
+            st = await self._wait_playing()
+            t_end = time.monotonic()
+            self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
+                     f" / ボタンが出るまで {t_click - t_nav:.1f} / 鳴り始めるまで {t_end - t_click:.1f}。{self._stats_text()}）")
+            return st
 
     async def open_site(self, service: str) -> dict:
         """パネルの「開く」ボタン: いまのタブで Nintendo Music / YouTube Music のトップを開く。"""
@@ -341,14 +370,19 @@ class Bridge:
           playlist?list= の一覧ページに移され、再生が始まらない。そのときは一覧の先頭の曲の
           リンク（watch?v=...&list=<同じID>）を開く
         """
+        t0 = time.monotonic()
         async with self.lock:
+            t_lock = time.monotonic()
+            self._stats_reset()
             await self._single_tab()
             # 開く前のページに目印を付ける。Page.navigate で開き直すとページ（window）が新しくなり、
             # 目印が消える。曲名で比べると、同じプレイリストを同じ曲から開き直したときに
             # 「前の曲のまま」と取り違えた（実機で確認）
             await self._eval("window.__wmpBefore = true")
             await self._cdp([("Page.navigate", {"url": f"https://music.youtube.com/watch?list={list_id}"})])
+            t_nav = time.monotonic()
             self.log(f"YouTube Music のプレイリスト {list_id} を開きました")
+            t_sound = None  # URL が合っていて鳴っている（新しいページかの確認の前）
             followed = False
             deadline = time.monotonic() + 30
             st: dict = {}
@@ -356,9 +390,14 @@ class Bridge:
                 await asyncio.sleep(1)
                 st = await self.status()
                 url = st.get("url") or ""
-                if ("/watch" in url and f"list={list_id}" in url and st.get("paused") is False
-                        and not await self._eval("window.__wmpBefore === true")):
-                    return st
+                if "/watch" in url and f"list={list_id}" in url and st.get("paused") is False:
+                    t_sound = t_sound or time.monotonic()
+                    if not await self._eval("window.__wmpBefore === true"):
+                        t_end = time.monotonic()
+                        self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
+                                 f" / 鳴っているのを見つけるまで {t_sound - t_nav:.1f} / 新しいページの確認 {t_end - t_sound:.1f}。"
+                                 f"{self._stats_text()}）")
+                        return st
                 if "/playlist" in url and not followed:
                     href = await self._eval(
                         "(() => { const a = [...document.querySelectorAll('a[href*=\"watch?v=\"]')]"
@@ -367,7 +406,9 @@ class Bridge:
                         followed = True
                         self.log(f"一覧ページに移されたため、先頭の曲を開きます（{href}）")
                         await self._cdp([("Page.navigate", {"url": href})])
-            raise RuntimeError(f"再生が始まりませんでした（状態: {st}）")
+            raise RuntimeError(f"再生が始まりませんでした（鳴っているのを見つけたのは"
+                               f" {'なし' if t_sound is None else f'{t_sound - t_nav:.1f}秒後'}。"
+                               f"{self._stats_text()}。状態: {st}）")
 
     async def _media(self, action: str) -> None:
         """ページ内の <audio>/<video> を直接操作する（ボタンの作りに依存しない）。"""
