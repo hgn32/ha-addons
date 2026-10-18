@@ -89,6 +89,17 @@ FIND_JS = r"""
 """
 
 
+# Chrome のページに問い合わせて、この秒数返事が無ければ固まったとみなす
+CDP_REPLY_TIMEOUT = 10
+
+
+class PageHung(Exception):
+    def __init__(self, method: str, ws_url: str) -> None:
+        super().__init__(method)
+        self.method = method
+        self.ws_url = ws_url
+
+
 def _thumb(o: dict | None) -> str | None:
     return (o or {}).get("thumbnailURL")
 
@@ -119,6 +130,7 @@ class Bridge:
         self.lang = lang
         self.country = country
         self.lock = asyncio.Lock()  # 画面操作は同時に1つだけ
+        self.recover_lock = asyncio.Lock()
         self._stats_reset()
 
     # ------------------------------------------------------------ カタログ
@@ -244,7 +256,11 @@ class Bridge:
     async def _cdp(self, calls: list[tuple[str, dict]]) -> list[dict]:
         t0 = time.monotonic()
         try:
-            return await self._cdp_inner(calls)
+            try:
+                return await self._cdp_inner(calls)
+            except PageHung as e:
+                await self._recover(e)
+                return await self._cdp_inner(calls)
         finally:
             # 再生開始までの時間の内訳をログに出すため、CDP の1回ごとの所要時間を集める
             dt = time.monotonic() - t0
@@ -260,20 +276,58 @@ class Bridge:
         avg = st["total"] / st["n"] if st["n"] else 0
         return f"CDP {st['n']}回・平均{avg:.2f}秒・最大{st['max']:.2f}秒"
 
+    @staticmethod
+    async def _reply(ws, i: int) -> dict:
+        async for msg in ws:
+            data = json.loads(msg.data)
+            if data.get("id") == i:
+                return data
+        raise RuntimeError("Chrome との接続が切れました")
+
     async def _cdp_inner(self, calls: list[tuple[str, dict]]) -> list[dict]:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as s:
-            async with s.ws_connect(await self._page_ws(s), max_msg_size=0) as ws:
+            ws_url = await self._page_ws(s)
+            async with s.ws_connect(ws_url, max_msg_size=0) as ws:
                 results = []
                 for i, (method, params) in enumerate(calls, 1):
                     await ws.send_json({"id": i, "method": method, "params": params})
-                    async for msg in ws:
-                        data = json.loads(msg.data)
-                        if data.get("id") == i:
-                            if "error" in data:
-                                raise RuntimeError(f"{method}: {data['error']}")
-                            results.append(data.get("result", {}))
-                            break
+                    # 接続のタイムアウト（ClientTimeout）は返事待ちには効かない。Chrome のページが
+                    # 返事をしないと、いつまでも待ち続けていた（実機で PlayBGM が止まったまま）
+                    try:
+                        # Page.navigate は移動が始まるまで返事をしないので長めに待つ
+                        wait = CDP_REPLY_TIMEOUT * 2 if method == "Page.navigate" else CDP_REPLY_TIMEOUT
+                        data = await asyncio.wait_for(self._reply(ws, i), wait)
+                    except asyncio.TimeoutError:
+                        raise PageHung(method, ws_url)
+                    if "error" in data:
+                        raise RuntimeError(f"{method}: {data['error']}")
+                    results.append(data.get("result", {}))
                 return results
+
+    async def _recover(self, e: "PageHung") -> None:
+        """ページが CDP に返事をしないとき、そのタブを捨てて Nintendo Music を開き直す。
+
+        実機で、PlayBGM の途中に Runtime.evaluate が返事をしなくなり、止まったままになった。
+        コンテナで alert() が開いたページ・無限ループのページを作って確かめたところ、どちらも
+        Page.enable / Page.handleJavaScriptDialog にも返事をしなかったので、ダイアログを閉じる
+        方法は使わず、タブごと替える。
+        """
+        async with self.recover_lock:
+            tab_id = e.ws_url.rsplit("/", 1)[-1]
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
+                if not any(t.get("id") == tab_id for t in await self._pages(s)):
+                    return  # 同時に待っていた別の処理が、もう立て直した
+            self.log(f"Chrome のページが {CDP_REPLY_TIMEOUT}秒以上返事をしません（{e.method}）。タブを開き直します")
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
+                # 先に新しいタブを開く。最後のタブを閉じると Chrome ごと終わる（実測）
+                await self._new_tab(s, f"{SITE}/{self.lang}/")
+                try:
+                    async with s.get(f"http://127.0.0.1:{CDP_PORT}/json/close/{tab_id}") as r:
+                        await r.read()
+                except Exception:
+                    pass
+            await asyncio.sleep(2)
+            self.log("返事をしないタブを閉じて、Nintendo Music を開き直しました")
 
     async def _eval(self, expr: str):
         (res,) = await self._cdp([("Runtime.evaluate", {"expression": expr, "returnByValue": True,
