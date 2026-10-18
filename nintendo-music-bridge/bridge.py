@@ -336,14 +336,17 @@ class Bridge:
 
         実機で分かったこと:
         - 開く直前まで別の曲が鳴っていると、開いた直後の状態確認がその曲を「再生が始まった」と
-          取り違える。URL がこのプレイリストの watch に変わり、曲が変わるまで待つ
+          取り違える。開き直した新しいページで、このプレイリストの watch が鳴り始めるまで待つ
         - YouTube Music が自動で作るプレイリスト（RDCLAK5uy_...）は、watch?list= を開くと
           playlist?list= の一覧ページに移され、再生が始まらない。そのときは一覧の先頭の曲の
           リンク（watch?v=...&list=<同じID>）を開く
         """
         async with self.lock:
             await self._single_tab()
-            before = await self.status()
+            # 開く前のページに目印を付ける。Page.navigate で開き直すとページ（window）が新しくなり、
+            # 目印が消える。曲名で比べると、同じプレイリストを同じ曲から開き直したときに
+            # 「前の曲のまま」と取り違えた（実機で確認）
+            await self._eval("window.__wmpBefore = true")
             await self._cdp([("Page.navigate", {"url": f"https://music.youtube.com/watch?list={list_id}"})])
             self.log(f"YouTube Music のプレイリスト {list_id} を開きました")
             followed = False
@@ -354,7 +357,7 @@ class Bridge:
                 st = await self.status()
                 url = st.get("url") or ""
                 if ("/watch" in url and f"list={list_id}" in url and st.get("paused") is False
-                        and (st.get("title") != before.get("title") or f"list={list_id}" not in (before.get("url") or ""))):
+                        and not await self._eval("window.__wmpBefore === true")):
                     return st
                 if "/playlist" in url and not followed:
                     href = await self._eval(
