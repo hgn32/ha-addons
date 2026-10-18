@@ -12,8 +12,10 @@ CDP（リモートデバッグポート）やブリッジ API はフェーズ1�
 
 from __future__ import annotations
 
+import array
 import asyncio
 import ipaddress
+import math
 import os
 import shutil
 import socket
@@ -477,9 +479,17 @@ async def measure_rate() -> None:
             f"--rate={rate_target}", "--channels=2", "--latency-msec=100",
             env=ENV, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         frames, t0 = 0, time.monotonic()
+        sq, n, peak = 0.0, 0, 0
         try:
             while chunk := await proc.stdout.read(65536):
                 frames += len(chunk) // 4
+                # 音の大きさ（JBL が10分で「使われていない」としてスタンバイに入ったため、ラジオと比べる）。
+                # 負荷を抑えるため 16 サンプルに1つだけ見る
+                smp = array.array("h", chunk[: len(chunk) // 2 * 2])[::16]
+                if smp:
+                    sq += sum(x * x for x in smp)
+                    n += len(smp)
+                    peak = max(peak, max(smp), -min(smp))
                 now = time.monotonic()
                 if now - t0 >= 60:
                     _, out = await run_quiet("pactl", "list", "short", "sinks")
@@ -487,8 +497,11 @@ async def measure_rate() -> None:
                     hz = frames / (now - t0)
                     rate_stats.update(hz=round(hz, 1), at=time.strftime("%H:%M:%S"), running=running)
                     if running:
-                        log(f"送信レート: {hz:.1f} Hz（設定 {rate_target} Hz、差 {(hz / rate_target - 1) * 100:+.3f}%）")
+                        level = (f"音量 平均 {20 * math.log10(max(math.sqrt(sq / n), 1) / 32768):.1f} dBFS"
+                                 f" / 最大 {20 * math.log10(max(peak, 1) / 32768):.1f} dBFS") if n else "音量 不明"
+                        log(f"送信レート: {hz:.1f} Hz（設定 {rate_target} Hz、差 {(hz / rate_target - 1) * 100:+.3f}%）、{level}")
                     frames, t0 = 0, now
+                    sq, n, peak = 0.0, 0, 0
         finally:
             if proc.returncode is None:
                 proc.kill()
