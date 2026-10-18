@@ -272,10 +272,21 @@ class Session:
     async def _play(self, item: dict) -> None:
         service, value = detect(item["url"])
         await self.bridge.wait_ready()
-        if service == "nm":
-            await self.bridge.play_nm_url(value)
-        else:
-            await self.bridge.play_ytm(value)
+        for attempt in (1, 2):
+            recovered = self.bridge.recover_count
+            try:
+                if service == "nm":
+                    await self.bridge.play_nm_url(value)
+                else:
+                    await self.bridge.play_ytm(value)
+                return
+            except Exception as e:
+                # 開いている途中でページが固まり、タブを開き直した（実機で YouTube Music から
+                # 別の YouTube Music を開いたときに2回起きた）。開き直したタブでもう一度だけ試す
+                if attempt == 1 and self.bridge.recover_count != recovered:
+                    self.log(f"「{item['name']}」の途中でタブを開き直したため、もう一度開きます（{e}）")
+                    continue
+                raise
 
     async def _wait_finished(self, item: dict) -> None:
         service, value = detect(item["url"])

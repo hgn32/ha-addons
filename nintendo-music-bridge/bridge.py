@@ -131,6 +131,7 @@ class Bridge:
         self.country = country
         self.lock = asyncio.Lock()  # 画面操作は同時に1つだけ
         self.recover_lock = asyncio.Lock()
+        self.recover_count = 0  # タブを開き直した回数（再生の途中で起きたらやり直すため）
         self._stats_reset()
 
     # ------------------------------------------------------------ カタログ
@@ -319,6 +320,16 @@ class Bridge:
                     return  # 同時に待っていた別の処理が、もう立て直した
             self.log(f"Chrome のページが {CDP_REPLY_TIMEOUT}秒以上返事をしません（{e.method}）。タブを開き直します")
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
+                # 原因を絞るため、そのときの Chrome の中身（タブ以外も含む）を残す
+                try:
+                    async with s.get(f"http://127.0.0.1:{CDP_PORT}/json/list") as r:
+                        targets = await r.json(content_type=None)
+                    self.log("そのときの Chrome: " + " / ".join(
+                        f"{t.get('type')}{'（固まったタブ）' if t.get('id') == tab_id else ''}"
+                        f" {t.get('title', '')[:30]} {t.get('url', '')[:70]}" for t in targets))
+                except Exception as ex:
+                    self.log(f"Chrome の中身を読めませんでした（{type(ex).__name__}）")
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
                 # 先に新しいタブを開く。最後のタブを閉じると Chrome ごと終わる（実測）
                 await self._new_tab(s, f"{SITE}/{self.lang}/")
                 try:
@@ -327,6 +338,7 @@ class Bridge:
                 except Exception:
                     pass
             await asyncio.sleep(2)
+            self.recover_count += 1
             self.log("返事をしないタブを閉じて、Nintendo Music を開き直しました")
 
     async def _eval(self, expr: str):
@@ -448,9 +460,12 @@ class Bridge:
             followed = False
             deadline = time.monotonic() + 30
             st: dict = {}
+            recovered = self.recover_count
             while time.monotonic() < deadline:
                 await asyncio.sleep(1)
                 st = await self.status()
+                if self.recover_count != recovered:
+                    raise RuntimeError("開いている途中でタブを開き直しました")
                 url = st.get("url") or ""
                 if "/watch" in url and f"list={list_id}" in url and st.get("paused") is False:
                     t_sound = t_sound or time.monotonic()
