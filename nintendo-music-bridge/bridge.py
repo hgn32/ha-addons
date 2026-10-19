@@ -1,10 +1,7 @@
-"""ブリッジ API: Nintendo Music の検索・ブラウズと、Nintendo Music / YouTube Music の再生操作を HTTP で外に出す。
+"""ブリッジ: Nintendo Music / YouTube Music の再生操作。
 
-- 検索・ゲーム・プレイリストのメタデータは Web 版と同じ公開カタログ API を呼ぶ
-  （ログイン不要。調査モードの記録と、ログインなしでの実測で確認した）。
-  音源（暗号化メディア）には触れない。
-- 再生操作は、ログイン済みの Chrome を CDP で操作する（ページ遷移とボタンのクリック）。
-  ボタンは調査モードで記録した aria-label と、Web 版の翻訳データの文言で探す。
+- ログイン済みの Chrome を CDP で操作する（ページ遷移とボタンのクリック）。音源（暗号化メディア）には触れない。
+  ボタンは画面の部品の aria-label と、Web 版の翻訳データの文言で探す。
   https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchMouseEvent
 """
 
@@ -16,9 +13,7 @@ import time
 
 import aiohttp
 
-from discover import CDP_PORT
-
-API = "https://api.m.nintendo.com/catalog"
+CDP_PORT = 9222
 SITE = "https://music.nintendo.com"
 
 # ボタンの文言。Web 版の翻訳データ（公開 JS の en-US / ja-JP）で同じ意味のキーが持つ値をすべて入れる
@@ -100,75 +95,14 @@ class PageHung(Exception):
         self.ws_url = ws_url
 
 
-def _thumb(o: dict | None) -> str | None:
-    return (o or {}).get("thumbnailURL")
-
-
-def simple_game(g: dict) -> dict:
-    return {"id": g.get("id"), "name": g.get("name"), "hardware": g.get("formalHardware"),
-            "thumbnail": _thumb(g)}
-
-
-def simple_playlist(p: dict) -> dict:
-    return {"id": p.get("id"), "name": p.get("name"), "type": p.get("type"),
-            "tracks_num": p.get("tracksNum", len(p.get("tracks") or [])),
-            "game": simple_game(p["game"]) if p.get("game") else None,
-            "thumbnail": _thumb(p)}
-
-
-def simple_track(t: dict) -> dict:
-    payloads = ((t.get("media") or {}).get("payloadList") or [])
-    duration = next((x.get("durationMillis") for x in payloads if x.get("durationMillis")), None)
-    return {"id": t.get("id"), "name": t.get("name"),
-            "game": simple_game(t["game"]) if t.get("game") else None,
-            "duration_ms": duration, "thumbnail": _thumb(t)}
-
-
 class Bridge:
-    def __init__(self, log, lang: str = "ja-JP", country: str = "JP") -> None:
+    def __init__(self, log, lang: str = "ja-JP") -> None:
         self.log = log
         self.lang = lang
-        self.country = country
         self.lock = asyncio.Lock()  # 画面操作は同時に1つだけ
         self.recover_lock = asyncio.Lock()
         self.recover_count = 0  # タブを開き直した回数（再生の途中で起きたらやり直すため）
         self._stats_reset()
-
-    # ------------------------------------------------------------ カタログ
-    async def _catalog(self, path: str, **params) -> dict | list:
-        q = {"lang": self.lang, "country": self.country, **{k: v for k, v in params.items() if v is not None}}
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20), trust_env=True) as s:
-            async with s.get(f"{API}{path}", params=q) as r:
-                if r.status != 200:
-                    raise RuntimeError(f"カタログ API {path} が {r.status} を返しました: {(await r.text())[:200]}")
-                return await r.json(content_type=None)
-
-    async def search(self, q: str, type_: str | None = None, limit: int = 20) -> dict:
-        body = await self._catalog("/resources:search", q=q, type=type_, limit=limit)
-        out: dict[str, list] = {"games": [], "playlists": [], "tracks": []}
-        for item in body.get("items", []):
-            if item.get("game"):
-                out["games"].append(simple_game(item["game"]))
-            elif item.get("officialPlaylist") or item.get("playlist"):
-                out["playlists"].append(simple_playlist(item.get("officialPlaylist") or item["playlist"]))
-            elif item.get("track"):
-                out["tracks"].append(simple_track(item["track"]))
-        return out
-
-    async def games(self) -> list[dict]:
-        body = await self._catalog("/gameGroups", groupingPolicy="HARDWARE")
-        return [{"hardware": h.get("formalHardware"), "games": [simple_game(g) for g in h.get("items", [])]}
-                for h in body.get("hardware", [])]
-
-    async def game_playlists(self, game_id: str) -> dict:
-        body = await self._catalog(f"/games/{game_id}/relatedPlaylists")
-        pls = [body[k] for k in ("allPlaylist", "bestPlaylist") if body.get(k)]
-        pls += (body.get("miscPlaylistSet") or {}).get("officialPlaylists", [])
-        return {"playlists": [simple_playlist(p) for p in pls]}
-
-    async def playlist(self, playlist_id: str) -> dict:
-        body = await self._catalog(f"/officialPlaylists/{playlist_id}")
-        return {**simple_playlist(body), "tracks": [simple_track(t) for t in body.get("tracks", [])]}
 
     # ------------------------------------------------------------ CDP
     async def _pages(self, session: aiohttp.ClientSession) -> list[dict]:
@@ -376,21 +310,6 @@ class Bridge:
                 return st
             await asyncio.sleep(0.5)
         raise RuntimeError(f"再生が始まりませんでした（状態: {st}）")
-
-    async def play_playlist(self, playlist_id: str, index: int = 0) -> dict:
-        async with self.lock:
-            await self._single_tab()
-            await self._cdp([("Page.navigate", {"url": f"{SITE}/{self.lang}/playlist/{playlist_id}/"})])
-            await asyncio.sleep(2)
-            label = await self._click("playlist-play")
-            self.log(f"プレイリスト {playlist_id} の再生ボタン（{label}）を押しました")
-            st = await self._wait_playing()
-            # 指定の曲まで「次の曲」で送る（曲の行を直接押す方法は調べていないため）
-            for _ in range(index):
-                title = st.get("title")
-                await self._click("next")
-                st = await self._wait_playing(before_title=title)
-            return st
 
     async def wait_ready(self, timeout: float = 60) -> None:
         """Chrome の CDP が使えるようになるまで待つ（起動直後に再生の指示が来たとき用）。"""

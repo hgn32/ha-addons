@@ -5,6 +5,3 @@ configuration:
   lang:
     name: 言語
     description: Nintendo Music のページ・Chrome の画面・曲名などの言語です。
-  country:
-    name: 国
-    description: Nintendo Music の国（曲やプレイリストの提供範囲）です。

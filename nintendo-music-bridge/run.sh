@@ -23,9 +23,8 @@ context.objects = [
 ]
 CONF
 
-# カタログ（検索・プレイリスト）の言語と国
+# Nintendo Music のページと Chrome の画面の言語
 export NM_LANG="$(bashio::config 'lang')"
-export NM_COUNTRY="$(bashio::config 'country')"
 export NM_RATE="$(bashio::config 'sample_rate')"
 
 exec python3 -u /server.py

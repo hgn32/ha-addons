@@ -5,6 +5,3 @@ configuration:
   lang:
     name: Language
     description: Language of the Nintendo Music pages, the Chrome UI and track titles.
-  country:
-    name: Country
-    description: Nintendo Music country (availability of tracks and playlists).

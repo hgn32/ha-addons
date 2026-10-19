@@ -21,8 +21,7 @@ import time
 import aiohttp
 from aiohttp import web
 
-from bridge import Bridge
-from discover import CDP_PORT, Discoverer
+from bridge import CDP_PORT, Bridge
 from favorites import Favorites, Session
 from stream import HomeAssistant, Streamer
 
@@ -185,7 +184,7 @@ async def start_chrome() -> None:
         "--password-store=basic",
         "--disable-dev-shm-usage",
         "--autoplay-policy=no-user-gesture-required",
-        # 調査モード・ブリッジ API がページを観察・操作するための CDP。127.0.0.1 だけで待ち受ける
+        # ブリッジがページを操作するための CDP。127.0.0.1 だけで待ち受ける
         f"--remote-debugging-port={CDP_PORT}",
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}",
         f"https://music.nintendo.com/{NM_LANG}/", stderr_file=CHROME_LOG)
@@ -309,28 +308,7 @@ async def api_status(_req: web.Request) -> web.Response:
     })
 
 
-discoverer = Discoverer(log)
-
-
-async def api_discover(req: web.Request) -> web.Response:
-    action = req.match_info["action"]
-    try:
-        if action == "start":
-            discoverer.start()
-        elif action == "stop":
-            await discoverer.stop()
-            log("調査モードを終了しました")
-        elif action == "dom":
-            await discoverer.snapshot_dom()
-        elif action != "report":
-            return web.json_response({"error": "不明な操作です"}, status=404)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-    return web.json_response({"running": discoverer.running, "count": len(discoverer.entries),
-                              "report": discoverer.report()})
-
-
-bridge = Bridge(log, lang=NM_LANG, country=os.environ.get("NM_COUNTRY", "JP"))
+bridge = Bridge(log, lang=NM_LANG)
 
 
 def bridge_handler(fn):
@@ -343,12 +321,6 @@ def bridge_handler(fn):
             log(f"ブリッジ API {req.method} {req.path} でエラー: {e}")
             return web.json_response({"error": str(e)}, status=500)
     return handler
-
-
-async def b_play(req: web.Request):
-    body = await req.json()
-    await session.end_by_manual("検索から再生した")
-    return await bridge.play_playlist(body["playlist_id"], int(body.get("index", 0)))
 
 
 streamer = Streamer(log, ENV, SINK, int(os.environ.get("NM_RATE", "48000")), PORT)
@@ -528,16 +500,8 @@ def main() -> None:
     app = web.Application(middlewares=[only_ingress])
     app.router.add_get("/", index)
     app.router.add_get("/api/status", api_status)
-    app.router.add_post("/api/discover/{action}", api_discover)
     # ブリッジ API（パネルと HA から使う）
-    app.router.add_get("/bridge/search", bridge_handler(
-        lambda r: bridge.search(r.query["q"], r.query.get("type"), int(r.query.get("limit", 20)))))
-    app.router.add_get("/bridge/games", bridge_handler(lambda r: bridge.games()))
-    app.router.add_get("/bridge/games/{id}/playlists", bridge_handler(
-        lambda r: bridge.game_playlists(r.match_info["id"])))
-    app.router.add_get("/bridge/playlists/{id}", bridge_handler(lambda r: bridge.playlist(r.match_info["id"])))
     app.router.add_get("/bridge/status", bridge_handler(lambda r: bridge.status()))
-    app.router.add_post("/bridge/play", bridge_handler(b_play))
     app.router.add_post("/bridge/{action:next|previous}", bridge_handler(
         lambda r: bridge.control(r.match_info["action"])))
     # 一時停止・再開はスピーカーにも同時に指示する（再生セッション中のとき）
