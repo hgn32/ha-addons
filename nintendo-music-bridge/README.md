@@ -106,8 +106,7 @@ Nintendo Music / YouTube Music の画面の作りを調べるための記録機�
 |---|---|---|
 | `lang` | `ja-JP` | ページ・Chrome の画面・曲名の言語（ja-JP / en-US） |
 | `country` | `JP` | Nintendo Music の国 |
-| `vban_enabled` | オフ | オンにすると、Music Assistant の VBAN Receiver へも VBAN で送る |
-| `vban_host` / `vban_port` / `vban_stream_name` / `sample_rate` | | VBAN の送信先と形式（`sample_rate` はストリームにも使う） |
+| `sample_rate` | `48000` | Chrome の音を受ける出力とストリームのサンプルレート（44100 / 48000） |
 
 ## 仕組み・注意
 

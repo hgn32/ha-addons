@@ -2,7 +2,7 @@
 
 お気に入りは /data/favorites.json に [{"id", "name", "url"}] で保存する。
 URL から Nintendo Music / YouTube Music を判別する:
-- Nintendo Music: music.nintendo.com のページ（プレイリスト・ユーザープレイリスト等）。ページを開いて再生ボタンを押す
+- Nintendo Music: music.nintendo.com のゲーム・プレイリストのページ。ページを開いて再生ボタンを押す
 - YouTube Music: list= を含む URL（playlist?list=... / watch?...&list=...）。watch?list= を開いて自動再生させる
 """
 

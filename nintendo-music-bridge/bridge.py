@@ -1,4 +1,4 @@
-"""ブリッジ API: Nintendo Music の検索・ブラウズ・再生操作を HTTP で外に出す。
+"""ブリッジ API: Nintendo Music の検索・ブラウズと、Nintendo Music / YouTube Music の再生操作を HTTP で外に出す。
 
 - 検索・ゲーム・プレイリストのメタデータは Web 版と同じ公開カタログ API を呼ぶ
   （ログイン不要。調査モードの記録と、ログインなしでの実測で確認した）。

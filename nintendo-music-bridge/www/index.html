@@ -71,15 +71,15 @@ event_data:
   <div style="margin-bottom:6px;display:flex;gap:6px;flex-wrap:wrap">
     <button data-open="nm">Nintendo Music を開く</button>
     <button data-open="ytm">YouTube Music を開く</button>
-    <span style="font-size:.8rem;opacity:.7;align-self:center">タブを閉じてしまっても、次の操作のときに自動で開き直します</span>
+    <span style="font-size:.8rem;opacity:.7;align-self:center">初回は下の画面で Nintendo Music にログインしてください。タブを閉じてしまっても、次の操作のときに自動で開き直します</span>
   </div>
   <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
   <details id="disc" style="margin:8px 0">
-    <summary>調査モード（ブリッジ API を作るための下調べ）</summary>
+    <summary>調査モード（画面の作りを調べるための記録）</summary>
     <ol style="font-size:.85rem">
       <li>「調査を開始」を押す</li>
       <li>画面内で、検索 → 検索結果からゲームやプレイリストを開く → 曲を再生、と普段どおり操作する。要所で「画面の部品を記録」を押す（検索結果・プレイリスト・再生中の各画面で1回ずつ）</li>
-      <li>「調査を終了」→「結果をコピー」で、Claude に貼り付ける</li>
+      <li>「調査を終了」→「結果をコピー」</li>
     </ol>
     <p style="font-size:.85rem">認証トークン・ライセンス関係の通信・リクエストヘッダは記録しません。</p>
     <button data-a="start">調査を開始</button>
@@ -89,7 +89,6 @@ event_data:
     <span id="dstat"></span>
     <textarea id="report" readonly style="width:100%;box-sizing:border-box;height:8em;font-family:monospace;font-size:.75rem;margin-top:6px"></textarea>
   </details>
-  <p style="font-size:.85rem">初回は下の画面で Nintendo Music にログインしてください。曲は上の検索から選んで再生できます。音声は VBAN で Music Assistant へ送られます（MA の「VBAN Receiver」で受信）。</p>
 </main>
 <script>
 async function poll() {
@@ -98,7 +97,7 @@ async function poll() {
     const c = document.getElementById("chrome"), k = document.getElementById("sink");
     c.textContent = "Chrome: " + (s.chrome ? "起動中" : "停止（自動で起動し直します）");
     c.className = s.chrome ? "ok" : "ng";
-    k.textContent = "音声出力: " + (s.sink === "RUNNING" ? "再生中（VBAN 送信中）" : s.sink ? "待機中（" + s.sink + "）" : "見つかりません");
+    k.textContent = "音声出力: " + (s.sink === "RUNNING" ? "再生中" : s.sink ? "待機中（" + s.sink + "）" : "見つかりません");
     k.className = s.sink === "RUNNING" ? "ok" : s.sink ? "" : "ng";
   } catch {}
   setTimeout(poll, 2000);

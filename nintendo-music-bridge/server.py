@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""Web Music Player（旧 Nintendo Music Bridge）。
+"""Web Music Player。
 
 Xvfb 上で公式 Chrome を常駐させ、画面を noVNC で Ingress に出す。
-Chrome の音声は PipeWire の VBAN 送信シンク（vban-sender-ma）へ出し、
-Music Assistant の VBAN Receiver プラグインで受ける。
-
-フェーズ0は「Linux の公式 Chrome で Nintendo Music の Web 版が再生でき、
-その音が MA のスピーカーで鳴るか」を確かめるための最小構成。
-CDP（リモートデバッグポート）やブリッジ API はフェーズ1以降で足す。
+Chrome の音声は PipeWire の出力シンク（player-out）へ出し、そのモニターを MP3 のストリームにして
+HA の Cast 連携でスピーカーに再生させる（stream.py）。
+再生操作は CDP（リモートデバッグポート）で Chrome を操作する（bridge.py・favorites.py）。
 """
 
 from __future__ import annotations
@@ -54,7 +51,7 @@ chrome_restarts: list[float] = []
 
 
 def log(msg: str) -> None:
-    print(f"[nintendo-music] {msg}", flush=True)
+    print(f"[web-music-player] {msg}", flush=True)
 
 
 async def run_quiet(*args: str) -> tuple[int, str]:
@@ -142,7 +139,7 @@ async def start_audio() -> None:
     async def sink_ready() -> bool:
         code, out = await run_quiet("pactl", "list", "short", "sinks")
         return code == 0 and SINK in out
-    await wait_until(sink_ready, f"PipeWire の VBAN 送信シンク（{SINK}）", timeout=15)
+    await wait_until(sink_ready, f"PipeWire の出力シンク（{SINK}）", timeout=15)
     # シンクが見えても、WirePlumber が既定の出力を扱えるようになる前だと
     # "Failure: Not supported" で断られることがある（実測）。通るまで待つ
     last = ""
@@ -250,7 +247,7 @@ async def watch_chrome() -> None:
 # ---------------------------------------------------------------- HTTP
 # host_network なので 0.0.0.0 で待つと LAN からも見える。HA の内部ネットワーク
 # （Supervisor の Ingress 中継 172.30.32.2 と他のアドオン。ha-mcp などは自分の IP から直接来る）と
-# ホスト自身（HA 本体・Music Assistant は host_network）以外は断る
+# ホスト自身（HA 本体と host_network のアドオン）以外は断る
 # 「172.30.32.2 以外は拒否すること」は HA 開発者ドキュメントのアドオン Ingress 節の要件
 # https://git.sudo.is/home-assistant/developers.home-assistant/src/branch/children/docs/add-ons/presentation.md
 # 同じ穴（Ingress 用の画面が LAN から認証なしで見えた）: https://securelayer7.net/lab/cve-2026-59177-esphome-device-builder-unauthenticated-ingress-lan-access
@@ -307,7 +304,7 @@ async def api_status(_req: web.Request) -> web.Response:
             sink_state = cols[4]
     return web.json_response({
         "chrome": chrome is not None and chrome.returncode is None,
-        "sink": sink_state,  # RUNNING なら音が VBAN で出ている
+        "sink": sink_state,  # RUNNING なら Chrome の音が出ている
         "send_rate": rate_stats,
     })
 
@@ -466,11 +463,10 @@ rate_stats: dict = {}
 
 
 async def measure_rate() -> None:
-    """VBAN 送信シンクに流れている音のサンプル数を数え、1分ごとに実際のレートをログに出す。
+    """出力シンクに流れている音のサンプル数と大きさを測り、1分ごとにログに出す。
 
-    MA の VBAN Receiver は設定したレート（48000）で消費するので、送る側がそれより少ないと
-    数分で受信側のバッファが底をつき、音が途切れる。検証環境では 47600〜47970 Hz と
-    ばらついたため、実機の値を見て対策を決める。音が流れていない間（無音・停止中）は数えない。
+    スピーカーは決まったレートで消費するので、出ている音がそれより少ないと音が途切れる。
+    その確認用。音が流れていない間（無音・停止中）はログに出さない。
     """
     rate_target = int(os.environ.get("NM_RATE", "48000"))
     while True:
@@ -483,7 +479,7 @@ async def measure_rate() -> None:
         try:
             while chunk := await proc.stdout.read(65536):
                 frames += len(chunk) // 4
-                # 音の大きさ（JBL が10分で「使われていない」としてスタンバイに入ったため、ラジオと比べる）。
+                # 音の大きさ（スピーカーが無音とみなしてスタンバイに入らないかを見るため）。
                 # 負荷を抑えるため 16 サンプルに1つだけ見る
                 smp = array.array("h", chunk[: len(chunk) // 2 * 2])[::16]
                 if smp:
@@ -499,7 +495,7 @@ async def measure_rate() -> None:
                     if running:
                         level = (f"音量 平均 {20 * math.log10(max(math.sqrt(sq / n), 1) / 32768):.1f} dBFS"
                                  f" / 最大 {20 * math.log10(max(peak, 1) / 32768):.1f} dBFS") if n else "音量 不明"
-                        log(f"送信レート: {hz:.1f} Hz（設定 {rate_target} Hz、差 {(hz / rate_target - 1) * 100:+.3f}%）、{level}")
+                        log(f"出力レート: {hz:.1f} Hz（設定 {rate_target} Hz、差 {(hz / rate_target - 1) * 100:+.3f}%）、{level}")
                     frames, t0 = 0, now
                     sq, n, peak = 0.0, 0, 0
         finally:
@@ -533,7 +529,7 @@ def main() -> None:
     app.router.add_get("/", index)
     app.router.add_get("/api/status", api_status)
     app.router.add_post("/api/discover/{action}", api_discover)
-    # ブリッジ API（Music Assistant のプロバイダ・HA のオートメーションから使う）
+    # ブリッジ API（パネルと HA から使う）
     app.router.add_get("/bridge/search", bridge_handler(
         lambda r: bridge.search(r.query["q"], r.query.get("type"), int(r.query.get("limit", 20)))))
     app.router.add_get("/bridge/games", bridge_handler(lambda r: bridge.games()))
