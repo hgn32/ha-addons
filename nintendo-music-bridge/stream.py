@@ -71,10 +71,12 @@ class Streamer:
         await resp.prepare(req)
         if req.method == "HEAD":
             return resp
-        # parec（出力シンクのモニター）→ ffmpeg（MP3）を1本のパイプでつなぐ
+        # parec（出力シンクのモニター）→ ffmpeg（MP3）を1本のパイプでつなぐ。
+        # CPU を減らすため、parec は 200ms ごとにまとめて読み、MP3 は速い設定（LAME の -q 7）で作る
+        # （実測: 再生中 11.2% → 10.2%、1コア=100%）。https://ffmpeg.org/ffmpeg-codecs.html#libmp3lame-1
         cmd = (f"parec -d {self.sink}.monitor --raw --format=s16le --rate={self.rate} --channels=2 "
-               f"--latency-msec=50 | ffmpeg -hide_banner -loglevel error -f s16le -ar {self.rate} -ac 2 "
-               f"-i pipe:0 -c:a libmp3lame -b:a 256k -f mp3 pipe:1")
+               f"--latency-msec=200 | ffmpeg -hide_banner -loglevel error -f s16le -ar {self.rate} -ac 2 "
+               f"-i pipe:0 -c:a libmp3lame -b:a 256k -compression_level 7 -f mp3 pipe:1")
         proc = await asyncio.create_subprocess_shell(
             cmd, env=self.env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             start_new_session=True)

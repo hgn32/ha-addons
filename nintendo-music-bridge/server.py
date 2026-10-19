@@ -9,10 +9,8 @@ HA の Cast 連携でスピーカーに再生させる（stream.py）。
 
 from __future__ import annotations
 
-import array
 import asyncio
 import ipaddress
-import math
 import os
 import shutil
 import socket
@@ -44,7 +42,11 @@ DBUS_ADDR = "unix:path=/run/user/0/bus"
 NM_LANG = os.environ.get("NM_LANG", "ja-JP")
 ENV = dict(os.environ, DISPLAY=DISPLAY, XDG_RUNTIME_DIR="/run/user/0",
            DBUS_SESSION_BUS_ADDRESS=DBUS_ADDR,
-           LANGUAGE=NM_LANG.split("-")[0], LANG=NM_LANG.replace("-", "_") + ".UTF-8")
+           LANGUAGE=NM_LANG.split("-")[0], LANG=NM_LANG.replace("-", "_") + ".UTF-8",
+           # PulseAudio 互換の層を使うアプリ（Chrome・parec）の音のバッファを増やす。
+           # 小さい単位で何度も受け渡すのをやめて CPU を減らす（実測: 再生中 10.2% → 7.8%、1コア=100%）
+           # https://docs.pipewire.org/page_man_pipewire-pulse_1.html
+           PULSE_LATENCY_MSEC="100")
 procs: dict[str, asyncio.subprocess.Process] = {}
 chrome_restarts: list[float] = []
 
@@ -171,6 +173,7 @@ async def start_chrome() -> None:
     os.makedirs(PROFILE_DIR, exist_ok=True)
     clear_singleton_lock()
     clear_last_session()
+    clean_profile()
     await spawn(
         "chrome", CHROME,
         f"--user-data-dir={PROFILE_DIR}",
@@ -184,6 +187,9 @@ async def start_chrome() -> None:
         "--password-store=basic",
         "--disable-dev-shm-usage",
         "--autoplay-policy=no-user-gesture-required",
+        # ディスクキャッシュの上限（50MB）。--disk-cache-size はバイトで指定する
+        # https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/chrome_switches.h
+        "--disk-cache-size=52428800",
         # ブリッジがページを操作するための CDP。127.0.0.1 だけで待ち受ける
         f"--remote-debugging-port={CDP_PORT}",
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}",
@@ -202,6 +208,69 @@ def clear_last_session() -> None:
             os.remove(os.path.join(base, name))
         except FileNotFoundError:
             pass
+
+
+# Chrome を起動する前に消すもの（キャッシュと履歴）。ログイン状態（Cookies・Local Storage・IndexedDB）は残す
+PROFILE_JUNK = [
+    "Cache", "Code Cache", "GPUCache", "DawnGraphiteCache", "DawnWebGPUCache",
+    # Service Worker はサイトのキャッシュ（CacheStorage）が大半。消してもサイトが登録し直す
+    "Service Worker",
+    "History", "History-journal", "Favicons", "Favicons-journal", "Top Sites", "Top Sites-journal",
+    "Visited Links", "Shortcuts", "Shortcuts-journal",
+    "Network Action Predictor", "Network Action Predictor-journal",
+]
+
+
+def dir_size(path: str) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.lstat(os.path.join(root, f)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def clean_profile() -> None:
+    """Chrome のキャッシュと履歴を消す（Chrome が動いていないときだけ呼ぶ）。"""
+    before = dir_size(PROFILE_DIR)
+    base = os.path.join(PROFILE_DIR, "Default")
+    for name in PROFILE_JUNK:
+        path = os.path.join(base, name)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+    after = dir_size(PROFILE_DIR)
+    log(f"Chrome のキャッシュと履歴を消しました（Chrome のデータ {before / 1e6:.0f}MB → {after / 1e6:.0f}MB）")
+
+
+CACHE_CLEAR_INTERVAL = int(os.environ.get("WMP_CACHE_CLEAR_SEC", 24 * 3600))
+CACHE_ORIGINS = ("https://music.nintendo.com", "https://music.youtube.com")
+
+
+async def clear_cache_daily() -> None:
+    """動いている Chrome のキャッシュを1日1回消す（再生中・スピーカーへ出力中は次の機会に回す）。
+    https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-clearBrowserCache
+    https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-clearDataForOrigin
+    """
+    while True:
+        await asyncio.sleep(CACHE_CLEAR_INTERVAL)
+        while session.active() or streamer.clients:
+            await asyncio.sleep(600)
+        try:
+            before = dir_size(PROFILE_DIR)
+            async with bridge.lock:
+                await bridge._cdp([("Network.clearBrowserCache", {})] + [
+                    ("Storage.clearDataForOrigin", {"origin": o, "storageTypes": "cache_storage,shader_cache"})
+                    for o in CACHE_ORIGINS])
+            log(f"Chrome のキャッシュを消しました（Chrome のデータ {before / 1e6:.0f}MB → {dir_size(PROFILE_DIR) / 1e6:.0f}MB）")
+        except Exception as e:
+            log(f"Chrome のキャッシュを消せませんでした: {e}")
 
 
 async def after_chrome_start() -> None:
@@ -304,7 +373,6 @@ async def api_status(_req: web.Request) -> web.Response:
     return web.json_response({
         "chrome": chrome is not None and chrome.returncode is None,
         "sink": sink_state,  # RUNNING なら Chrome の音が出ている
-        "send_rate": rate_stats,
     })
 
 
@@ -431,56 +499,11 @@ async def index(_req: web.Request) -> web.FileResponse:
                             headers={"Cache-Control": "no-store"})
 
 
-rate_stats: dict = {}
-
-
-async def measure_rate() -> None:
-    """出力シンクに流れている音のサンプル数と大きさを測り、1分ごとにログに出す。
-
-    スピーカーは決まったレートで消費するので、出ている音がそれより少ないと音が途切れる。
-    その確認用。音が流れていない間（無音・停止中）はログに出さない。
-    """
-    rate_target = int(os.environ.get("NM_RATE", "48000"))
-    while True:
-        proc = await asyncio.create_subprocess_exec(
-            "parec", "-d", f"{SINK}.monitor", "--raw", "--format=s16le",
-            f"--rate={rate_target}", "--channels=2", "--latency-msec=100",
-            env=ENV, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        frames, t0 = 0, time.monotonic()
-        sq, n, peak = 0.0, 0, 0
-        try:
-            while chunk := await proc.stdout.read(65536):
-                frames += len(chunk) // 4
-                # 音の大きさ（スピーカーが無音とみなしてスタンバイに入らないかを見るため）。
-                # 負荷を抑えるため 16 サンプルに1つだけ見る
-                smp = array.array("h", chunk[: len(chunk) // 2 * 2])[::16]
-                if smp:
-                    sq += sum(x * x for x in smp)
-                    n += len(smp)
-                    peak = max(peak, max(smp), -min(smp))
-                now = time.monotonic()
-                if now - t0 >= 60:
-                    _, out = await run_quiet("pactl", "list", "short", "sinks")
-                    running = any(l.split("\t")[1:2] == [SINK] and "RUNNING" in l for l in out.splitlines())
-                    hz = frames / (now - t0)
-                    rate_stats.update(hz=round(hz, 1), at=time.strftime("%H:%M:%S"), running=running)
-                    if running:
-                        level = (f"音量 平均 {20 * math.log10(max(math.sqrt(sq / n), 1) / 32768):.1f} dBFS"
-                                 f" / 最大 {20 * math.log10(max(peak, 1) / 32768):.1f} dBFS") if n else "音量 不明"
-                        log(f"出力レート: {hz:.1f} Hz（設定 {rate_target} Hz、差 {(hz / rate_target - 1) * 100:+.3f}%）、{level}")
-                    frames, t0 = 0, now
-                    sq, n, peak = 0.0, 0, 0
-        finally:
-            if proc.returncode is None:
-                proc.kill()
-        await asyncio.sleep(5)
-
-
 async def on_startup(app: web.Application) -> None:
     await start_display()
     await start_audio()
     app["watch"] = asyncio.create_task(watch_chrome())
-    app["rate"] = asyncio.create_task(measure_rate())
+    app["cache"] = asyncio.create_task(clear_cache_daily())
     if ha.token:
         app["events"] = asyncio.create_task(ha.listen_events(
             {"web_music_player_play": ev_play, "web_music_player_stop": ev_stop}, log))
@@ -488,7 +511,7 @@ async def on_startup(app: web.Application) -> None:
 
 async def on_cleanup(app: web.Application) -> None:
     app["watch"].cancel()
-    app["rate"].cancel()
+    app["cache"].cancel()
     if "events" in app:
         app["events"].cancel()
     for p in procs.values():
