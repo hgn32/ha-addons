@@ -376,7 +376,7 @@ async def api_status(_req: web.Request) -> web.Response:
     })
 
 
-bridge = Bridge(log, lang=NM_LANG)
+bridge = Bridge(log, lang=NM_LANG, env=ENV)
 
 
 def bridge_handler(fn):

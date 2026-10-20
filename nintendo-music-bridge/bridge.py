@@ -88,6 +88,12 @@ FIND_JS = r"""
 CDP_REPLY_TIMEOUT = 10
 
 
+# サービスごとの音量の補正（dB）。Nintendo Music は YouTube Music より小さい（本番の実測: 1分ごとの平均
+# Nintendo Music -34〜-38 dBFS・最大 -19〜-24 dBFS、YouTube Music 平均 -12〜-18 dBFS・最大 0 dBFS）。
+# Nintendo Music の最大が音割れ（0 dBFS）に届かない範囲で持ち上げる
+GAIN_DB = {"nm": 16, "ytm": 0}
+
+
 class PageHung(Exception):
     def __init__(self, method: str, ws_url: str) -> None:
         super().__init__(method)
@@ -96,13 +102,46 @@ class PageHung(Exception):
 
 
 class Bridge:
-    def __init__(self, log, lang: str = "ja-JP") -> None:
+    def __init__(self, log, lang: str = "ja-JP", env: dict | None = None) -> None:
         self.log = log
         self.lang = lang
+        self.env = env
+        self.gain_service: str | None = None
         self.lock = asyncio.Lock()  # 画面操作は同時に1つだけ
         self.recover_lock = asyncio.Lock()
         self.recover_count = 0  # タブを開き直した回数（再生の途中で起きたらやり直すため）
         self._stats_reset()
+
+    # ------------------------------------------------------------ 音量の補正
+    async def apply_gain(self, service: str) -> None:
+        """Chrome の音（PipeWire の Chrome のストリーム）の音量を、サービスに合わせて変える。
+
+        音量は 100% を 0dB とする3乗の目盛りなので、+18dB が 200%（実測: 10%→-60dB、20%→-42dB、
+        40%→-24dB、185%→+16dB）。PipeWire はアプリ名ごとに最後の音量を覚えていて、Chrome が
+        あとから作るストリームにも同じ音量が付く（実測）。
+        https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/Developer/Clients/WritingVolumeControlUIs/
+        """
+        pct = round(100 * 10 ** (GAIN_DB.get(service, 0) / 60))
+        env = dict(self.env or {}, LC_ALL="C")  # pactl の出力を英語に固定して読む
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "pactl", "list", "sink-inputs", env=env,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            out = (await proc.communicate())[0].decode(errors="replace")
+            ids = [b.split("\n", 1)[0].strip() for b in out.split("Sink Input #")[1:]
+                   if 'application.name = "Google Chrome"' in b]
+            for i in ids:
+                proc = await asyncio.create_subprocess_exec(
+                    "pactl", "set-sink-input-volume", i, f"{pct}%", env=env,
+                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                await proc.wait()
+        except Exception as e:
+            self.log(f"音量の補正に失敗しました: {e}")
+            return
+        if ids and self.gain_service != service:
+            self.gain_service = service
+            name = {"nm": "Nintendo Music", "ytm": "YouTube Music"}.get(service, service)
+            self.log(f"音量の補正: {name} {GAIN_DB.get(service, 0):+d}dB（Chrome の音量 {pct}%）")
 
     # ------------------------------------------------------------ CDP
     async def _pages(self, session: aiohttp.ClientSession) -> list[dict]:
@@ -331,6 +370,7 @@ class Bridge:
             t_lock = time.monotonic()
             self._stats_reset()
             await self._single_tab()
+            await self.apply_gain("nm")
             await self._cdp([("Page.navigate", {"url": url})])
             t_nav = time.monotonic()
             await asyncio.sleep(2)
@@ -338,6 +378,7 @@ class Bridge:
             t_click = time.monotonic()
             self.log(f"{url} の再生ボタン（{label}）を押しました")
             st = await self._wait_playing()
+            await self.apply_gain("nm")
             t_end = time.monotonic()
             self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
                      f" / ボタンが出るまで {t_click - t_nav:.1f} / 鳴り始めるまで {t_end - t_click:.1f}。{self._stats_text()}）")
@@ -349,6 +390,7 @@ class Bridge:
         if url is None:
             raise ValueError(f"不明なサービスです: {service}")
         async with self.lock:
+            await self.apply_gain(service)
             await self._cdp([("Page.navigate", {"url": url})])
         return {"ok": True, "url": url}
 
@@ -372,6 +414,7 @@ class Bridge:
             # 目印が消える。曲名で比べると、同じプレイリストを同じ曲から開き直したときに
             # 「前の曲のまま」と取り違えた（実機で確認）
             await self._eval("window.__wmpBefore = true")
+            await self.apply_gain("ytm")
             await self._cdp([("Page.navigate", {"url": f"https://music.youtube.com/watch?list={list_id}"})])
             t_nav = time.monotonic()
             self.log(f"YouTube Music のプレイリスト {list_id} を開きました")
@@ -389,6 +432,7 @@ class Bridge:
                 if "/watch" in url and f"list={list_id}" in url and st.get("paused") is False:
                     t_sound = t_sound or time.monotonic()
                     if not await self._eval("window.__wmpBefore === true"):
+                        await self.apply_gain("ytm")
                         t_end = time.monotonic()
                         self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
                                  f" / 鳴っているのを見つけるまで {t_sound - t_nav:.1f} / 新しいページの確認 {t_end - t_sound:.1f}。"
