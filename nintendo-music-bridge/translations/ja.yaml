@@ -1,22 +1,7 @@
 configuration:
-  vban_enabled:
-    name: VBAN で Music Assistant にも送る
-    description: オンにすると、音声を VBAN で Music Assistant の VBAN Receiver へも送ります（以下の VBAN の設定を使います）。スピーカーへ Cast で流すだけならオフのままでかまいません。
-  vban_host:
-    name: VBAN の送信先
-    description: Music Assistant が動いているホスト。同じ HA 上なら 127.0.0.1 のままでかまいません。
-  vban_port:
-    name: VBAN の送信先ポート
-    description: Music Assistant の VBAN Receiver の「Receiver UDP Port」と同じ値にします。
-  vban_stream_name:
-    name: VBAN のストリーム名
-    description: Music Assistant の VBAN Receiver の「VBAN Stream Name」と同じ値にします（英数字16文字まで）。
   sample_rate:
     name: サンプルレート
-    description: Music Assistant の VBAN Receiver の「PCM sample rate」と同じ値にします。
+    description: Chrome の音を受ける出力と、スピーカーへ流すストリームのサンプルレートです。通常は 48000 のままでかまいません。
   lang:
     name: 言語
     description: Nintendo Music のページ・Chrome の画面・曲名などの言語です。
-  country:
-    name: 国
-    description: Nintendo Music の国（曲やプレイリストの提供範囲）です。

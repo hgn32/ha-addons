@@ -49,7 +49,7 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 ### [Web Music Player](./nintendo-music-bridge)
 
-[Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Chrome で再生し、Google Cast 対応のスピーカー（HA の media_player）へ流すアドオンです。YouTube Music への対応を進めています。
+[Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Chrome で再生し、Google Cast 対応のスピーカー（HA の media_player）へ流すアドオンです。YouTube Music のプレイリストも再生できます。お気に入りに登録したプレイリストを HA のオートメーションから流せます。
 
 ## インストール方法
 

@@ -1,10 +1,7 @@
-"""ブリッジ API: Nintendo Music の検索・ブラウズ・再生操作を HTTP で外に出す。
+"""ブリッジ: Nintendo Music / YouTube Music の再生操作。
 
-- 検索・ゲーム・プレイリストのメタデータは Web 版と同じ公開カタログ API を呼ぶ
-  （ログイン不要。調査モードの記録と、ログインなしでの実測で確認した）。
-  音源（暗号化メディア）には触れない。
-- 再生操作は、ログイン済みの Chrome を CDP で操作する（ページ遷移とボタンのクリック）。
-  ボタンは調査モードで記録した aria-label と、Web 版の翻訳データの文言で探す。
+- ログイン済みの Chrome を CDP で操作する（ページ遷移とボタンのクリック）。音源（暗号化メディア）には触れない。
+  ボタンは画面の部品の aria-label と、Web 版の翻訳データの文言で探す。
   https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-dispatchMouseEvent
 """
 
@@ -16,9 +13,7 @@ import time
 
 import aiohttp
 
-from discover import CDP_PORT
-
-API = "https://api.m.nintendo.com/catalog"
+CDP_PORT = 9222
 SITE = "https://music.nintendo.com"
 
 # ボタンの文言。Web 版の翻訳データ（公開 JS の en-US / ja-JP）で同じ意味のキーが持つ値をすべて入れる
@@ -27,6 +22,9 @@ LABELS = {
     "play": ["Play", "再生", "再生する"],
     "previous": ["Previous track", "前の曲", "曲戻し"],
     "next": ["Next track", "次の曲", "曲送り"],
+    # プレイリストのページ本体の「シャッフル」ボタン。実物の画面（日本語・ログイン済み）を記録して確認した
+    # （「再生」の隣の button、文字が「シャッフル」）。英語の画面は測っていないので入れない
+    "shuffle": ["シャッフル"],
 }
 
 # YouTube Music のプレーヤーの下のボタン。実物の画面（日本語）の部品を記録して確認した:
@@ -35,6 +33,8 @@ YTM_LABELS = {
     "play": [],
     "previous": ["前へ"],
     "next": ["次へ"],
+    # プレーヤーバー右側の yt-icon-button.shuffle（aria-label「シャッフル」）。実物の画面を記録して確認した
+    "shuffle": ["シャッフル"],
 }
 
 # いまの再生状態を読む（ページの状態は変えない）
@@ -58,16 +58,74 @@ STATUS_JS = r"""
 })()
 """
 
+# 画面の情報を調べる（サイトの作りが変わったときに、ボタンや曲の一覧の場所を調べ直すため）。
+# ページの状態は変えない。入力欄の中身・Cookie・保存データは読まない
+INSPECT_JS = r"""
+(() => {
+  const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const txt = (el, n) => (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, n) || undefined;
+  // どこにある部品か（親要素を4つまで: タグ#id.クラス）
+  const area = el => {
+    const out = [];
+    for (let p = el.parentElement; p && p !== document.body && out.length < 4; p = p.parentElement) {
+      const c = typeof p.className === 'string' && p.className.trim() ? '.' + p.className.trim().split(/\s+/)[0] : '';
+      out.push(p.tagName.toLowerCase() + (p.id ? '#' + p.id : '') + c);
+    }
+    return out.join(' < ');
+  };
+  const controls = [...document.querySelectorAll(
+      'button, [role=button], [role=slider], [role=checkbox], [role=switch], [role=tab], input, tp-yt-paper-icon-button')]
+    .filter(vis).slice(0, 400).map(el => ({
+      path: area(el),
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role') || undefined,
+      aria: el.getAttribute('aria-label') || undefined,
+      pressed: el.getAttribute('aria-pressed') || el.getAttribute('aria-checked') || undefined,
+      value: el.getAttribute('aria-valuenow') || undefined,
+      title: el.getAttribute('title') || undefined,
+      testid: el.getAttribute('data-testid') || undefined,
+      id: el.id || undefined,
+      cls: (typeof el.className === 'string' ? el.className : '').slice(0, 60) || undefined,
+      type: el.tagName === 'INPUT' ? el.type : undefined,
+      text: el.tagName === 'INPUT' ? undefined : txt(el, 40),
+    }));
+  // 曲の一覧らしいもの（YouTube Music の曲のリンク、行・リストの項目）
+  const tracks = [...document.querySelectorAll(
+      'ytmusic-responsive-list-item-renderer, ytmusic-player-queue-item, [role=row], li, a[href*="watch?v="]')]
+    .filter(vis).slice(0, 80).map(el => ({
+      path: area(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || undefined,
+      href: el.getAttribute('href') || undefined, text: txt(el, 80),
+    })).filter(t => t.text || t.href);
+  const media = [...document.querySelectorAll('audio, video')].map(m => ({
+    tag: m.tagName.toLowerCase(), paused: m.paused, ended: m.ended, currentTime: m.currentTime,
+    duration: isFinite(m.duration) ? m.duration : null, volume: m.volume, muted: m.muted,
+    loop: m.loop, hasSrc: !!m.currentSrc, hasMediaKeys: !!m.mediaKeys,
+  }));
+  const md = navigator.mediaSession && navigator.mediaSession.metadata;
+  return {
+    url: location.href, title: document.title,
+    mediaSession: md ? {title: md.title, artist: md.artist, album: md.album,
+                        playbackState: navigator.mediaSession.playbackState} : null,
+    media, controls, tracks,
+  };
+})()
+"""
+
 # クリックする要素の画面上の中心座標を返す。見つからなければ null
 FIND_JS = r"""
-((kind, L) => {
+((kind, L, dry) => {
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const label = el => (el.getAttribute('aria-label') || el.innerText || '').trim();
   let el = null;
-  if (kind === 'playlist-play') {
-    // プレイリストのページ本体（#main-column）の「Play」ボタン。プレーヤーバーや右パネルのものは除く
+  if (kind === 'playlist-play' || kind === 'playlist-shuffle') {
+    // プレイリストのページ本体（#main-column）の「Play」「シャッフル」ボタン。プレーヤーバーや右パネルのものは除く
     const main = document.querySelector('#main-column') || document.body;
-    el = [...main.querySelectorAll('button, [role=button]')].find(b => vis(b) && L.play.includes(label(b)));
+    const names = kind === 'playlist-play' ? L.play : (L.shuffle || []);
+    el = [...main.querySelectorAll('button, [role=button]')].find(b => vis(b) && names.includes(label(b)));
+  } else if (kind === 'bar-shuffle') {
+    // プレーヤーバーのシャッフル（YouTube Music）
+    el = [...document.querySelectorAll('button[aria-label]')]
+      .find(b => vis(b) && (L.shuffle || []).includes(b.getAttribute('aria-label')));
   } else {
     // プレーヤーバー: Previous track と Next track の間のボタンが再生/一時停止
     const byAria = names => [...document.querySelectorAll('button[aria-label]')]
@@ -82,6 +140,7 @@ FIND_JS = r"""
     }
   }
   if (!el) return null;
+  if (dry) return {label: label(el)};  // 調べるだけ（画面を動かさない）
   el.scrollIntoView({block: 'center'});
   const r = el.getBoundingClientRect();
   return {x: r.left + r.width / 2, y: r.top + r.height / 2, label: label(el)};
@@ -93,6 +152,12 @@ FIND_JS = r"""
 CDP_REPLY_TIMEOUT = 10
 
 
+# サービスごとの音量の補正（dB）。Nintendo Music は YouTube Music より小さい（本番の実測: 1分ごとの平均
+# Nintendo Music -34〜-38 dBFS・最大 -19〜-24 dBFS、YouTube Music 平均 -12〜-18 dBFS・最大 0 dBFS）。
+# Nintendo Music の最大が音割れ（0 dBFS）に届かない範囲で持ち上げる
+GAIN_DB = {"nm": 16, "ytm": 0}
+
+
 class PageHung(Exception):
     def __init__(self, method: str, ws_url: str) -> None:
         super().__init__(method)
@@ -100,75 +165,54 @@ class PageHung(Exception):
         self.ws_url = ws_url
 
 
-def _thumb(o: dict | None) -> str | None:
-    return (o or {}).get("thumbnailURL")
-
-
-def simple_game(g: dict) -> dict:
-    return {"id": g.get("id"), "name": g.get("name"), "hardware": g.get("formalHardware"),
-            "thumbnail": _thumb(g)}
-
-
-def simple_playlist(p: dict) -> dict:
-    return {"id": p.get("id"), "name": p.get("name"), "type": p.get("type"),
-            "tracks_num": p.get("tracksNum", len(p.get("tracks") or [])),
-            "game": simple_game(p["game"]) if p.get("game") else None,
-            "thumbnail": _thumb(p)}
-
-
-def simple_track(t: dict) -> dict:
-    payloads = ((t.get("media") or {}).get("payloadList") or [])
-    duration = next((x.get("durationMillis") for x in payloads if x.get("durationMillis")), None)
-    return {"id": t.get("id"), "name": t.get("name"),
-            "game": simple_game(t["game"]) if t.get("game") else None,
-            "duration_ms": duration, "thumbnail": _thumb(t)}
-
-
 class Bridge:
-    def __init__(self, log, lang: str = "ja-JP", country: str = "JP") -> None:
+    def __init__(self, log, lang: str = "ja-JP", env: dict | None = None) -> None:
         self.log = log
         self.lang = lang
-        self.country = country
+        self.env = env
+        self.gain_service: str | None = None
         self.lock = asyncio.Lock()  # 画面操作は同時に1つだけ
         self.recover_lock = asyncio.Lock()
         self.recover_count = 0  # タブを開き直した回数（再生の途中で起きたらやり直すため）
         self._stats_reset()
 
-    # ------------------------------------------------------------ カタログ
-    async def _catalog(self, path: str, **params) -> dict | list:
-        q = {"lang": self.lang, "country": self.country, **{k: v for k, v in params.items() if v is not None}}
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20), trust_env=True) as s:
-            async with s.get(f"{API}{path}", params=q) as r:
-                if r.status != 200:
-                    raise RuntimeError(f"カタログ API {path} が {r.status} を返しました: {(await r.text())[:200]}")
-                return await r.json(content_type=None)
+    # ------------------------------------------------------------ 音量の補正
+    async def apply_gain(self, service: str, wait: bool = False) -> None:
+        """Chrome の音（PipeWire の Chrome のストリーム）の音量を、サービスに合わせて変える。
 
-    async def search(self, q: str, type_: str | None = None, limit: int = 20) -> dict:
-        body = await self._catalog("/resources:search", q=q, type=type_, limit=limit)
-        out: dict[str, list] = {"games": [], "playlists": [], "tracks": []}
-        for item in body.get("items", []):
-            if item.get("game"):
-                out["games"].append(simple_game(item["game"]))
-            elif item.get("officialPlaylist") or item.get("playlist"):
-                out["playlists"].append(simple_playlist(item.get("officialPlaylist") or item["playlist"]))
-            elif item.get("track"):
-                out["tracks"].append(simple_track(item["track"]))
-        return out
+        音量は 100% を 0dB とする3乗の目盛りなので、+18dB が 200%（実測: 10%→-60dB、20%→-42dB、
+        40%→-24dB、185%→+16dB）。PipeWire はアプリ名ごとに最後の音量を覚えていて、Chrome が
+        あとから作るストリームにも同じ音量が付く（実測）。
+        https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/Developer/Clients/WritingVolumeControlUIs/
 
-    async def games(self) -> list[dict]:
-        body = await self._catalog("/gameGroups", groupingPolicy="HARDWARE")
-        return [{"hardware": h.get("formalHardware"), "games": [simple_game(g) for g in h.get("items", [])]}
-                for h in body.get("hardware", [])]
-
-    async def game_playlists(self, game_id: str) -> dict:
-        body = await self._catalog(f"/games/{game_id}/relatedPlaylists")
-        pls = [body[k] for k in ("allPlaylist", "bestPlaylist") if body.get(k)]
-        pls += (body.get("miscPlaylistSet") or {}).get("officialPlaylists", [])
-        return {"playlists": [simple_playlist(p) for p in pls]}
-
-    async def playlist(self, playlist_id: str) -> dict:
-        body = await self._catalog(f"/officialPlaylists/{playlist_id}")
-        return {**simple_playlist(body), "tracks": [simple_track(t) for t in body.get("tracks", [])]}
+        wait: 鳴り始めた直後に呼ぶとき。Chrome のストリームが見つかるまで5秒まで待つ（実機で、アドオンの
+        起動直後の最初の Nintendo Music の再生のあと、補正のログが出なかった＝ストリームが見つからなかったため）。
+        """
+        pct = round(100 * 10 ** (GAIN_DB.get(service, 0) / 60))
+        env = dict(self.env or {}, LC_ALL="C")  # pactl の出力を英語に固定して読む
+        try:
+            for _ in range(10 if wait else 1):
+                proc = await asyncio.create_subprocess_exec(
+                    "pactl", "list", "sink-inputs", env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+                out = (await proc.communicate())[0].decode(errors="replace")
+                ids = [b.split("\n", 1)[0].strip() for b in out.split("Sink Input #")[1:]
+                       if 'application.name = "Google Chrome"' in b]
+                if ids:
+                    break
+                await asyncio.sleep(0.5)
+            for i in ids:
+                proc = await asyncio.create_subprocess_exec(
+                    "pactl", "set-sink-input-volume", i, f"{pct}%", env=env,
+                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                await proc.wait()
+        except Exception as e:
+            self.log(f"音量の補正に失敗しました: {e}")
+            return
+        if ids and self.gain_service != service:
+            self.gain_service = service
+            name = {"nm": "Nintendo Music", "ytm": "YouTube Music"}.get(service, service)
+            self.log(f"音量の補正: {name} {GAIN_DB.get(service, 0):+d}dB（Chrome の音量 {pct}%）")
 
     # ------------------------------------------------------------ CDP
     async def _pages(self, session: aiohttp.ClientSession) -> list[dict]:
@@ -351,6 +395,23 @@ class Bridge:
     async def status(self) -> dict:
         return await self._eval(STATUS_JS)
 
+    async def inspect(self) -> dict:
+        """画面の情報と、いまの設定でボタンが見つかるかを調べる（パネルの「いまの画面を記録」）。"""
+        rep = await self._eval(INSPECT_JS)
+        checks = {}
+        for kind in ("playlist-play", "playlist-shuffle", "previous", "playpause", "next", "bar-shuffle"):
+            for name, labels in (("nm", LABELS), ("ytm", YTM_LABELS)):
+                if (name, kind) in (("ytm", "playlist-play"), ("ytm", "playlist-shuffle"), ("ytm", "playpause"),
+                                    ("nm", "bar-shuffle")):
+                    continue
+                found = await self._eval(
+                    f"({FIND_JS})({json.dumps(kind)}, {json.dumps(labels, ensure_ascii=False)}, true)")
+                checks[f"{name}:{kind}"] = found["label"] if found else None
+        rep["checks"] = checks  # いまのアドオンの探し方で見つかったボタン（null は見つからない）
+        rep["labels"] = {"nm": LABELS, "ytm": YTM_LABELS}
+        rep["at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        return rep
+
     async def _click(self, kind: str, timeout: float = 15, labels: dict = LABELS) -> str:
         deadline = time.monotonic() + timeout
         while True:
@@ -377,21 +438,6 @@ class Bridge:
             await asyncio.sleep(0.5)
         raise RuntimeError(f"再生が始まりませんでした（状態: {st}）")
 
-    async def play_playlist(self, playlist_id: str, index: int = 0) -> dict:
-        async with self.lock:
-            await self._single_tab()
-            await self._cdp([("Page.navigate", {"url": f"{SITE}/{self.lang}/playlist/{playlist_id}/"})])
-            await asyncio.sleep(2)
-            label = await self._click("playlist-play")
-            self.log(f"プレイリスト {playlist_id} の再生ボタン（{label}）を押しました")
-            st = await self._wait_playing()
-            # 指定の曲まで「次の曲」で送る（曲の行を直接押す方法は調べていないため）
-            for _ in range(index):
-                title = st.get("title")
-                await self._click("next")
-                st = await self._wait_playing(before_title=title)
-            return st
-
     async def wait_ready(self, timeout: float = 60) -> None:
         """Chrome の CDP が使えるようになるまで待つ（起動直後に再生の指示が来たとき用）。"""
         deadline = time.monotonic() + timeout
@@ -405,20 +451,29 @@ class Bridge:
                     raise RuntimeError(f"Chrome の準備ができませんでした（{e}）")
                 await asyncio.sleep(1)
 
-    async def play_nm_url(self, url: str) -> dict:
-        """Nintendo Music のプレイリスト等のページを開いて、ページ本体の再生ボタンを押す。"""
+    async def play_nm_url(self, url: str, shuffle: bool = False) -> dict:
+        """Nintendo Music のプレイリスト等のページを開いて、ページ本体の再生ボタンを押す。
+        shuffle なら、隣の「シャッフル」ボタンを押す（見つからなければ普通に再生する）。"""
         t0 = time.monotonic()
         async with self.lock:
             t_lock = time.monotonic()
             self._stats_reset()
             await self._single_tab()
+            await self.apply_gain("nm")
             await self._cdp([("Page.navigate", {"url": url})])
             t_nav = time.monotonic()
             await asyncio.sleep(2)
-            label = await self._click("playlist-play")
+            label = None
+            if shuffle:
+                try:
+                    label = await self._click("playlist-shuffle", timeout=10)
+                except RuntimeError:
+                    self.log("「シャッフル」ボタンが見つからないため、普通に再生します")
+            label = label or await self._click("playlist-play")
             t_click = time.monotonic()
             self.log(f"{url} の再生ボタン（{label}）を押しました")
             st = await self._wait_playing()
+            await self.apply_gain("nm", wait=True)
             t_end = time.monotonic()
             self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
                      f" / ボタンが出るまで {t_click - t_nav:.1f} / 鳴り始めるまで {t_end - t_click:.1f}。{self._stats_text()}）")
@@ -430,10 +485,34 @@ class Bridge:
         if url is None:
             raise ValueError(f"不明なサービスです: {service}")
         async with self.lock:
+            await self.apply_gain(service)
             await self._cdp([("Page.navigate", {"url": url})])
         return {"ok": True, "url": url}
 
-    async def play_ytm(self, list_id: str) -> dict:
+    async def _ytm_queue(self) -> list:
+        """YouTube Music の再生キュー（右パネル）の曲名の並び。"""
+        return await self._eval(
+            "[...document.querySelectorAll('ytmusic-player-queue-item')]"
+            ".map(q => (q.querySelector('.song-title') || q).textContent.trim()).slice(0, 50)") or []
+
+    async def _ytm_shuffle(self, st: dict) -> dict:
+        """YouTube Music: プレーヤーバーの「シャッフル」を押してキューを混ぜ、先頭の曲（混ぜても
+        そのまま残る、いま鳴っている曲）を飛ばす。混ざったかはキューの並びを比べて確かめる。"""
+        before = await self._ytm_queue()
+        await self._click("bar-shuffle", timeout=5, labels=YTM_LABELS)
+        after: list = before
+        for _ in range(10):
+            await asyncio.sleep(0.5)
+            after = await self._ytm_queue()
+            if after != before:
+                break
+        self.log("YouTube Music のシャッフルを押しました（キューの並び: "
+                 + ("変わった" if after != before else f"変わらない、{len(before)}曲") + "）")
+        title = st.get("title")
+        await self._click("next", timeout=5, labels=YTM_LABELS)
+        return await self._wait_playing(before_title=title)
+
+    async def play_ytm(self, list_id: str, shuffle: bool = False) -> dict:
         """YouTube Music のプレイリストを再生する。watch?list= を開くと先頭の曲から自動で再生が始まる
         （Chrome は --autoplay-policy=no-user-gesture-required で起動している）。
 
@@ -453,6 +532,7 @@ class Bridge:
             # 目印が消える。曲名で比べると、同じプレイリストを同じ曲から開き直したときに
             # 「前の曲のまま」と取り違えた（実機で確認）
             await self._eval("window.__wmpBefore = true")
+            await self.apply_gain("ytm")
             await self._cdp([("Page.navigate", {"url": f"https://music.youtube.com/watch?list={list_id}"})])
             t_nav = time.monotonic()
             self.log(f"YouTube Music のプレイリスト {list_id} を開きました")
@@ -470,6 +550,9 @@ class Bridge:
                 if "/watch" in url and f"list={list_id}" in url and st.get("paused") is False:
                     t_sound = t_sound or time.monotonic()
                     if not await self._eval("window.__wmpBefore === true"):
+                        await self.apply_gain("ytm", wait=True)
+                        if shuffle:
+                            st = await self._ytm_shuffle(st)
                         t_end = time.monotonic()
                         self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
                                  f" / 鳴っているのを見つけるまで {t_sound - t_nav:.1f} / 新しいページの確認 {t_end - t_sound:.1f}。"

@@ -1,6 +1,6 @@
-# Nintendo Music Bridge（フェーズ0）
+# Web Music Player
 # 公式 Google Chrome（Widevine 同梱）を Xvfb 上で常駐させ、画面は noVNC で Ingress に出す。
-# Chrome の音声は PipeWire の VBAN 送信シンクへ出し、Music Assistant の VBAN Receiver で受ける。
+# Chrome の音声は PipeWire の出力シンクへ出し、ffmpeg で MP3 のストリームにしてスピーカーへ Cast する。
 ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-debian:trixie
 FROM ${BUILD_FROM}
 
@@ -21,7 +21,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY run.sh /run.sh
-COPY server.py discover.py bridge.py stream.py favorites.py /
+COPY server.py bridge.py stream.py favorites.py /
 COPY www/ /www/
 RUN chmod +x /run.sh
 

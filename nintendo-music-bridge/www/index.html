@@ -14,12 +14,9 @@
   #player { border:1px solid var(--border); border-radius:6px; padding:10px; margin-bottom:8px; }
   #player button { margin-right:4px; }
   #now { margin-left:8px; font-size:.9rem; }
-  #list { max-height:22em; overflow:auto; margin-top:6px; }
   .row { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--border); font-size:.9rem; }
-  .row img { width:40px; height:40px; object-fit:cover; border-radius:4px; }
   .row .t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .row .sub { opacity:.7; font-size:.8rem; }
-  .link { cursor:pointer; text-decoration:underline; }
   iframe { width:100%; aspect-ratio:1280/800; border:1px solid var(--border); border-radius:6px; background:#000; }
 </style>
 </head>
@@ -27,12 +24,7 @@
 <main>
   <div id="bar"><span id="chrome">Chrome: 確認中…</span><span id="sink">音声出力: 確認中…</span></div>
   <div id="player">
-    <form id="sform" style="display:flex;gap:6px">
-      <input id="q" placeholder="曲・ゲーム・プレイリストを検索" style="flex:1;padding:6px">
-      <select id="stype"><option value="">すべて</option><option value="GAME">ゲーム</option><option value="OFFICIAL_PLAYLIST">プレイリスト</option><option value="TRACK">曲</option></select>
-      <button>検索</button>
-    </form>
-    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <label for="spk" style="font-size:.9rem">スピーカー</label>
       <select id="spk" style="padding:4px;max-width:20em"><option value="">（読み込み中）</option></select>
       <button id="cast">スピーカーで再生</button>
@@ -42,7 +34,6 @@
       <span id="now"></span>
     </div>
     <div id="msg2" class="ng" style="font-size:.85rem"></div>
-    <div id="list"></div>
   </div>
   <div id="favbox" style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px">
     <div style="font-weight:bold;margin-bottom:6px">お気に入り</div>
@@ -55,6 +46,7 @@
     <div id="flist" style="margin-top:6px"></div>
     <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <button id="fplay">チェックしたものを順にスピーカーで再生</button>
+      <label style="font-size:.85rem"><input type="checkbox" id="fshuf"> シャッフル（順番とプレイリストの中の曲）</label>
       <button id="fstop">停止</button>
       <span id="fstate" style="font-size:.85rem"></span>
     </div>
@@ -64,32 +56,27 @@
 event_data:
   favorites: ["朝のBGM", "ピクミン"]
   entity_id: media_player.jbl_bar_800</pre>
-      favorites を省くとお気に入りの全部を、<code>shuffle: true</code> を付けると順番を混ぜて再生します。
+      favorites を省くとお気に入りの全部を、<code>shuffle: true</code> を付けると順番とプレイリストの中の曲を混ぜて再生します
+      （曲だけ混ぜないときは <code>shuffle_tracks: false</code>）。
       止めるときは <code>event: web_music_player_stop</code> を発行します。
     </details>
   </div>
   <div style="margin-bottom:6px;display:flex;gap:6px;flex-wrap:wrap">
     <button data-open="nm">Nintendo Music を開く</button>
     <button data-open="ytm">YouTube Music を開く</button>
-    <span style="font-size:.8rem;opacity:.7;align-self:center">タブを閉じてしまっても、次の操作のときに自動で開き直します</span>
+    <span style="font-size:.8rem;opacity:.7;align-self:center">初回は下の画面で Nintendo Music にログインしてください。タブを閉じてしまっても、次の操作のときに自動で開き直します</span>
   </div>
-  <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
-  <details id="disc" style="margin:8px 0">
-    <summary>調査モード（ブリッジ API を作るための下調べ）</summary>
-    <ol style="font-size:.85rem">
-      <li>「調査を開始」を押す</li>
-      <li>画面内で、検索 → 検索結果からゲームやプレイリストを開く → 曲を再生、と普段どおり操作する。要所で「画面の部品を記録」を押す（検索結果・プレイリスト・再生中の各画面で1回ずつ）</li>
-      <li>「調査を終了」→「結果をコピー」で、Claude に貼り付ける</li>
-    </ol>
-    <p style="font-size:.85rem">認証トークン・ライセンス関係の通信・リクエストヘッダは記録しません。</p>
-    <button data-a="start">調査を開始</button>
-    <button data-a="dom">画面の部品を記録</button>
-    <button data-a="stop">調査を終了</button>
-    <button id="copy">結果をコピー</button>
-    <span id="dstat"></span>
-    <textarea id="report" readonly style="width:100%;box-sizing:border-box;height:8em;font-family:monospace;font-size:.75rem;margin-top:6px"></textarea>
+  <details id="insp" style="margin:0 0 8px;font-size:.85rem">
+    <summary>画面の情報を記録する（サイトの作りが変わって再生できなくなったとき）</summary>
+    <p style="margin:6px 0">下の Chrome で調べたい画面（プレイリストのページ・再生中の画面など）を開いてから「いまの画面を記録」を押します。
+      ボタンや曲の一覧の情報と、アドオンがボタンを見つけられるかを記録します（入力欄の中身・Cookie は記録しません）。
+      記録は新しい順に10件までアドオンに残り、<code>GET /api/inspect</code> で読めます。</p>
+    <button id="itake">いまの画面を記録</button>
+    <button id="icopy">結果をコピー</button>
+    <span id="istat"></span>
+    <textarea id="ireport" readonly style="width:100%;box-sizing:border-box;height:8em;font-family:monospace;font-size:.75rem;margin-top:6px"></textarea>
   </details>
-  <p style="font-size:.85rem">初回は下の画面で Nintendo Music にログインしてください。曲は上の検索から選んで再生できます。音声は VBAN で Music Assistant へ送られます（MA の「VBAN Receiver」で受信）。</p>
+  <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
 </main>
 <script>
 async function poll() {
@@ -98,30 +85,15 @@ async function poll() {
     const c = document.getElementById("chrome"), k = document.getElementById("sink");
     c.textContent = "Chrome: " + (s.chrome ? "起動中" : "停止（自動で起動し直します）");
     c.className = s.chrome ? "ok" : "ng";
-    k.textContent = "音声出力: " + (s.sink === "RUNNING" ? "再生中（VBAN 送信中）" : s.sink ? "待機中（" + s.sink + "）" : "見つかりません");
+    k.textContent = "音声出力: " + (s.sink === "RUNNING" ? "再生中" : s.sink ? "待機中（" + s.sink + "）" : "見つかりません");
     k.className = s.sink === "RUNNING" ? "ok" : s.sink ? "" : "ng";
   } catch {}
   setTimeout(poll, 2000);
 }
 poll();
 
-async function disc(action) {
-  const btns = document.querySelectorAll("#disc button");
-  btns.forEach(b => (b.disabled = true));
-  try {
-    const r = await fetch("api/discover/" + action, { method: "POST" });
-    const j = await r.json();
-    if (!r.ok) { alert(j.error || "失敗しました"); return; }
-    document.getElementById("report").value = j.report;
-    document.getElementById("dstat").textContent = (j.running ? " 調査中" : " 停止中") + "（記録 " + j.count + " 件）";
-  } catch (e) {
-    alert("通信に失敗しました: " + e);
-  } finally {
-    btns.forEach(b => (b.disabled = false));
-  }
-}
 // ---- プレイヤー（ブリッジ API を使う）
-const listEl = document.getElementById("list"), msg2 = document.getElementById("msg2");
+const msg2 = document.getElementById("msg2");
 const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 async function api(path, opts) {
   msg2.textContent = "";
@@ -130,42 +102,6 @@ async function api(path, opts) {
   if (!r.ok) { msg2.textContent = j.error || ("失敗しました (" + r.status + ")"); throw new Error(msg2.textContent); }
   return j;
 }
-function row(thumb, title, sub, action, onclick) {
-  const d = document.createElement("div"); d.className = "row";
-  d.innerHTML = (thumb ? `<img src="${esc(thumb)}" alt="">` : "") +
-    `<div class="t"><span class="${onclick ? "link" : ""}">${esc(title)}</span><div class="sub">${esc(sub)}</div></div>`;
-  if (onclick) d.querySelector(".link").onclick = onclick;
-  if (action) { const b = document.createElement("button"); b.textContent = action[0]; b.onclick = action[1]; d.append(b); }
-  return d;
-}
-function showGames(games) { games.forEach(g => listEl.append(row(g.thumbnail, g.name, "ゲーム・" + (g.hardware || ""), null, () => openGame(g)))); }
-function showPlaylists(pls) { pls.forEach(p => listEl.append(row(p.thumbnail, p.name, "プレイリスト・" + p.tracks_num + "曲" + (p.game ? "・" + p.game.name : ""), ["再生", () => play(p.id, 0)], () => openPlaylist(p.id)))); }
-async function openGame(g) {
-  const j = await api("bridge/games/" + g.id + "/playlists");
-  listEl.replaceChildren(row(null, "← " + g.name + " のプレイリスト", "", null, null)); showPlaylists(j.playlists);
-}
-async function openPlaylist(id) {
-  const p = await api("bridge/playlists/" + id);
-  listEl.replaceChildren(row(p.thumbnail, p.name, p.tracks_num + "曲", ["最初から再生", () => play(id, 0)], null));
-  p.tracks.forEach((t, i) => listEl.append(row(t.thumbnail, (i + 1) + ". " + t.name,
-    (t.game ? t.game.name : "") + (t.duration_ms ? "・" + Math.floor(t.duration_ms / 60000) + ":" + String(Math.floor(t.duration_ms / 1000) % 60).padStart(2, "0") : ""),
-    ["ここから再生", () => play(id, i)], null)));
-}
-async function play(id, index) {
-  msg2.className = ""; msg2.textContent = "再生を準備しています…";
-  try { await api("bridge/play", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({playlist_id: id, index})}); }
-  finally { msg2.className = "ng"; }
-  pollNow();
-}
-document.getElementById("sform").onsubmit = async (e) => {
-  e.preventDefault();
-  const q = document.getElementById("q").value.trim(); if (!q) return;
-  const t = document.getElementById("stype").value;
-  const j = await api("bridge/search?q=" + encodeURIComponent(q) + (t ? "&type=" + t : ""));
-  listEl.replaceChildren(); showGames(j.games); showPlaylists(j.playlists);
-  j.tracks.forEach(t => listEl.append(row(t.thumbnail, t.name, "曲・" + (t.game ? t.game.name : ""), null, t.game ? () => openGame(t.game) : null)));
-  if (!listEl.children.length) listEl.textContent = "見つかりませんでした";
-};
 document.querySelectorAll("#player button[data-c]").forEach(b => (b.onclick = async () => {
   b.disabled = true; try { await api("bridge/" + b.dataset.c, {method: "POST"}); } finally { b.disabled = false; } pollNow();
 }));
@@ -225,7 +161,7 @@ async function loadFavs(list) {
 async function playFavs(ids) {
   if (!ids.length) { msg2.textContent = "再生するお気に入りにチェックを入れてください"; return; }
   if (!spk.value) { msg2.textContent = "スピーカーを選んでください"; return; }
-  await api("bridge/session/play", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({favorites: ids, entity_id: spk.value})});
+  await api("bridge/session/play", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({favorites: ids, entity_id: spk.value, shuffle: document.getElementById("fshuf").checked})});
   pollSession();
 }
 document.getElementById("fadd").onclick = async () => {
@@ -250,12 +186,19 @@ async function pollSession() {
 }
 setInterval(pollSession, 3000); loadFavs(); pollSession();
 
-document.querySelectorAll("#disc button[data-a]").forEach(b => (b.onclick = () => disc(b.dataset.a)));
-document.getElementById("copy").onclick = async () => {
-  await disc("report");
-  const t = document.getElementById("report");
+// ---- 画面の情報を記録する
+document.getElementById("itake").onclick = async (e) => {
+  e.target.disabled = true;
+  try {
+    const rep = await api("api/inspect", {method: "POST"});
+    document.getElementById("ireport").value = JSON.stringify(rep, null, 1);
+    document.getElementById("istat").textContent = " 記録しました（" + rep.title + "・部品 " + rep.controls.length + " 個）";
+  } catch {} finally { e.target.disabled = false; }
+};
+document.getElementById("icopy").onclick = async () => {
+  const t = document.getElementById("ireport");
   try { await navigator.clipboard.writeText(t.value); } catch { t.select(); document.execCommand("copy"); }
-  document.getElementById("dstat").textContent += " コピーしました";
+  document.getElementById("istat").textContent += " コピーしました";
 };
 </script>
 </body>

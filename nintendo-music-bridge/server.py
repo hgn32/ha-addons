@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
-"""Web Music Player（旧 Nintendo Music Bridge）。
+"""Web Music Player。
 
 Xvfb 上で公式 Chrome を常駐させ、画面を noVNC で Ingress に出す。
-Chrome の音声は PipeWire の VBAN 送信シンク（vban-sender-ma）へ出し、
-Music Assistant の VBAN Receiver プラグインで受ける。
-
-フェーズ0は「Linux の公式 Chrome で Nintendo Music の Web 版が再生でき、
-その音が MA のスピーカーで鳴るか」を確かめるための最小構成。
-CDP（リモートデバッグポート）やブリッジ API はフェーズ1以降で足す。
+Chrome の音声は PipeWire の出力シンク（player-out）へ出し、そのモニターを MP3 のストリームにして
+HA の Cast 連携でスピーカーに再生させる（stream.py）。
+再生操作は CDP（リモートデバッグポート）で Chrome を操作する（bridge.py・favorites.py）。
 """
 
 from __future__ import annotations
 
-import array
 import asyncio
 import ipaddress
-import math
+import json
 import os
 import shutil
 import socket
@@ -24,8 +20,7 @@ import time
 import aiohttp
 from aiohttp import web
 
-from bridge import Bridge
-from discover import CDP_PORT, Discoverer
+from bridge import CDP_PORT, Bridge
 from favorites import Favorites, Session
 from stream import HomeAssistant, Streamer
 
@@ -48,13 +43,17 @@ DBUS_ADDR = "unix:path=/run/user/0/bus"
 NM_LANG = os.environ.get("NM_LANG", "ja-JP")
 ENV = dict(os.environ, DISPLAY=DISPLAY, XDG_RUNTIME_DIR="/run/user/0",
            DBUS_SESSION_BUS_ADDRESS=DBUS_ADDR,
-           LANGUAGE=NM_LANG.split("-")[0], LANG=NM_LANG.replace("-", "_") + ".UTF-8")
+           LANGUAGE=NM_LANG.split("-")[0], LANG=NM_LANG.replace("-", "_") + ".UTF-8",
+           # PulseAudio 互換の層を使うアプリ（Chrome・parec）の音のバッファを増やす。
+           # 小さい単位で何度も受け渡すのをやめて CPU を減らす（実測: 再生中 10.2% → 7.8%、1コア=100%）
+           # https://docs.pipewire.org/page_man_pipewire-pulse_1.html
+           PULSE_LATENCY_MSEC="100")
 procs: dict[str, asyncio.subprocess.Process] = {}
 chrome_restarts: list[float] = []
 
 
 def log(msg: str) -> None:
-    print(f"[nintendo-music] {msg}", flush=True)
+    print(f"[web-music-player] {msg}", flush=True)
 
 
 async def run_quiet(*args: str) -> tuple[int, str]:
@@ -142,7 +141,7 @@ async def start_audio() -> None:
     async def sink_ready() -> bool:
         code, out = await run_quiet("pactl", "list", "short", "sinks")
         return code == 0 and SINK in out
-    await wait_until(sink_ready, f"PipeWire の VBAN 送信シンク（{SINK}）", timeout=15)
+    await wait_until(sink_ready, f"PipeWire の出力シンク（{SINK}）", timeout=15)
     # シンクが見えても、WirePlumber が既定の出力を扱えるようになる前だと
     # "Failure: Not supported" で断られることがある（実測）。通るまで待つ
     last = ""
@@ -175,6 +174,7 @@ async def start_chrome() -> None:
     os.makedirs(PROFILE_DIR, exist_ok=True)
     clear_singleton_lock()
     clear_last_session()
+    clean_profile()
     await spawn(
         "chrome", CHROME,
         f"--user-data-dir={PROFILE_DIR}",
@@ -188,7 +188,10 @@ async def start_chrome() -> None:
         "--password-store=basic",
         "--disable-dev-shm-usage",
         "--autoplay-policy=no-user-gesture-required",
-        # 調査モード・ブリッジ API がページを観察・操作するための CDP。127.0.0.1 だけで待ち受ける
+        # ディスクキャッシュの上限（50MB）。--disk-cache-size はバイトで指定する
+        # https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/chrome_switches.h
+        "--disk-cache-size=52428800",
+        # ブリッジがページを操作するための CDP。127.0.0.1 だけで待ち受ける
         f"--remote-debugging-port={CDP_PORT}",
         "--window-position=0,0", f"--window-size={SCREEN_W},{SCREEN_H}",
         f"https://music.nintendo.com/{NM_LANG}/", stderr_file=CHROME_LOG)
@@ -206,6 +209,69 @@ def clear_last_session() -> None:
             os.remove(os.path.join(base, name))
         except FileNotFoundError:
             pass
+
+
+# Chrome を起動する前に消すもの（キャッシュと履歴）。ログイン状態（Cookies・Local Storage・IndexedDB）は残す
+PROFILE_JUNK = [
+    "Cache", "Code Cache", "GPUCache", "DawnGraphiteCache", "DawnWebGPUCache",
+    # Service Worker はサイトのキャッシュ（CacheStorage）が大半。消してもサイトが登録し直す
+    "Service Worker",
+    "History", "History-journal", "Favicons", "Favicons-journal", "Top Sites", "Top Sites-journal",
+    "Visited Links", "Shortcuts", "Shortcuts-journal",
+    "Network Action Predictor", "Network Action Predictor-journal",
+]
+
+
+def dir_size(path: str) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.lstat(os.path.join(root, f)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def clean_profile() -> None:
+    """Chrome のキャッシュと履歴を消す（Chrome が動いていないときだけ呼ぶ）。"""
+    before = dir_size(PROFILE_DIR)
+    base = os.path.join(PROFILE_DIR, "Default")
+    for name in PROFILE_JUNK:
+        path = os.path.join(base, name)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+    after = dir_size(PROFILE_DIR)
+    log(f"Chrome のキャッシュと履歴を消しました（Chrome のデータ {before / 1e6:.0f}MB → {after / 1e6:.0f}MB）")
+
+
+CACHE_CLEAR_INTERVAL = int(os.environ.get("WMP_CACHE_CLEAR_SEC", 24 * 3600))
+CACHE_ORIGINS = ("https://music.nintendo.com", "https://music.youtube.com")
+
+
+async def clear_cache_daily() -> None:
+    """動いている Chrome のキャッシュを1日1回消す（再生中・スピーカーへ出力中は次の機会に回す）。
+    https://chromedevtools.github.io/devtools-protocol/tot/Network/#method-clearBrowserCache
+    https://chromedevtools.github.io/devtools-protocol/tot/Storage/#method-clearDataForOrigin
+    """
+    while True:
+        await asyncio.sleep(CACHE_CLEAR_INTERVAL)
+        while session.active() or streamer.clients:
+            await asyncio.sleep(600)
+        try:
+            before = dir_size(PROFILE_DIR)
+            async with bridge.lock:
+                await bridge._cdp([("Network.clearBrowserCache", {})] + [
+                    ("Storage.clearDataForOrigin", {"origin": o, "storageTypes": "cache_storage,shader_cache"})
+                    for o in CACHE_ORIGINS])
+            log(f"Chrome のキャッシュを消しました（Chrome のデータ {before / 1e6:.0f}MB → {dir_size(PROFILE_DIR) / 1e6:.0f}MB）")
+        except Exception as e:
+            log(f"Chrome のキャッシュを消せませんでした: {e}")
 
 
 async def after_chrome_start() -> None:
@@ -250,7 +316,7 @@ async def watch_chrome() -> None:
 # ---------------------------------------------------------------- HTTP
 # host_network なので 0.0.0.0 で待つと LAN からも見える。HA の内部ネットワーク
 # （Supervisor の Ingress 中継 172.30.32.2 と他のアドオン。ha-mcp などは自分の IP から直接来る）と
-# ホスト自身（HA 本体・Music Assistant は host_network）以外は断る
+# ホスト自身（HA 本体と host_network のアドオン）以外は断る
 # 「172.30.32.2 以外は拒否すること」は HA 開発者ドキュメントのアドオン Ingress 節の要件
 # https://git.sudo.is/home-assistant/developers.home-assistant/src/branch/children/docs/add-ons/presentation.md
 # 同じ穴（Ingress 用の画面が LAN から認証なしで見えた）: https://securelayer7.net/lab/cve-2026-59177-esphome-device-builder-unauthenticated-ingress-lan-access
@@ -307,33 +373,11 @@ async def api_status(_req: web.Request) -> web.Response:
             sink_state = cols[4]
     return web.json_response({
         "chrome": chrome is not None and chrome.returncode is None,
-        "sink": sink_state,  # RUNNING なら音が VBAN で出ている
-        "send_rate": rate_stats,
+        "sink": sink_state,  # RUNNING なら Chrome の音が出ている
     })
 
 
-discoverer = Discoverer(log)
-
-
-async def api_discover(req: web.Request) -> web.Response:
-    action = req.match_info["action"]
-    try:
-        if action == "start":
-            discoverer.start()
-        elif action == "stop":
-            await discoverer.stop()
-            log("調査モードを終了しました")
-        elif action == "dom":
-            await discoverer.snapshot_dom()
-        elif action != "report":
-            return web.json_response({"error": "不明な操作です"}, status=404)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-    return web.json_response({"running": discoverer.running, "count": len(discoverer.entries),
-                              "report": discoverer.report()})
-
-
-bridge = Bridge(log, lang=NM_LANG, country=os.environ.get("NM_COUNTRY", "JP"))
+bridge = Bridge(log, lang=NM_LANG, env=ENV)
 
 
 def bridge_handler(fn):
@@ -346,12 +390,6 @@ def bridge_handler(fn):
             log(f"ブリッジ API {req.method} {req.path} でエラー: {e}")
             return web.json_response({"error": str(e)}, status=500)
     return handler
-
-
-async def b_play(req: web.Request):
-    body = await req.json()
-    await session.end_by_manual("検索から再生した")
-    return await bridge.play_playlist(body["playlist_id"], int(body.get("index", 0)))
 
 
 streamer = Streamer(log, ENV, SINK, int(os.environ.get("NM_RATE", "48000")), PORT)
@@ -392,10 +430,18 @@ async def b_fav_remove(req: web.Request):
     return favs.list()
 
 
+def shuffle_flags(data: dict) -> tuple[bool, bool]:
+    """shuffle はお気に入りの順番とプレイリストの中の曲の両方を混ぜる。
+    shuffle_tracks を書けば、曲のシャッフルだけ別に決められる。"""
+    order = bool(data.get("shuffle"))
+    return order, bool(data.get("shuffle_tracks", order))
+
+
 async def b_session_play(req: web.Request):
     body = await req.json()
-    await session.start(favs.resolve(body.get("favorites"), bool(body.get("shuffle"))),
-                        body.get("entity_id") or None)
+    order, tracks = shuffle_flags(body)
+    await session.start(favs.resolve(body.get("favorites"), order), body.get("entity_id") or None,
+                        shuffle_tracks=tracks)
     return session.state()
 
 
@@ -411,13 +457,14 @@ async def b_session_stop(_req: web.Request):
 
 async def ev_play(data: dict) -> None:
     """HA のイベント web_music_player_play:
-    {"favorites": [名前...], "shuffle": true/false, "entity_id": "media_player.xxx"}
-    favorites を省略するとお気に入りの全部。shuffle で順番を混ぜる。"""
+    {"favorites": [名前...], "shuffle": true/false, "shuffle_tracks": true/false, "entity_id": "media_player.xxx"}
+    favorites を省略するとお気に入りの全部。shuffle で順番と曲を混ぜる（shuffle_tracks で曲だけ別に指定）。"""
     try:
-        items = favs.resolve(data.get("favorites"), bool(data.get("shuffle")))
+        order, tracks = shuffle_flags(data)
+        items = favs.resolve(data.get("favorites"), order)
         log("HA から再生の指示を受けました: " + "、".join(it["name"] for it in items)
-            + f" → {data.get('entity_id') or '（スピーカー指定なし）'}")
-        await session.start(items, data.get("entity_id") or None)
+            + f" → {data.get('entity_id') or '（スピーカー指定なし）'}" + ("（曲もシャッフル）" if tracks else ""))
+        await session.start(items, data.get("entity_id") or None, shuffle_tracks=tracks)
     except Exception as e:
         log(f"HA からの再生の指示を実行できませんでした: {e}")
 
@@ -457,62 +504,67 @@ async def vnc_proxy(req: web.Request) -> web.StreamResponse:
     return ws
 
 
+# 「いまの画面を記録」の記録。新しい順に INSPECT_KEEP 件まで /data に残す（再起動しても読めるように）
+INSPECT_FILE = "/data/inspect.json"
+INSPECT_KEEP = 10
+
+
+def load_inspects() -> list:
+    try:
+        with open(INSPECT_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return []
+
+
+async def audio_streams() -> list[dict]:
+    """PipeWire に来ている音声（アプリ名・音量・止まっているか）。音量の補正が効いているかを見るため。"""
+    proc = await asyncio.create_subprocess_exec(
+        "pactl", "list", "sink-inputs", env=dict(ENV, LC_ALL="C"),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+    out = (await proc.communicate())[0].decode(errors="replace")
+    streams = []
+    for block in out.split("Sink Input #")[1:]:
+        info = {"id": block.split("\n", 1)[0].strip()}
+        for line in block.splitlines():
+            line = line.strip()
+            if line.startswith("application.name = "):
+                info["app"] = line.split("=", 1)[1].strip().strip('"')
+            elif line.startswith("Volume:"):
+                info["volume"] = line.split("/")[1].strip() if "/" in line else line
+            elif line.startswith("Corked:"):
+                info["corked"] = line.split(":", 1)[1].strip()
+        streams.append(info)
+    return streams
+
+
+async def api_inspect_take(_req: web.Request) -> web.Response:
+    try:
+        rep = await bridge.inspect()
+        rep["audio_streams"] = await audio_streams()
+    except Exception as e:
+        return web.json_response({"error": f"画面を記録できませんでした: {e}"}, status=500)
+    reps = [rep] + load_inspects()[: INSPECT_KEEP - 1]
+    with open(INSPECT_FILE, "w", encoding="utf-8") as f:
+        json.dump(reps, f, ensure_ascii=False)
+    log(f"画面を記録しました: {rep.get('title')}（{rep.get('url')}、部品 {len(rep.get('controls') or [])} 個）")
+    return web.json_response(rep)
+
+
+async def api_inspect_list(_req: web.Request) -> web.Response:
+    return web.json_response(load_inspects())
+
+
 async def index(_req: web.Request) -> web.FileResponse:
     return web.FileResponse(os.path.join(WWW_DIR, "index.html"),
                             headers={"Cache-Control": "no-store"})
-
-
-rate_stats: dict = {}
-
-
-async def measure_rate() -> None:
-    """VBAN 送信シンクに流れている音のサンプル数を数え、1分ごとに実際のレートをログに出す。
-
-    MA の VBAN Receiver は設定したレート（48000）で消費するので、送る側がそれより少ないと
-    数分で受信側のバッファが底をつき、音が途切れる。検証環境では 47600〜47970 Hz と
-    ばらついたため、実機の値を見て対策を決める。音が流れていない間（無音・停止中）は数えない。
-    """
-    rate_target = int(os.environ.get("NM_RATE", "48000"))
-    while True:
-        proc = await asyncio.create_subprocess_exec(
-            "parec", "-d", f"{SINK}.monitor", "--raw", "--format=s16le",
-            f"--rate={rate_target}", "--channels=2", "--latency-msec=100",
-            env=ENV, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        frames, t0 = 0, time.monotonic()
-        sq, n, peak = 0.0, 0, 0
-        try:
-            while chunk := await proc.stdout.read(65536):
-                frames += len(chunk) // 4
-                # 音の大きさ（JBL が10分で「使われていない」としてスタンバイに入ったため、ラジオと比べる）。
-                # 負荷を抑えるため 16 サンプルに1つだけ見る
-                smp = array.array("h", chunk[: len(chunk) // 2 * 2])[::16]
-                if smp:
-                    sq += sum(x * x for x in smp)
-                    n += len(smp)
-                    peak = max(peak, max(smp), -min(smp))
-                now = time.monotonic()
-                if now - t0 >= 60:
-                    _, out = await run_quiet("pactl", "list", "short", "sinks")
-                    running = any(l.split("\t")[1:2] == [SINK] and "RUNNING" in l for l in out.splitlines())
-                    hz = frames / (now - t0)
-                    rate_stats.update(hz=round(hz, 1), at=time.strftime("%H:%M:%S"), running=running)
-                    if running:
-                        level = (f"音量 平均 {20 * math.log10(max(math.sqrt(sq / n), 1) / 32768):.1f} dBFS"
-                                 f" / 最大 {20 * math.log10(max(peak, 1) / 32768):.1f} dBFS") if n else "音量 不明"
-                        log(f"送信レート: {hz:.1f} Hz（設定 {rate_target} Hz、差 {(hz / rate_target - 1) * 100:+.3f}%）、{level}")
-                    frames, t0 = 0, now
-                    sq, n, peak = 0.0, 0, 0
-        finally:
-            if proc.returncode is None:
-                proc.kill()
-        await asyncio.sleep(5)
 
 
 async def on_startup(app: web.Application) -> None:
     await start_display()
     await start_audio()
     app["watch"] = asyncio.create_task(watch_chrome())
-    app["rate"] = asyncio.create_task(measure_rate())
+    app["cache"] = asyncio.create_task(clear_cache_daily())
     if ha.token:
         app["events"] = asyncio.create_task(ha.listen_events(
             {"web_music_player_play": ev_play, "web_music_player_stop": ev_stop}, log))
@@ -520,7 +572,7 @@ async def on_startup(app: web.Application) -> None:
 
 async def on_cleanup(app: web.Application) -> None:
     app["watch"].cancel()
-    app["rate"].cancel()
+    app["cache"].cancel()
     if "events" in app:
         app["events"].cancel()
     for p in procs.values():
@@ -532,16 +584,10 @@ def main() -> None:
     app = web.Application(middlewares=[only_ingress])
     app.router.add_get("/", index)
     app.router.add_get("/api/status", api_status)
-    app.router.add_post("/api/discover/{action}", api_discover)
-    # ブリッジ API（Music Assistant のプロバイダ・HA のオートメーションから使う）
-    app.router.add_get("/bridge/search", bridge_handler(
-        lambda r: bridge.search(r.query["q"], r.query.get("type"), int(r.query.get("limit", 20)))))
-    app.router.add_get("/bridge/games", bridge_handler(lambda r: bridge.games()))
-    app.router.add_get("/bridge/games/{id}/playlists", bridge_handler(
-        lambda r: bridge.game_playlists(r.match_info["id"])))
-    app.router.add_get("/bridge/playlists/{id}", bridge_handler(lambda r: bridge.playlist(r.match_info["id"])))
+    app.router.add_post("/api/inspect", api_inspect_take)
+    app.router.add_get("/api/inspect", api_inspect_list)
+    # ブリッジ API（パネルと HA から使う）
     app.router.add_get("/bridge/status", bridge_handler(lambda r: bridge.status()))
-    app.router.add_post("/bridge/play", bridge_handler(b_play))
     app.router.add_post("/bridge/{action:next|previous}", bridge_handler(
         lambda r: bridge.control(r.match_info["action"])))
     # 一時停止・再開はスピーカーにも同時に指示する（再生セッション中のとき）

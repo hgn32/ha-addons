@@ -2,7 +2,7 @@
 
 お気に入りは /data/favorites.json に [{"id", "name", "url"}] で保存する。
 URL から Nintendo Music / YouTube Music を判別する:
-- Nintendo Music: music.nintendo.com のページ（プレイリスト・ユーザープレイリスト等）。ページを開いて再生ボタンを押す
+- Nintendo Music: music.nintendo.com のゲーム・プレイリストのページ。ページを開いて再生ボタンを押す
 - YouTube Music: list= を含む URL（playlist?list=... / watch?...&list=...）。watch?list= を開いて自動再生させる
 """
 
@@ -158,6 +158,7 @@ class Session:
         self.current: dict | None = None
         self.user_paused = False
         self.watch: asyncio.Task | None = None
+        self.shuffle_tracks = False
 
     def active(self) -> bool:
         return self.task is not None and not self.task.done()
@@ -223,12 +224,13 @@ class Session:
         self.current = None
         self.queue = []
 
-    async def start(self, items: list[dict], entity_id: str | None) -> None:
+    async def start(self, items: list[dict], entity_id: str | None, shuffle_tracks: bool = False) -> None:
         """お気に入りを順に再生する。前の再生中なら切り替える。
         entity_id を省いたときは、いま流しているスピーカーがあればそのまま流し続ける。"""
         await self._cancel()
         self.queue = list(items)
         self.entity_id = entity_id
+        self.shuffle_tracks = shuffle_tracks  # プレイリストの中の曲もシャッフルで再生する
         self.user_paused = False
         self.task = asyncio.create_task(self._run())
 
@@ -276,9 +278,9 @@ class Session:
             recovered = self.bridge.recover_count
             try:
                 if service == "nm":
-                    await self.bridge.play_nm_url(value)
+                    await self.bridge.play_nm_url(value, shuffle=self.shuffle_tracks)
                 else:
-                    await self.bridge.play_ytm(value)
+                    await self.bridge.play_ytm(value, shuffle=self.shuffle_tracks)
                 return
             except Exception as e:
                 # 開いている途中でページが固まり、タブを開き直した（実機で YouTube Music から
