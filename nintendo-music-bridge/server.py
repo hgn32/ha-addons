@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import json
 import os
 import shutil
 import socket
@@ -494,6 +495,35 @@ async def vnc_proxy(req: web.Request) -> web.StreamResponse:
     return ws
 
 
+# 「いまの画面を記録」の記録。新しい順に INSPECT_KEEP 件まで /data に残す（再起動しても読めるように）
+INSPECT_FILE = "/data/inspect.json"
+INSPECT_KEEP = 10
+
+
+def load_inspects() -> list:
+    try:
+        with open(INSPECT_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return []
+
+
+async def api_inspect_take(_req: web.Request) -> web.Response:
+    try:
+        rep = await bridge.inspect()
+    except Exception as e:
+        return web.json_response({"error": f"画面を記録できませんでした: {e}"}, status=500)
+    reps = [rep] + load_inspects()[: INSPECT_KEEP - 1]
+    with open(INSPECT_FILE, "w", encoding="utf-8") as f:
+        json.dump(reps, f, ensure_ascii=False)
+    log(f"画面を記録しました: {rep.get('title')}（{rep.get('url')}、部品 {len(rep.get('controls') or [])} 個）")
+    return web.json_response(rep)
+
+
+async def api_inspect_list(_req: web.Request) -> web.Response:
+    return web.json_response(load_inspects())
+
+
 async def index(_req: web.Request) -> web.FileResponse:
     return web.FileResponse(os.path.join(WWW_DIR, "index.html"),
                             headers={"Cache-Control": "no-store"})
@@ -523,6 +553,8 @@ def main() -> None:
     app = web.Application(middlewares=[only_ingress])
     app.router.add_get("/", index)
     app.router.add_get("/api/status", api_status)
+    app.router.add_post("/api/inspect", api_inspect_take)
+    app.router.add_get("/api/inspect", api_inspect_list)
     # ブリッジ API（パネルと HA から使う）
     app.router.add_get("/bridge/status", bridge_handler(lambda r: bridge.status()))
     app.router.add_post("/bridge/{action:next|previous}", bridge_handler(

@@ -64,6 +64,16 @@ event_data:
     <button data-open="ytm">YouTube Music を開く</button>
     <span style="font-size:.8rem;opacity:.7;align-self:center">初回は下の画面で Nintendo Music にログインしてください。タブを閉じてしまっても、次の操作のときに自動で開き直します</span>
   </div>
+  <details id="insp" style="margin:0 0 8px;font-size:.85rem">
+    <summary>画面の情報を記録する（サイトの作りが変わって再生できなくなったとき）</summary>
+    <p style="margin:6px 0">下の Chrome で調べたい画面（プレイリストのページ・再生中の画面など）を開いてから「いまの画面を記録」を押します。
+      ボタンや曲の一覧の情報と、アドオンがボタンを見つけられるかを記録します（入力欄の中身・Cookie は記録しません）。
+      記録は新しい順に10件までアドオンに残り、<code>GET /api/inspect</code> で読めます。</p>
+    <button id="itake">いまの画面を記録</button>
+    <button id="icopy">結果をコピー</button>
+    <span id="istat"></span>
+    <textarea id="ireport" readonly style="width:100%;box-sizing:border-box;height:8em;font-family:monospace;font-size:.75rem;margin-top:6px"></textarea>
+  </details>
   <iframe src="novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=1000&path=websockify" title="Chrome の画面"></iframe>
 </main>
 <script>
@@ -173,6 +183,21 @@ async function pollSession() {
   } catch {}
 }
 setInterval(pollSession, 3000); loadFavs(); pollSession();
+
+// ---- 画面の情報を記録する
+document.getElementById("itake").onclick = async (e) => {
+  e.target.disabled = true;
+  try {
+    const rep = await api("api/inspect", {method: "POST"});
+    document.getElementById("ireport").value = JSON.stringify(rep, null, 1);
+    document.getElementById("istat").textContent = " 記録しました（" + rep.title + "・部品 " + rep.controls.length + " 個）";
+  } catch {} finally { e.target.disabled = false; }
+};
+document.getElementById("icopy").onclick = async () => {
+  const t = document.getElementById("ireport");
+  try { await navigator.clipboard.writeText(t.value); } catch { t.select(); document.execCommand("copy"); }
+  document.getElementById("istat").textContent += " コピーしました";
+};
 </script>
 </body>
 </html>

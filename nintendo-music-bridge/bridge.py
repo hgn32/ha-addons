@@ -53,9 +53,62 @@ STATUS_JS = r"""
 })()
 """
 
+# 画面の情報を調べる（サイトの作りが変わったときに、ボタンや曲の一覧の場所を調べ直すため）。
+# ページの状態は変えない。入力欄の中身・Cookie・保存データは読まない
+INSPECT_JS = r"""
+(() => {
+  const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const txt = (el, n) => (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, n) || undefined;
+  // どこにある部品か（親要素を4つまで: タグ#id.クラス）
+  const area = el => {
+    const out = [];
+    for (let p = el.parentElement; p && p !== document.body && out.length < 4; p = p.parentElement) {
+      const c = typeof p.className === 'string' && p.className.trim() ? '.' + p.className.trim().split(/\s+/)[0] : '';
+      out.push(p.tagName.toLowerCase() + (p.id ? '#' + p.id : '') + c);
+    }
+    return out.join(' < ');
+  };
+  const controls = [...document.querySelectorAll(
+      'button, [role=button], [role=slider], [role=checkbox], [role=switch], [role=tab], input, tp-yt-paper-icon-button')]
+    .filter(vis).slice(0, 400).map(el => ({
+      path: area(el),
+      tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role') || undefined,
+      aria: el.getAttribute('aria-label') || undefined,
+      pressed: el.getAttribute('aria-pressed') || el.getAttribute('aria-checked') || undefined,
+      value: el.getAttribute('aria-valuenow') || undefined,
+      title: el.getAttribute('title') || undefined,
+      testid: el.getAttribute('data-testid') || undefined,
+      id: el.id || undefined,
+      cls: (typeof el.className === 'string' ? el.className : '').slice(0, 60) || undefined,
+      type: el.tagName === 'INPUT' ? el.type : undefined,
+      text: el.tagName === 'INPUT' ? undefined : txt(el, 40),
+    }));
+  // 曲の一覧らしいもの（YouTube Music の曲のリンク、行・リストの項目）
+  const tracks = [...document.querySelectorAll(
+      'ytmusic-responsive-list-item-renderer, ytmusic-player-queue-item, [role=row], li, a[href*="watch?v="]')]
+    .filter(vis).slice(0, 80).map(el => ({
+      path: area(el), tag: el.tagName.toLowerCase(), role: el.getAttribute('role') || undefined,
+      href: el.getAttribute('href') || undefined, text: txt(el, 80),
+    })).filter(t => t.text || t.href);
+  const media = [...document.querySelectorAll('audio, video')].map(m => ({
+    tag: m.tagName.toLowerCase(), paused: m.paused, ended: m.ended, currentTime: m.currentTime,
+    duration: isFinite(m.duration) ? m.duration : null, volume: m.volume, muted: m.muted,
+    loop: m.loop, hasSrc: !!m.currentSrc, hasMediaKeys: !!m.mediaKeys,
+  }));
+  const md = navigator.mediaSession && navigator.mediaSession.metadata;
+  return {
+    url: location.href, title: document.title,
+    mediaSession: md ? {title: md.title, artist: md.artist, album: md.album,
+                        playbackState: navigator.mediaSession.playbackState} : null,
+    media, controls, tracks,
+  };
+})()
+"""
+
 # クリックする要素の画面上の中心座標を返す。見つからなければ null
 FIND_JS = r"""
-((kind, L) => {
+((kind, L, dry) => {
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const label = el => (el.getAttribute('aria-label') || el.innerText || '').trim();
   let el = null;
@@ -77,6 +130,7 @@ FIND_JS = r"""
     }
   }
   if (!el) return null;
+  if (dry) return {label: label(el)};  // 調べるだけ（画面を動かさない）
   el.scrollIntoView({block: 'center'});
   const r = el.getBoundingClientRect();
   return {x: r.left + r.width / 2, y: r.top + r.height / 2, label: label(el)};
@@ -323,6 +377,22 @@ class Bridge:
 
     async def status(self) -> dict:
         return await self._eval(STATUS_JS)
+
+    async def inspect(self) -> dict:
+        """画面の情報と、いまの設定でボタンが見つかるかを調べる（パネルの「いまの画面を記録」）。"""
+        rep = await self._eval(INSPECT_JS)
+        checks = {}
+        for kind in ("playlist-play", "previous", "playpause", "next"):
+            for name, labels in (("nm", LABELS), ("ytm", YTM_LABELS)):
+                if name == "ytm" and kind in ("playlist-play", "playpause"):
+                    continue
+                found = await self._eval(
+                    f"({FIND_JS})({json.dumps(kind)}, {json.dumps(labels, ensure_ascii=False)}, true)")
+                checks[f"{name}:{kind}"] = found["label"] if found else None
+        rep["checks"] = checks  # いまのアドオンの探し方で見つかったボタン（null は見つからない）
+        rep["labels"] = {"nm": LABELS, "ytm": YTM_LABELS}
+        rep["at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        return rep
 
     async def _click(self, kind: str, timeout: float = 15, labels: dict = LABELS) -> str:
         deadline = time.monotonic() + timeout

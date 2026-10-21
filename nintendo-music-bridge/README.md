@@ -92,6 +92,14 @@ event_data:
 | `GET /bridge/favorites` / `POST /bridge/favorites`（`{"name", "url"}`） | お気に入りの一覧・追加 |
 | `POST /bridge/session/play`（`{"favorites": [名前...], "shuffle", "entity_id"}`。favorites を省くと全部） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
 
+## サイトの作りが変わったとき
+
+Nintendo Music / YouTube Music の画面が変わると、再生ボタンなどを見つけられなくなることがあります。
+パネルの「画面の情報を記録する」を開き、下の Chrome で調べたい画面（プレイリストのページ・再生中の画面）を
+表示してから「いまの画面を記録」を押すと、その画面のボタン・曲の一覧・再生状態と、アドオンが
+いまの探し方でボタンを見つけられるか（`checks`、見つからないものは `null`）を記録します。
+記録は新しい順に10件までアドオンに残り、`GET /api/inspect` で読めます。入力欄の中身・Cookie は記録しません。
+
 ## 設定
 
 | 項目 | 既定値 | 内容 |
