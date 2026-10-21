@@ -430,10 +430,18 @@ async def b_fav_remove(req: web.Request):
     return favs.list()
 
 
+def shuffle_flags(data: dict) -> tuple[bool, bool]:
+    """shuffle はお気に入りの順番とプレイリストの中の曲の両方を混ぜる。
+    shuffle_tracks を書けば、曲のシャッフルだけ別に決められる。"""
+    order = bool(data.get("shuffle"))
+    return order, bool(data.get("shuffle_tracks", order))
+
+
 async def b_session_play(req: web.Request):
     body = await req.json()
-    await session.start(favs.resolve(body.get("favorites"), bool(body.get("shuffle"))),
-                        body.get("entity_id") or None)
+    order, tracks = shuffle_flags(body)
+    await session.start(favs.resolve(body.get("favorites"), order), body.get("entity_id") or None,
+                        shuffle_tracks=tracks)
     return session.state()
 
 
@@ -449,13 +457,14 @@ async def b_session_stop(_req: web.Request):
 
 async def ev_play(data: dict) -> None:
     """HA のイベント web_music_player_play:
-    {"favorites": [名前...], "shuffle": true/false, "entity_id": "media_player.xxx"}
-    favorites を省略するとお気に入りの全部。shuffle で順番を混ぜる。"""
+    {"favorites": [名前...], "shuffle": true/false, "shuffle_tracks": true/false, "entity_id": "media_player.xxx"}
+    favorites を省略するとお気に入りの全部。shuffle で順番と曲を混ぜる（shuffle_tracks で曲だけ別に指定）。"""
     try:
-        items = favs.resolve(data.get("favorites"), bool(data.get("shuffle")))
+        order, tracks = shuffle_flags(data)
+        items = favs.resolve(data.get("favorites"), order)
         log("HA から再生の指示を受けました: " + "、".join(it["name"] for it in items)
-            + f" → {data.get('entity_id') or '（スピーカー指定なし）'}")
-        await session.start(items, data.get("entity_id") or None)
+            + f" → {data.get('entity_id') or '（スピーカー指定なし）'}" + ("（曲もシャッフル）" if tracks else ""))
+        await session.start(items, data.get("entity_id") or None, shuffle_tracks=tracks)
     except Exception as e:
         log(f"HA からの再生の指示を実行できませんでした: {e}")
 

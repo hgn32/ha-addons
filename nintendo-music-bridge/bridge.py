@@ -22,6 +22,9 @@ LABELS = {
     "play": ["Play", "再生", "再生する"],
     "previous": ["Previous track", "前の曲", "曲戻し"],
     "next": ["Next track", "次の曲", "曲送り"],
+    # プレイリストのページ本体の「シャッフル」ボタン。実物の画面（日本語・ログイン済み）を記録して確認した
+    # （「再生」の隣の button、文字が「シャッフル」）。英語の画面は測っていないので入れない
+    "shuffle": ["シャッフル"],
 }
 
 # YouTube Music のプレーヤーの下のボタン。実物の画面（日本語）の部品を記録して確認した:
@@ -30,6 +33,8 @@ YTM_LABELS = {
     "play": [],
     "previous": ["前へ"],
     "next": ["次へ"],
+    # プレーヤーバー右側の yt-icon-button.shuffle（aria-label「シャッフル」）。実物の画面を記録して確認した
+    "shuffle": ["シャッフル"],
 }
 
 # いまの再生状態を読む（ページの状態は変えない）
@@ -112,10 +117,15 @@ FIND_JS = r"""
   const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const label = el => (el.getAttribute('aria-label') || el.innerText || '').trim();
   let el = null;
-  if (kind === 'playlist-play') {
-    // プレイリストのページ本体（#main-column）の「Play」ボタン。プレーヤーバーや右パネルのものは除く
+  if (kind === 'playlist-play' || kind === 'playlist-shuffle') {
+    // プレイリストのページ本体（#main-column）の「Play」「シャッフル」ボタン。プレーヤーバーや右パネルのものは除く
     const main = document.querySelector('#main-column') || document.body;
-    el = [...main.querySelectorAll('button, [role=button]')].find(b => vis(b) && L.play.includes(label(b)));
+    const names = kind === 'playlist-play' ? L.play : (L.shuffle || []);
+    el = [...main.querySelectorAll('button, [role=button]')].find(b => vis(b) && names.includes(label(b)));
+  } else if (kind === 'bar-shuffle') {
+    // プレーヤーバーのシャッフル（YouTube Music）
+    el = [...document.querySelectorAll('button[aria-label]')]
+      .find(b => vis(b) && (L.shuffle || []).includes(b.getAttribute('aria-label')));
   } else {
     // プレーヤーバー: Previous track と Next track の間のボタンが再生/一時停止
     const byAria = names => [...document.querySelectorAll('button[aria-label]')]
@@ -382,9 +392,10 @@ class Bridge:
         """画面の情報と、いまの設定でボタンが見つかるかを調べる（パネルの「いまの画面を記録」）。"""
         rep = await self._eval(INSPECT_JS)
         checks = {}
-        for kind in ("playlist-play", "previous", "playpause", "next"):
+        for kind in ("playlist-play", "playlist-shuffle", "previous", "playpause", "next", "bar-shuffle"):
             for name, labels in (("nm", LABELS), ("ytm", YTM_LABELS)):
-                if name == "ytm" and kind in ("playlist-play", "playpause"):
+                if (name, kind) in (("ytm", "playlist-play"), ("ytm", "playlist-shuffle"), ("ytm", "playpause"),
+                                    ("nm", "bar-shuffle")):
                     continue
                 found = await self._eval(
                     f"({FIND_JS})({json.dumps(kind)}, {json.dumps(labels, ensure_ascii=False)}, true)")
@@ -433,8 +444,9 @@ class Bridge:
                     raise RuntimeError(f"Chrome の準備ができませんでした（{e}）")
                 await asyncio.sleep(1)
 
-    async def play_nm_url(self, url: str) -> dict:
-        """Nintendo Music のプレイリスト等のページを開いて、ページ本体の再生ボタンを押す。"""
+    async def play_nm_url(self, url: str, shuffle: bool = False) -> dict:
+        """Nintendo Music のプレイリスト等のページを開いて、ページ本体の再生ボタンを押す。
+        shuffle なら、隣の「シャッフル」ボタンを押す（見つからなければ普通に再生する）。"""
         t0 = time.monotonic()
         async with self.lock:
             t_lock = time.monotonic()
@@ -444,7 +456,13 @@ class Bridge:
             await self._cdp([("Page.navigate", {"url": url})])
             t_nav = time.monotonic()
             await asyncio.sleep(2)
-            label = await self._click("playlist-play")
+            label = None
+            if shuffle:
+                try:
+                    label = await self._click("playlist-shuffle", timeout=10)
+                except RuntimeError:
+                    self.log("「シャッフル」ボタンが見つからないため、普通に再生します")
+            label = label or await self._click("playlist-play")
             t_click = time.monotonic()
             self.log(f"{url} の再生ボタン（{label}）を押しました")
             st = await self._wait_playing()
@@ -464,7 +482,30 @@ class Bridge:
             await self._cdp([("Page.navigate", {"url": url})])
         return {"ok": True, "url": url}
 
-    async def play_ytm(self, list_id: str) -> dict:
+    async def _ytm_queue(self) -> list:
+        """YouTube Music の再生キュー（右パネル）の曲名の並び。"""
+        return await self._eval(
+            "[...document.querySelectorAll('ytmusic-player-queue-item')]"
+            ".map(q => (q.querySelector('.song-title') || q).textContent.trim()).slice(0, 50)") or []
+
+    async def _ytm_shuffle(self, st: dict) -> dict:
+        """YouTube Music: プレーヤーバーの「シャッフル」を押してキューを混ぜ、先頭の曲（混ぜても
+        そのまま残る、いま鳴っている曲）を飛ばす。混ざったかはキューの並びを比べて確かめる。"""
+        before = await self._ytm_queue()
+        await self._click("bar-shuffle", timeout=5, labels=YTM_LABELS)
+        after: list = before
+        for _ in range(10):
+            await asyncio.sleep(0.5)
+            after = await self._ytm_queue()
+            if after != before:
+                break
+        self.log("YouTube Music のシャッフルを押しました（キューの並び: "
+                 + ("変わった" if after != before else f"変わらない、{len(before)}曲") + "）")
+        title = st.get("title")
+        await self._click("next", timeout=5, labels=YTM_LABELS)
+        return await self._wait_playing(before_title=title)
+
+    async def play_ytm(self, list_id: str, shuffle: bool = False) -> dict:
         """YouTube Music のプレイリストを再生する。watch?list= を開くと先頭の曲から自動で再生が始まる
         （Chrome は --autoplay-policy=no-user-gesture-required で起動している）。
 
@@ -503,6 +544,8 @@ class Bridge:
                     t_sound = t_sound or time.monotonic()
                     if not await self._eval("window.__wmpBefore === true"):
                         await self.apply_gain("ytm")
+                        if shuffle:
+                            st = await self._ytm_shuffle(st)
                         t_end = time.monotonic()
                         self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
                                  f" / 鳴っているのを見つけるまで {t_sound - t_nav:.1f} / 新しいページの確認 {t_end - t_sound:.1f}。"

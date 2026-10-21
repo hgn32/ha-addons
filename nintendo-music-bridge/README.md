@@ -35,7 +35,9 @@ event_data:
   entity_id: media_player.jbl_bar_800
 ```
 
-`favorites` を省くとお気に入りの全部を並び順で、`shuffle: true` を付けると順番を混ぜて再生します。
+`favorites` を省くとお気に入りの全部を並び順で再生します。`shuffle: true` を付けると、お気に入りの順番と、
+プレイリストの中の曲の両方を混ぜて再生します（Nintendo Music はページの「シャッフル」ボタン、YouTube Music は
+プレーヤーの「シャッフル」ボタンを押します）。曲は混ぜずに順番だけ混ぜるときは `shuffle_tracks: false` を付けます。
 
 ```yaml
 event: web_music_player_play
@@ -90,7 +92,7 @@ event_data:
 | `POST /bridge/open/nm` / `POST /bridge/open/ytm` | Chrome で Nintendo Music / YouTube Music のトップを開く |
 | `POST /bridge/cast`（本文 `{"entity_id": "media_player.xxx"}`） | そのスピーカーでストリームを再生させる |
 | `GET /bridge/favorites` / `POST /bridge/favorites`（`{"name", "url"}`） | お気に入りの一覧・追加 |
-| `POST /bridge/session/play`（`{"favorites": [名前...], "shuffle", "entity_id"}`。favorites を省くと全部） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
+| `POST /bridge/session/play`（`{"favorites": [名前...], "shuffle", "shuffle_tracks", "entity_id"}`。favorites を省くと全部） / `POST /bridge/session/stop` | お気に入りを順に再生・停止 |
 
 ## サイトの作りが変わったとき
 

@@ -46,6 +46,7 @@
     <div id="flist" style="margin-top:6px"></div>
     <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <button id="fplay">チェックしたものを順にスピーカーで再生</button>
+      <label style="font-size:.85rem"><input type="checkbox" id="fshuf"> シャッフル（順番とプレイリストの中の曲）</label>
       <button id="fstop">停止</button>
       <span id="fstate" style="font-size:.85rem"></span>
     </div>
@@ -55,7 +56,8 @@
 event_data:
   favorites: ["朝のBGM", "ピクミン"]
   entity_id: media_player.jbl_bar_800</pre>
-      favorites を省くとお気に入りの全部を、<code>shuffle: true</code> を付けると順番を混ぜて再生します。
+      favorites を省くとお気に入りの全部を、<code>shuffle: true</code> を付けると順番とプレイリストの中の曲を混ぜて再生します
+      （曲だけ混ぜないときは <code>shuffle_tracks: false</code>）。
       止めるときは <code>event: web_music_player_stop</code> を発行します。
     </details>
   </div>
@@ -159,7 +161,7 @@ async function loadFavs(list) {
 async function playFavs(ids) {
   if (!ids.length) { msg2.textContent = "再生するお気に入りにチェックを入れてください"; return; }
   if (!spk.value) { msg2.textContent = "スピーカーを選んでください"; return; }
-  await api("bridge/session/play", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({favorites: ids, entity_id: spk.value})});
+  await api("bridge/session/play", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({favorites: ids, entity_id: spk.value, shuffle: document.getElementById("fshuf").checked})});
   pollSession();
 }
 document.getElementById("fadd").onclick = async () => {
