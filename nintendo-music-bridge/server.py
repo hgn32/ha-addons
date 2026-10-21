@@ -517,9 +517,31 @@ def load_inspects() -> list:
         return []
 
 
+async def audio_streams() -> list[dict]:
+    """PipeWire に来ている音声（アプリ名・音量・止まっているか）。音量の補正が効いているかを見るため。"""
+    proc = await asyncio.create_subprocess_exec(
+        "pactl", "list", "sink-inputs", env=dict(ENV, LC_ALL="C"),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+    out = (await proc.communicate())[0].decode(errors="replace")
+    streams = []
+    for block in out.split("Sink Input #")[1:]:
+        info = {"id": block.split("\n", 1)[0].strip()}
+        for line in block.splitlines():
+            line = line.strip()
+            if line.startswith("application.name = "):
+                info["app"] = line.split("=", 1)[1].strip().strip('"')
+            elif line.startswith("Volume:"):
+                info["volume"] = line.split("/")[1].strip() if "/" in line else line
+            elif line.startswith("Corked:"):
+                info["corked"] = line.split(":", 1)[1].strip()
+        streams.append(info)
+    return streams
+
+
 async def api_inspect_take(_req: web.Request) -> web.Response:
     try:
         rep = await bridge.inspect()
+        rep["audio_streams"] = await audio_streams()
     except Exception as e:
         return web.json_response({"error": f"画面を記録できませんでした: {e}"}, status=500)
     reps = [rep] + load_inspects()[: INSPECT_KEEP - 1]

@@ -177,23 +177,30 @@ class Bridge:
         self._stats_reset()
 
     # ------------------------------------------------------------ 音量の補正
-    async def apply_gain(self, service: str) -> None:
+    async def apply_gain(self, service: str, wait: bool = False) -> None:
         """Chrome の音（PipeWire の Chrome のストリーム）の音量を、サービスに合わせて変える。
 
         音量は 100% を 0dB とする3乗の目盛りなので、+18dB が 200%（実測: 10%→-60dB、20%→-42dB、
         40%→-24dB、185%→+16dB）。PipeWire はアプリ名ごとに最後の音量を覚えていて、Chrome が
         あとから作るストリームにも同じ音量が付く（実測）。
         https://www.freedesktop.org/wiki/Software/PulseAudio/Documentation/Developer/Clients/WritingVolumeControlUIs/
+
+        wait: 鳴り始めた直後に呼ぶとき。Chrome のストリームが見つかるまで5秒まで待つ（実機で、アドオンの
+        起動直後の最初の Nintendo Music の再生のあと、補正のログが出なかった＝ストリームが見つからなかったため）。
         """
         pct = round(100 * 10 ** (GAIN_DB.get(service, 0) / 60))
         env = dict(self.env or {}, LC_ALL="C")  # pactl の出力を英語に固定して読む
         try:
-            proc = await asyncio.create_subprocess_exec(
-                "pactl", "list", "sink-inputs", env=env,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-            out = (await proc.communicate())[0].decode(errors="replace")
-            ids = [b.split("\n", 1)[0].strip() for b in out.split("Sink Input #")[1:]
-                   if 'application.name = "Google Chrome"' in b]
+            for _ in range(10 if wait else 1):
+                proc = await asyncio.create_subprocess_exec(
+                    "pactl", "list", "sink-inputs", env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+                out = (await proc.communicate())[0].decode(errors="replace")
+                ids = [b.split("\n", 1)[0].strip() for b in out.split("Sink Input #")[1:]
+                       if 'application.name = "Google Chrome"' in b]
+                if ids:
+                    break
+                await asyncio.sleep(0.5)
             for i in ids:
                 proc = await asyncio.create_subprocess_exec(
                     "pactl", "set-sink-input-volume", i, f"{pct}%", env=env,
@@ -466,7 +473,7 @@ class Bridge:
             t_click = time.monotonic()
             self.log(f"{url} の再生ボタン（{label}）を押しました")
             st = await self._wait_playing()
-            await self.apply_gain("nm")
+            await self.apply_gain("nm", wait=True)
             t_end = time.monotonic()
             self.log(f"再生開始まで {t_end - t0:.1f}秒（操作待ち {t_lock - t0:.1f} / ページを開く {t_nav - t_lock:.1f}"
                      f" / ボタンが出るまで {t_click - t_nav:.1f} / 鳴り始めるまで {t_end - t_click:.1f}。{self._stats_text()}）")
@@ -543,7 +550,7 @@ class Bridge:
                 if "/watch" in url and f"list={list_id}" in url and st.get("paused") is False:
                     t_sound = t_sound or time.monotonic()
                     if not await self._eval("window.__wmpBefore === true"):
-                        await self.apply_gain("ytm")
+                        await self.apply_gain("ytm", wait=True)
                         if shuffle:
                             st = await self._ytm_shuffle(st)
                         t_end = time.monotonic()
