@@ -2,6 +2,13 @@
 
 Nginx をベースにしたリバースプロキシ・ゲートウェイアドオンです。GeoIP2 による国別アクセス制御、HTTPS・MQTTs・WireGuard のエンドポイントを一括で公開できます。
 
+## nginx のビルド
+
+nginx は Alpine のパッケージではなく、公式のソース（nginx.org）から nginx・njs・GeoIP2 モジュールをビルドしています。
+Alpine のパッケージは更新が遅れ、nginx.org の公式パッケージには GeoIP2 モジュールが無いためです。
+パスと動的モジュール（`/usr/lib/nginx/modules/ngx_stream_module.so`・`ngx_http_geoip2_module.so`・
+`ngx_stream_geoip2_module.so`・`ngx_stream_js_module.so`）は Alpine のパッケージと同じなので、`nginx.conf` はそのまま使えます。
+
 ## 機能
 
 - HTTPS リバースプロキシ（GeoIP2 による国別フィルタリング）
