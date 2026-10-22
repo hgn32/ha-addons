@@ -153,6 +153,35 @@ checks:
     info: true
 
   - app: nginx-gateway
+    id: nginx
+    category: upstream
+    kind: github_release
+    repo: nginx/nginx
+    # 安定版（偶数の 1.30.x）を追う。Alpine のパッケージは遅れるのでソースからビルドしている
+    tag_regex: '^release-(1\.30\.\d+)$'
+    pin:
+      file: nginx-gateway/Dockerfile
+      regex: 'NGINX_VERSION=(\S+)'
+
+  - app: nginx-gateway
+    id: njs
+    category: upstream
+    kind: github_release
+    repo: nginx/njs
+    pin:
+      file: nginx-gateway/Dockerfile
+      regex: 'NJS_VERSION=(\S+)'
+
+  - app: nginx-gateway
+    id: geoip2-module
+    category: upstream
+    kind: github_release
+    repo: leev/ngx_http_geoip2_module
+    pin:
+      file: nginx-gateway/Dockerfile
+      regex: 'GEOIP2_MODULE_VERSION=(\S+)'
+
+  - app: nginx-gateway
     id: geoipupdate
     category: upstream
     kind: github_release
