@@ -1,7 +1,7 @@
 {
   "name": "iperf3 Server",
   "description": "LAN 内の端末と Home Assistant 本体の間の通信速度を測る iperf3 サーバー",
-  "version": "3.22.1",
+  "version": "3.22.2",
   "slug": "iperf3_server",
   "url": "https://github.com/hgn32/ha-addons",
   "init": false,
