@@ -1,0 +1,4 @@
+configuration:
+  port:
+    name: ポート
+    description: iperf3 サーバーが待ち受けるポート（TCP と UDP）。既定は 5201 です。

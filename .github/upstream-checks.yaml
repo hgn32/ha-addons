@@ -254,3 +254,20 @@ checks:
     kind: digest
     image: ghcr.io/home-assistant/amd64-base-debian:trixie
     note: 公式 Chrome は Google の apt リポジトリから常に最新を入れる。リビルドで新しくなる
+
+  - app: iperf3-server
+    id: iperf3
+    category: upstream
+    kind: github_release
+    repo: esnet/iperf
+    # リリースのタグは "3.22" の形。ベータ（3.15-mt-beta1 など）は除く
+    tag_regex: '^(3\.\d+)$'
+    pin:
+      file: iperf3-server/Dockerfile
+      regex: 'IPERF_VERSION=(\S+)'
+
+  - app: iperf3-server
+    id: ha-base
+    category: base
+    kind: digest
+    image: ghcr.io/home-assistant/amd64-base:latest

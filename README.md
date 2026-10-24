@@ -51,6 +51,10 @@ Home Assistant 用のカスタムアドオンリポジトリです。
 
 [Nintendo Music](https://music.nintendo.com/) の Web 版をアドオン内の公式 Chrome で再生し、Google Cast 対応のスピーカー（HA の media_player）へ流すアドオンです。YouTube Music のプレイリストも再生できます。お気に入りに登録したプレイリストを HA のオートメーションから流せます。
 
+### [iperf3 Server](./iperf3-server)
+
+[iperf3](https://github.com/esnet/iperf) のサーバーを Home Assistant 本体で動かし、LAN 内の端末と HA の間の通信速度を測れるようにするアドオンです。
+
 ## インストール方法
 
 1. Home Assistant の **設定 → アドオン → アドオンストア** を開く
