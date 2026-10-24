@@ -1,0 +1,4 @@
+configuration:
+  port:
+    name: Port
+    description: Port the iperf3 server listens on (TCP and UDP). Default is 5201.
