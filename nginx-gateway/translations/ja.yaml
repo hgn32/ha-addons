@@ -1,4 +1,7 @@
 configuration:
+  geoip_enabled:
+    name: GeoIP を使う
+    description: オフにすると GeoIP データベースの取得と定期更新をしません。このとき nginx の設定に geoip2 を書かないでください（書いてあると起動しません）。
   geoip_account_id:
     name: GeoIP アカウント ID
     description: GeoIP データベース更新用の MaxMind アカウント ID。

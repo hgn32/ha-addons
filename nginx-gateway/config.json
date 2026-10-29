@@ -1,7 +1,7 @@
 {
   "name": "Nginx Gateway",
   "description": "Nginx Gateway",
-  "version": "0.10.6",
+  "version": "0.10.7",
   "slug": "nginx_gateway",
   "url": "https://yhc.jp",
   "init": false,
@@ -28,12 +28,14 @@
     "ssl:ro"
   ],
   "options": {
+    "geoip_enabled": true,
     "geoip_account_id": "",
     "geoip_license_key": "",
     "geoip_update_schedule": "0 18 * * *",
     "geoip_reload_nginx": true
   },
   "schema": {
+    "geoip_enabled": "bool?",
     "geoip_account_id": "str?",
     "geoip_license_key": "password?",
     "geoip_update_schedule": "str?",
