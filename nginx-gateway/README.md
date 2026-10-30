@@ -44,6 +44,7 @@ Alpine のパッケージは更新が遅れ、nginx.org の公式パッケージ
 
 | 設定キー | 型 | 既定値 | 説明 |
 |---|---|---|---|
+| `geoip_enabled` | bool | `true` | GeoIP を使うか。`false` にすると GeoIP DB の取得と定期更新をしない（下の「GeoIP を使わないモード」） |
 | `geoip_account_id` | str | （空） | MaxMind アカウント ID |
 | `geoip_license_key` | password | （空） | MaxMind ライセンスキー（マスク表示） |
 | `geoip_update_schedule` | str | `0 18 * * *` | GeoIP DB の自動更新スケジュール（cron 式・**UTC**）。空にすると定期更新を無効化 |
@@ -57,6 +58,27 @@ GeoIP 機能を使うには `geoip_account_id` と `geoip_license_key` の両方
 > - 設定を変更した場合は**アドオンの再起動**で反映されます（スケジュールは起動時に登録されるため）。
 > - `geoip_reload_nginx` を `false` にすると DB は更新されますが nginx には即時反映されず、次回の nginx／アドオン再起動時に反映されます。
 > - 更新の実行ログはアドオンの **ログ** タブに `[geoip-refresh] ...` として表示されます。
+
+### GeoIP を使わないモード
+
+国別の判定をルーターなど別の機器で行う場合は、`geoip_enabled` を `false` にします。
+MaxMind のアカウントは不要になり、GeoIP DB の取得（起動時）と定期更新（`geoip_update_schedule`）はしません。
+`geoip_account_id`・`geoip_license_key`・`geoip_update_schedule`・`geoip_reload_nginx` は設定してあっても使いません。
+
+`geoip2` ディレクティブは nginx の起動時にデータベースを開くため、`false` にする前に `/share/nginx` の設定から
+`geoip2 { ... }` のブロックと、その変数（`$geoip2_country_code` など）を使っている `map`・`log_format` を消してください。
+`geoip2` が残っているときは、アドオンが該当する行をログタブに出して起動を止めます。
+`load_module ...geoip2_module.so;` の行は残っていても動きます。
+
+[サンプル](./sample/nginx.conf) のように `$is_jp` で国内・海外を分けているときは、`$is_jp` を常に 1（国内扱い）にすると
+ほかの設定（`reject.js` など）を変えずに使えます。
+
+```nginx
+# geoip2 { ... } と map $geoip2_country_code $is_jp { ... } の代わりに
+map $remote_addr $is_jp {
+    default 1;
+}
+```
 
 ## 設定ファイルの配置
 

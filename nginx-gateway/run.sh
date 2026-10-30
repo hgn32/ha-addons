@@ -10,9 +10,23 @@ fi
 mkdir -p /etc/nginx
 ln -sf /share/nginx/nginx.conf /etc/nginx/nginx.conf
 
+# GeoIP を使わないモード（geoip_enabled: false）。未設定のときは従来どおり使う
+GEOIP_ENABLED=true
+if bashio::config.false 'geoip_enabled'; then
+  GEOIP_ENABLED=false
+  bashio::log.info "GeoIP は無効です（geoip_enabled: false）。GeoIP データベースの取得と定期更新はしません"
+  # geoip2 ディレクティブは起動時に mmdb を開く。DB を取得しないので、設定に残っていると nginx が起動できない
+  # ベースイメージの grep は BusyBox で --include が無いため、find で .conf を集めて渡す
+  if USED=$(find /share/nginx -type f -name '*.conf' -exec grep -HnE '^[[:space:]]*geoip2[[:space:]]' {} +); then
+    bashio::log.error "GeoIP を無効にしていますが、nginx の設定が geoip2 を使っています。次の行（とその変数を使う map など）を消すか、geoip_enabled を true に戻してください:"
+    echo "${USED}"
+    exit 1
+  fi
+fi
+
 # アドオン設定（geoip_account_id + geoip_license_key）から /tmp/GeoIP.conf を生成する
 GEOIP_CONF=""
-if bashio::config.has_value 'geoip_account_id' && bashio::config.has_value 'geoip_license_key'; then
+if [ "${GEOIP_ENABLED}" = true ] && bashio::config.has_value 'geoip_account_id' && bashio::config.has_value 'geoip_license_key'; then
   ACCOUNT_ID=$(bashio::config 'geoip_account_id')
   LICENSE_KEY=$(bashio::config 'geoip_license_key')
   cat > /tmp/GeoIP.conf <<GEOIP
@@ -80,7 +94,7 @@ EOF
   else
     bashio::log.info "geoip_update_schedule is empty; scheduled GeoIP updates disabled"
   fi
-else
+elif [ "${GEOIP_ENABLED}" = true ]; then
   bashio::log.warning "geoip_account_id/geoip_license_key 未設定のため GeoIP DB を取得しません（GeoIP 機能は無効）"
 fi
 

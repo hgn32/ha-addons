@@ -1,4 +1,7 @@
 configuration:
+  geoip_enabled:
+    name: Use GeoIP
+    description: When off, the GeoIP database is neither downloaded nor updated. Do not use geoip2 in the nginx config in this mode (nginx will not start).
   geoip_account_id:
     name: GeoIP Account ID
     description: MaxMind account ID for GeoIP database updates.
