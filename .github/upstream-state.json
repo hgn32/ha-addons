@@ -2,38 +2,50 @@
   "claude-session-opener/claude-code": {
     "app_version": "0.6.2",
     "pending": true,
-    "seen_at": "2026-10-01",
-    "value": "2.1.286"
+    "seen_at": "2026-11-01",
+    "value": "2.1.316"
   },
   "claude-session-opener/ha-base": {
-    "app_version": "0.5.0",
-    "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "sha256:db83d263152a02d6daf3415a73132b2386f43a03a9c248bdaabe047b067c8eea"
+    "app_version": "0.6.2",
+    "pending": true,
+    "seen_at": "2026-11-01",
+    "value": "sha256:f6b6afddb05fc459d4ebf3b99887035571bd90a0ca96237f9d90c8d25a3951e2"
   },
   "claude-session-opener/node-base": {
     "app_version": "0.6.2",
-    "pending": false,
-    "seen_at": "2026-10-01",
-    "value": "sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c"
+    "pending": true,
+    "seen_at": "2026-11-01",
+    "value": "sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
   },
   "discord-cleanup/base-python": {
     "app_version": "0.8.2",
+    "pending": true,
+    "seen_at": "2026-11-01",
+    "value": "sha256:e6d0458187f7180f303404a3a6bfb4a5a413410a1042b16fca33178cd3bd71f7"
+  },
+  "iperf3-server/ha-base": {
+    "app_version": "3.22.2",
     "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "sha256:34b2976323b976d5d304d9f5889304eadb281ebd5b096f69a1c91d8bc83b9253"
+    "seen_at": "2026-11-01",
+    "value": "sha256:f6b6afddb05fc459d4ebf3b99887035571bd90a0ca96237f9d90c8d25a3951e2"
   },
   "nginx-gateway/ha-base": {
-    "app_version": "0.10.5",
+    "app_version": "0.10.7",
+    "pending": true,
+    "seen_at": "2026-11-01",
+    "value": "sha256:880016115f356afc814398e17ba68a7ee66dfc1b4eaef09755ea2c9fa18ea481"
+  },
+  "nintendo-music-bridge/ha-base": {
+    "app_version": "0.6.19",
     "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "sha256:93ef607824e3f27e868f11b10938283a98bf880ed57bcf8eaa81c6c2d521f6f5"
+    "seen_at": "2026-11-01",
+    "value": "sha256:d339b9c9d01d8164647de28e14383d5a5d24bc04d76ab1eb50a51d0b88978d46"
   },
   "stock-manager/node-base": {
     "app_version": "0.10.3",
     "pending": true,
-    "seen_at": "2026-10-01",
-    "value": "sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c"
+    "seen_at": "2026-11-01",
+    "value": "sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
   },
   "suwayomi-server/suwayomi-image": {
     "app_version": "0.24",
@@ -43,20 +55,20 @@
   },
   "voicevox/voicevox-image": {
     "app_version": "0.15",
-    "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "sha256:eb8c7f46a7d01217d1ff2b6f018261faedeceded3cc756b4fbbf371791ad6c90"
+    "pending": true,
+    "seen_at": "2026-11-01",
+    "value": "sha256:6c6c07dfebc34294b432864cfce4387738dfa840d3b1a2859e68486b2bd99807"
   },
   "vscode/claude-code": {
     "app_version": "6.0.4",
     "pending": true,
-    "seen_at": "2026-10-01",
-    "value": "2.1.286"
+    "seen_at": "2026-11-01",
+    "value": "2.1.316"
   },
   "wireguard-ui/ha-base": {
     "app_version": "0.9.8",
-    "pending": false,
-    "seen_at": "2026-08-23",
-    "value": "sha256:db83d263152a02d6daf3415a73132b2386f43a03a9c248bdaabe047b067c8eea"
+    "pending": true,
+    "seen_at": "2026-11-01",
+    "value": "sha256:f6b6afddb05fc459d4ebf3b99887035571bd90a0ca96237f9d90c8d25a3951e2"
   }
 }
