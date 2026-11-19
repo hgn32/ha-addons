@@ -1,7 +1,7 @@
 {
   "name": "Nginx Gateway",
   "description": "Nginx Gateway",
-  "version": "0.10.7",
+  "version": "0.10.8",
   "slug": "nginx_gateway",
   "url": "https://yhc.jp",
   "init": false,
