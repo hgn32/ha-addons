@@ -1,8 +1,8 @@
 # nginx は Alpine のパッケージではなくソースからビルドする。
-# - Alpine 3.24 の nginx は 1.30.4 で止まっていて、1.30.5 / 1.30.6 で直った脆弱性が残る
-#   （CVE-2026-15176 / 93479 / 95101 / 97629 / 97205 / 90439）
+# - Alpine のパッケージは nginx.org のセキュリティ修正版から遅れることがある
+#   （1.30.5・1.30.6 のとき Alpine 3.24 は 1.30.4 のままだった）
 #   https://nginx.org/en/security_advisories.html
-# - nginx.org の公式 Alpine パッケージ（1.30.6 あり）は GeoIP2 モジュールが無く、stream が
+# - nginx.org の公式 Alpine パッケージは GeoIP2 モジュールが無く、stream が
 #   静的組み込みのため ngx_stream_module.so が無い（/share/nginx/nginx.conf が load_module している）
 # Alpine のパッケージと同じパス・同じ主要オプションで組み、使っている動的モジュール
 # （stream・GeoIP2・njs）を .so で作る。Alpine の構成は nginx -V で確認した。
@@ -11,8 +11,8 @@ ARG BUILD_FROM=ghcr.io/home-assistant/base:latest
 FROM ${BUILD_FROM} AS nginx-build
 
 # 署名（nginx.org/keys/pluknet.key・Sergey Kandaurov）を確かめたうえでハッシュを固定する
-ENV NGINX_VERSION=1.30.6 \
-    NGINX_SHA256=3cf46f5ed7504d460125866b7bea99fb357f31d887e2e63b35503310e9b8b6c8 \
+ENV NGINX_VERSION=1.30.7 \
+    NGINX_SHA256=2565b5c837050e958f70fb0f73c48e2bca4542ad349fd356f46fb0c72610bc6e \
     NJS_VERSION=1.0.2 \
     NJS_COMMIT=72e6a980b9bf2a28ae2d568bbc3b6830a5d7c39e \
     GEOIP2_MODULE_VERSION=3.4 \
