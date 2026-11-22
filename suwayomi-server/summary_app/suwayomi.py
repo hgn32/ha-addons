@@ -52,7 +52,14 @@ def _graphql(
         )
     except httpx.HTTPError as e:
         raise SuwayomiError(f"Suwayomi Server に接続できません ({url}): {e}") from e
-    if resp.status_code in (401, 403):
+    # Suwayomi v2.4.2372 以降は BASIC 認証失敗でも 401 ではなく 404 を返す
+    # (JavalinSetup.kt の after ハンドラが、エンドポイント未到達=path null の
+    #  リクエストに NotFoundResponse を投げ、before の 401 を上書きするため)。
+    # WWW-Authenticate ヘッダは残るので、それを認証エラーの目印にする。
+    # https://github.com/Suwayomi/Suwayomi-Server/blob/v2.4.2373/server/src/main/kotlin/suwayomi/tachidesk/server/JavalinSetup.kt
+    if resp.status_code in (401, 403) or (
+        resp.status_code != 200 and "www-authenticate" in resp.headers
+    ):
         if auth is None:
             raise SuwayomiError(
                 f"Suwayomi Server が認証を要求しています (HTTP {resp.status_code})。"

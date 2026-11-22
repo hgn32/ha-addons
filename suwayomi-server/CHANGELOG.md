@@ -1,3 +1,12 @@
+## 0.25
+
+- Suwayomi Server を v2.4.2373 にアップデート(上流のセキュリティ修正の取り込み)
+  - フォーム送信に CSRF 対策の Cookie が必須になった
+  - 同梱 JRE の更新(Java4Shell 対策)
+  - 一時ファイルの URL を推測できないランダムなものに変更
+- Suwayomi Summary: 新しい Suwayomi で ID / パスワードが違うときに「HTTP 404」と
+  表示される問題を修正(従来どおり認証失敗として案内する)
+
 ## 0.24
 
 - Suwayomi Server を v2.4.2366 にアップデート
@@ -9,7 +18,3 @@
 ## 0.23
 
 - Suwayomi Server を v2.3.2243 にアップデート(上流 Hotfix の取り込み)
-
-## 0.22
-
-- Suwayomi Server を v2.3.2238 にアップデート(上流 Hotfix の取り込み)
